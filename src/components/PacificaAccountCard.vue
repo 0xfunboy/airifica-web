@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
 
+import { truncateMiddle } from '@/lib/format'
+import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const pacifica = usePacificaAccount()
 const wallet = useWalletSession()
+const marketContext = useMarketContext()
 
 const statusItems = computed(() => [
   {
     label: 'Binding',
-    value: pacifica.status.value.hasBinding ? 'available' : 'missing',
+    value: pacifica.status.value.hasBinding ? 'active' : 'missing',
   },
   {
     label: 'Builder',
@@ -39,6 +42,14 @@ const accountMetrics = computed(() => {
   ]
 })
 
+const readinessLabel = computed(() => {
+  if (pacifica.readyToExecute.value)
+    return 'ready'
+  if (wallet.isAuthenticated.value)
+    return 'onboarding'
+  return 'wallet required'
+})
+
 const onboardingHint = computed(() => {
   if (!wallet.isConnected.value)
     return 'Connect your Solana wallet first.'
@@ -56,17 +67,6 @@ const onboardingHint = computed(() => {
 const requiresFunding = computed(() =>
   Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
 )
-
-function formatUsd(value: number | null | undefined) {
-  if (!Number.isFinite(value))
-    return '--'
-
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  }).format(Number(value))
-}
 
 async function refreshOverview() {
   try {
@@ -113,6 +113,17 @@ async function handleClosePosition(symbol: string, side?: 'LONG' | 'SHORT' | nul
   }
 }
 
+function formatUsd(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(Number(value))
+}
+
 watch(() => wallet.token.value, () => {
   void refreshOverview()
 }, { immediate: true })
@@ -129,12 +140,36 @@ onMounted(() => {
         <p class="eyebrow">
           Pacifica account
         </p>
-        <h2>Execution overview</h2>
+        <h2>Execution surface</h2>
       </div>
-      <button class="pacifica-card__refresh" :disabled="pacifica.loading.value" @click="refreshOverview">
-        {{ pacifica.loading.value ? 'Refreshing...' : 'Refresh' }}
-      </button>
+
+      <span :class="['status-pill', pacifica.readyToExecute.value ? 'status-pill--success' : '']">
+        {{ readinessLabel }}
+      </span>
     </div>
+
+    <div class="pacifica-card__session-grid">
+      <article class="pacifica-card__session-item">
+        <span>Wallet</span>
+        <strong>{{ wallet.shortAddress.value || 'Not connected' }}</strong>
+      </article>
+      <article class="pacifica-card__session-item">
+        <span>Session</span>
+        <strong>{{ truncateMiddle(wallet.sessionIdentity.value, 18) }}</strong>
+      </article>
+      <article class="pacifica-card__session-item">
+        <span>Provider</span>
+        <strong>{{ wallet.hasWalletProvider.value ? 'Available' : 'Missing' }}</strong>
+      </article>
+      <article class="pacifica-card__session-item">
+        <span>Mode</span>
+        <strong>{{ wallet.embedded.value ? 'Embedded' : 'Browser' }}</strong>
+      </article>
+    </div>
+
+    <p class="pacifica-card__hint">
+      {{ onboardingHint }}
+    </p>
 
     <div class="pacifica-card__status-grid">
       <article v-for="item in statusItems" :key="item.label" class="pacifica-card__status-item">
@@ -143,42 +178,61 @@ onMounted(() => {
       </article>
     </div>
 
-    <p class="pacifica-card__hint">
-      {{ onboardingHint }}
-    </p>
-
     <div class="pacifica-card__actions">
       <button
         v-if="!wallet.isConnected.value"
-        class="pacifica-card__action pacifica-card__action--primary"
+        class="surface-button surface-button--primary"
         :disabled="wallet.connecting.value"
+        type="button"
         @click="handleConnectWallet"
       >
         {{ wallet.connecting.value ? 'Connecting...' : 'Connect wallet' }}
       </button>
+
       <button
         v-else-if="!wallet.isAuthenticated.value"
-        class="pacifica-card__action pacifica-card__action--primary"
+        class="surface-button surface-button--primary"
         :disabled="wallet.authenticating.value"
+        type="button"
         @click="handleSignSession"
       >
         {{ wallet.authenticating.value ? 'Verifying...' : 'Sign session' }}
       </button>
+
       <button
         v-else-if="!pacifica.readyToExecute.value"
-        class="pacifica-card__action pacifica-card__action--primary"
+        class="surface-button surface-button--primary"
         :disabled="pacifica.setupLoading.value"
+        type="button"
         @click="handleCompleteOnboarding"
       >
         {{ pacifica.setupLoading.value ? 'Binding builder...' : 'Complete onboarding' }}
       </button>
-      <button v-else class="pacifica-card__action pacifica-card__action--secondary" :disabled="pacifica.loading.value" @click="refreshOverview">
+
+      <button
+        v-else
+        class="surface-button surface-button--secondary"
+        :disabled="pacifica.loading.value"
+        type="button"
+        @click="refreshOverview"
+      >
         Refresh overview
       </button>
-      <span v-if="requiresFunding" class="pacifica-card__funding">
-        Deposit funds to enable execution.
-      </span>
+
+      <a class="surface-link" :href="marketContext.pacificaPortfolioUrl.value" target="_blank" rel="noreferrer">
+        Portfolio
+      </a>
+      <a class="surface-link" :href="marketContext.pacificaDepositUrl.value" target="_blank" rel="noreferrer">
+        Deposit
+      </a>
+      <a class="surface-link" :href="marketContext.pacificaWithdrawUrl.value" target="_blank" rel="noreferrer">
+        Withdraw
+      </a>
     </div>
+
+    <span v-if="requiresFunding" class="pacifica-card__funding">
+      Deposit funds to enable execution.
+    </span>
 
     <p v-if="pacifica.error.value" class="pacifica-card__error">
       {{ pacifica.error.value }}
@@ -201,23 +255,27 @@ onMounted(() => {
 
       <div v-if="pacifica.positions.value.length" class="pacifica-card__position-list">
         <article v-for="position in pacifica.positions.value" :key="`${position.symbol}-${position.side}`" class="pacifica-card__position">
-          <div>
+          <div class="pacifica-card__position-main">
             <strong>{{ position.symbol }}</strong>
             <span>{{ position.side || 'n/a' }}</span>
           </div>
-          <div>
+
+          <div class="pacifica-card__position-meta">
             <strong>{{ position.amount.toFixed(4) }}</strong>
             <span>{{ formatUsd(position.entryPrice) }} entry</span>
           </div>
+
           <button
-            class="pacifica-card__close"
+            class="surface-button surface-button--secondary pacifica-card__close"
             :disabled="pacifica.closingSymbol.value === position.symbol"
+            type="button"
             @click="handleClosePosition(position.symbol, position.side)"
           >
-            {{ pacifica.closingSymbol.value === position.symbol ? 'Closing...' : 'Close position' }}
+            {{ pacifica.closingSymbol.value === position.symbol ? 'Closing...' : 'Close' }}
           </button>
         </article>
       </div>
+
       <p v-else class="pacifica-card__empty">
         No active Pacifica positions.
       </p>
@@ -227,9 +285,9 @@ onMounted(() => {
 
 <style scoped>
 .pacifica-card {
-  padding: 22px;
   display: grid;
-  gap: 18px;
+  gap: 14px;
+  padding: 16px;
 }
 
 .pacifica-card__header,
@@ -237,92 +295,42 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-}
-
-.pacifica-card__header h2 {
-  margin: 12px 0 0;
-  font-size: 1.22rem;
-}
-
-.pacifica-card__refresh {
-  min-height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(146, 198, 229, 0.16);
-  background: rgba(12, 32, 49, 0.78);
-}
-
-.pacifica-card__refresh:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pacifica-card__actions {
-  display: flex;
-  flex-wrap: wrap;
   gap: 10px;
 }
 
-.pacifica-card__action,
-.pacifica-card__close {
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid transparent;
+.pacifica-card__header h2 {
+  margin: 10px 0 0;
+  font-size: 1.18rem;
+  letter-spacing: -0.03em;
 }
 
-.pacifica-card__action:disabled,
-.pacifica-card__close:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pacifica-card__action--primary {
-  background: linear-gradient(135deg, #5bd6ff, #2eaad7);
-  color: #03111b;
-}
-
-.pacifica-card__action--secondary,
-.pacifica-card__close {
-  border-color: rgba(146, 198, 229, 0.16);
-  background: rgba(12, 32, 49, 0.78);
-}
-
-.pacifica-card__funding {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: rgba(86, 55, 15, 0.46);
-  color: #ffe6b1;
-}
-
+.pacifica-card__session-grid,
 .pacifica-card__status-grid,
 .pacifica-card__metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
+.pacifica-card__session-item,
 .pacifica-card__status-item,
 .pacifica-card__metric,
 .pacifica-card__position {
   display: grid;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(146, 198, 229, 0.1);
-  background: rgba(8, 20, 33, 0.62);
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  background: rgba(8, 20, 33, 0.42);
 }
 
+.pacifica-card__session-item span,
 .pacifica-card__status-item span,
 .pacifica-card__metric span,
 .pacifica-card__position span {
   color: var(--text-2);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: 10px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
@@ -331,16 +339,42 @@ onMounted(() => {
   margin: 0;
   color: var(--text-1);
   line-height: 1.55;
+  font-size: 0.94rem;
+}
+
+.pacifica-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pacifica-card__actions :deep(.surface-button),
+.pacifica-card__actions :deep(.surface-link),
+.pacifica-card__close {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.pacifica-card__funding {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(86, 55, 15, 0.52);
+  color: #ffe3a8;
+  font-size: 0.88rem;
 }
 
 .pacifica-card__error {
   margin: 0;
-  color: #ffc3cb;
+  color: #ffc9d0;
 }
 
 .pacifica-card__positions {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .pacifica-card__position-list {
@@ -349,24 +383,32 @@ onMounted(() => {
 }
 
 .pacifica-card__position {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
 }
 
-.pacifica-card__position div {
+.pacifica-card__position-main,
+.pacifica-card__position-meta {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+}
+
+.pacifica-card__position-main strong,
+.pacifica-card__position-meta strong {
+  font-size: 0.96rem;
 }
 
 @media (max-width: 760px) {
+  .pacifica-card__header,
+  .pacifica-card__positions-header {
+    flex-direction: column;
+  }
+
+  .pacifica-card__session-grid,
   .pacifica-card__status-grid,
   .pacifica-card__metrics,
   .pacifica-card__position {
     grid-template-columns: 1fr;
-  }
-
-  .pacifica-card__header,
-  .pacifica-card__positions-header {
-    flex-direction: column;
   }
 }
 </style>

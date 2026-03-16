@@ -14,7 +14,7 @@ const chartPath = computed(() => {
   const min = Math.min(...closes)
   const max = Math.max(...closes)
   const width = 720
-  const height = 220
+  const height = 180
   const range = max - min || 1
 
   return closes
@@ -31,7 +31,7 @@ const chartAreaPath = computed(() => {
   if (!path)
     return ''
 
-  return `${path} L 720 220 L 0 220 Z`
+  return `${path} L 720 180 L 0 180 Z`
 })
 
 const trendClass = computed(() =>
@@ -63,24 +63,33 @@ function formatChange(value: number | null | undefined) {
     <div class="market-card__header">
       <div>
         <p class="eyebrow">
-          Market context
+          Market surface
         </p>
-        <h2>{{ marketContext.currentSymbol.value }}</h2>
+        <div class="market-card__title-row">
+          <h2>{{ marketContext.currentSymbol.value }}</h2>
+          <span :class="['market-card__trend', trendClass]">
+            {{ formatChange(marketContext.market.value?.changePct) }}
+          </span>
+        </div>
       </div>
-      <button class="market-card__refresh" :disabled="marketContext.loading.value" @click="marketContext.refreshMarketContext()">
+
+      <button
+        class="surface-button surface-button--secondary market-card__refresh"
+        :disabled="marketContext.loading.value"
+        type="button"
+        @click="marketContext.refreshMarketContext()"
+      >
         {{ marketContext.loading.value ? 'Refreshing...' : 'Refresh' }}
       </button>
     </div>
 
     <div class="market-card__quote">
       <strong>{{ formatUsd(marketContext.market.value?.price) }}</strong>
-      <span :class="['market-card__trend', trendClass]">
-        {{ formatChange(marketContext.market.value?.changePct) }}
-      </span>
+      <span>{{ marketContext.loading.value ? 'Syncing 15m context' : '15m market context' }}</span>
     </div>
 
     <div class="market-card__chart">
-      <svg viewBox="0 0 720 220" preserveAspectRatio="none">
+      <svg viewBox="0 0 720 180" preserveAspectRatio="none">
         <path v-if="chartAreaPath" :d="chartAreaPath" class="market-card__chart-area" />
         <path v-if="chartPath" :d="chartPath" class="market-card__chart-line" />
       </svg>
@@ -92,11 +101,11 @@ function formatChange(value: number | null | undefined) {
 
     <div class="market-card__stats">
       <article class="market-card__stat">
-        <span>High</span>
+        <span>Session high</span>
         <strong>{{ formatUsd(marketContext.market.value?.high) }}</strong>
       </article>
       <article class="market-card__stat">
-        <span>Low</span>
+        <span>Session low</span>
         <strong>{{ formatUsd(marketContext.market.value?.low) }}</strong>
       </article>
       <article class="market-card__stat">
@@ -110,146 +119,160 @@ function formatChange(value: number | null | undefined) {
     </div>
 
     <div class="market-card__links">
-      <a :href="marketContext.pacificaTradeUrl.value" target="_blank" rel="noreferrer">Trade</a>
-      <a :href="marketContext.pacificaPortfolioUrl.value" target="_blank" rel="noreferrer">Portfolio</a>
-      <a :href="marketContext.pacificaDepositUrl.value" target="_blank" rel="noreferrer">Deposit</a>
-      <a :href="marketContext.pacificaWithdrawUrl.value" target="_blank" rel="noreferrer">Withdraw</a>
+      <a class="surface-link" :href="marketContext.pacificaTradeUrl.value" target="_blank" rel="noreferrer">Trade</a>
+      <a class="surface-link" :href="marketContext.pacificaPortfolioUrl.value" target="_blank" rel="noreferrer">Portfolio</a>
+      <a class="surface-link" :href="marketContext.pacificaDepositUrl.value" target="_blank" rel="noreferrer">Deposit</a>
+      <a class="surface-link" :href="marketContext.pacificaWithdrawUrl.value" target="_blank" rel="noreferrer">Withdraw</a>
     </div>
   </section>
 </template>
 
 <style scoped>
 .market-card {
-  padding: 22px;
   display: grid;
-  gap: 18px;
+  gap: 14px;
+  padding: 16px;
 }
 
 .market-card__header,
-.market-card__quote {
+.market-card__title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
-.market-card__header h2 {
-  margin: 12px 0 0;
-  font-size: 1.8rem;
+.market-card__header {
+  align-items: flex-start;
+}
+
+.market-card__title-row {
+  margin-top: 10px;
+}
+
+.market-card__title-row h2 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.08em;
 }
 
 .market-card__refresh {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(146, 198, 229, 0.16);
-  background: rgba(12, 32, 49, 0.78);
+}
+
+.market-card__quote {
+  display: grid;
+  gap: 4px;
 }
 
 .market-card__quote strong {
-  font-size: 1.9rem;
-  letter-spacing: -0.05em;
+  font-size: 1.28rem;
+  letter-spacing: -0.04em;
+}
+
+.market-card__quote span {
+  color: var(--text-2);
+  font-size: 0.9rem;
 }
 
 .market-card__trend {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid transparent;
+  font-size: 0.88rem;
 }
 
 .market-card__trend--up {
-  border-color: rgba(73, 211, 154, 0.16);
-  background: rgba(18, 54, 43, 0.7);
-  color: #c7f6e2;
+  border-color: rgba(73, 211, 154, 0.2);
+  background: rgba(16, 53, 40, 0.64);
+  color: #cdf7e6;
 }
 
 .market-card__trend--down {
-  border-color: rgba(255, 143, 155, 0.16);
-  background: rgba(61, 21, 31, 0.58);
-  color: #ffd4da;
+  border-color: rgba(255, 143, 155, 0.2);
+  background: rgba(57, 20, 28, 0.64);
+  color: #ffd5db;
 }
 
 .market-card__chart {
   overflow: hidden;
-  border-radius: 20px;
-  border: 1px solid rgba(146, 198, 229, 0.1);
-  background: rgba(8, 20, 33, 0.62);
-  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(10, 28, 43, 0.68), rgba(5, 15, 25, 0.88));
+  padding: 10px;
 }
 
 .market-card__chart svg {
   display: block;
   width: 100%;
-  height: 220px;
+  height: 140px;
 }
 
 .market-card__chart-area {
-  fill: rgba(91, 214, 255, 0.08);
+  fill: rgba(91, 214, 255, 0.1);
 }
 
 .market-card__chart-line {
   fill: none;
-  stroke: #5bd6ff;
-  stroke-width: 3;
+  stroke: #68e3ff;
+  stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .market-card__error {
   margin: 0;
-  color: #ffc3cb;
+  color: #ffc9d0;
+  font-size: 0.92rem;
 }
 
 .market-card__stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .market-card__stat {
   display: grid;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(146, 198, 229, 0.1);
-  background: rgba(8, 20, 33, 0.62);
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  background: rgba(8, 20, 33, 0.42);
 }
 
 .market-card__stat span {
   color: var(--text-2);
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.market-card__stat strong {
+  font-size: 0.96rem;
 }
 
 .market-card__links {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
-.market-card__links a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(146, 198, 229, 0.16);
-  background: rgba(12, 32, 49, 0.78);
-  text-decoration: none;
+.market-card__links :deep(.surface-link) {
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 @media (max-width: 760px) {
   .market-card__header,
-  .market-card__quote {
+  .market-card__title-row {
     flex-direction: column;
-  }
-
-  .market-card__stats {
-    grid-template-columns: 1fr;
+    align-items: flex-start;
   }
 }
 </style>
