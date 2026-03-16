@@ -13,8 +13,9 @@ export function resolveRuntimeBaseUrl(config: Air3ClientConfig) {
   return runtimeBaseUrl.endsWith('/v1') ? runtimeBaseUrl.slice(0, -3) : runtimeBaseUrl
 }
 
-export function resolveServiceBaseUrl(config: Air3ClientConfig) {
-  const serviceBaseUrl = normalizeBaseUrl(config.serviceBaseUrl, resolveRuntimeBaseUrl(config))
-  return serviceBaseUrl.endsWith('/api') ? serviceBaseUrl : `${serviceBaseUrl}/api`
+export function resolveServiceApiBaseUrl(config: Air3ClientConfig) {
+  const serviceApiBaseUrl = normalizeBaseUrl(config.serviceApiBaseUrl, resolveRuntimeBaseUrl(config))
+  if (!serviceApiBaseUrl)
+    return '/api'
+  return serviceApiBaseUrl.endsWith('/api') ? serviceApiBaseUrl : `${serviceApiBaseUrl}/api`
 }
-

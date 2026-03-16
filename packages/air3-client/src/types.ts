@@ -1,3 +1,16 @@
+export interface Air3ClientConfig {
+  runtimeBaseUrl?: string
+  serviceApiBaseUrl?: string
+  headers?: HeadersInit
+  token?: string
+  timeoutMs?: number
+}
+
+export interface Air3MessageMeta {
+  source?: string
+  provider?: string
+}
+
 export interface Air3TradeProposal {
   symbol: string
   side: 'LONG' | 'SHORT'
@@ -8,11 +21,6 @@ export interface Air3TradeProposal {
   confidence: number
   thesis: string
   sourceAction: string
-}
-
-export interface Air3MessageMeta {
-  source?: string
-  provider?: string
 }
 
 export interface Air3MessageContent {
@@ -37,31 +45,27 @@ export interface Air3SessionResponse {
   roomId: string
 }
 
-export interface Air3MarketContextCandle {
-  open: number
-  high: number
-  low: number
-  close: number
-  volume?: number
-  timestamp?: number
+export interface Air3HistoryResponse {
+  ok: boolean
+  history: Air3MessageEnvelope[]
 }
 
-export interface Air3MarketContext {
-  symbol: string
-  tf: string
-  provider: string
-  venue: string
-  marketSymbol: string
-  quote: string
-  price: number
-  changePct: number
-  high: number
-  low: number
-  updatedAt: number
-  funding?: number | null
-  openInterest?: number | null
-  supportedOnPacifica?: boolean
-  data: Air3MarketContextCandle[]
+export interface Air3ProposalResponse {
+  ok: boolean
+  proposal: Air3TradeProposal | null
+}
+
+export interface Air3WalletChallengeResponse {
+  message: string
+}
+
+export interface Air3AuthVerifyResponse {
+  token: string
+  user: {
+    id: number
+    address: string
+    isAdmin: boolean
+  }
 }
 
 export interface Air3PacificaStatus {
@@ -73,6 +77,23 @@ export interface Air3PacificaStatus {
   agentWalletPublicKey?: string
   pacificaAccount?: string
   builderCode?: string
+}
+
+export interface Air3PacificaUnsignedPayload {
+  type: string
+  timestamp: number
+  expiry_window: number
+  data: Record<string, unknown>
+}
+
+export interface Air3PacificaPrepareAgentResponse {
+  ok: boolean
+  agentWalletPublicKey: string
+  builderCode: string
+  unsignedPayloads: {
+    approveBuilder: Air3PacificaUnsignedPayload
+    bindAgent: Air3PacificaUnsignedPayload
+  }
 }
 
 export interface Air3PacificaAccountSnapshot {
@@ -110,11 +131,65 @@ export interface Air3PacificaOverview {
   positions: Air3PacificaPosition[]
 }
 
-export interface Air3ClientConfig {
-  runtimeBaseUrl?: string
-  serviceBaseUrl?: string
-  token?: string
-  headers?: HeadersInit
-  timeoutMs?: number
+export interface Air3CreateTradeProposalResponse {
+  ok: boolean
+  proposal?: {
+    id: number
+  }
+  error?: string
 }
 
+export interface Air3ApproveTradeProposalResponse {
+  ok: boolean
+  orderId?: string | null
+  pacificaResponse?: unknown
+  error?: string
+  hint?: string
+  needsOnboarding?: boolean
+}
+
+export interface Air3ClosePositionResponse {
+  ok: boolean
+  closed?: {
+    symbol: string
+    side: 'LONG' | 'SHORT'
+    amount: number
+  }
+  orderId?: string | null
+  pacificaResponse?: unknown
+}
+
+export interface Air3MarketContextCandle {
+  open: number
+  high: number
+  low: number
+  close: number
+  volume?: number
+  timestamp?: number
+  time?: number
+}
+
+export interface Air3MarketContext {
+  symbol: string
+  tf: string
+  provider: string
+  venue: string
+  marketSymbol: string
+  quote: string
+  price: number
+  changePct: number
+  high: number
+  low: number
+  updatedAt: number
+  funding?: number | null
+  openInterest?: number | null
+  supportedOnPacifica?: boolean
+  data: Air3MarketContextCandle[]
+}
+
+export interface Air3HealthResponse {
+  ok: boolean
+  service: string
+  pacificaApiBase?: string
+  pacificaPublicApiBase?: string
+}

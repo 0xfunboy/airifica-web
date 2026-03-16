@@ -1,48 +1,141 @@
 import type {
+  Air3ApproveTradeProposalResponse,
+  Air3AuthVerifyResponse,
   Air3ClientConfig,
+  Air3ClosePositionResponse,
+  Air3CreateTradeProposalResponse,
+  Air3HealthResponse,
+  Air3HistoryResponse,
   Air3MarketContext,
+  Air3MessageContent,
   Air3MessageEnvelope,
   Air3PacificaOverview,
+  Air3PacificaPrepareAgentResponse,
   Air3SessionResponse,
+  Air3TradeProposal,
+  Air3WalletChallengeResponse,
 } from './types'
 
-import { resolveRuntimeBaseUrl, resolveServiceBaseUrl } from './config'
+import { resolveRuntimeBaseUrl, resolveServiceApiBaseUrl } from './config'
 import { requestJson } from './http'
 
+const PROPOSAL_ACTIONS = new Set([
+  'GET_CRYPTO_CHART',
+  'GET_TOKEN_CHART',
+  'GET_CRYPTO_ANALYSIS',
+  'GET_TOKEN_ANALYSIS',
+])
+
 export interface CreateSessionInput {
-  sessionIdentity: string
+  walletAddress: string
   conversationId?: string
   headers?: HeadersInit
 }
 
 export interface SendMessageInput {
-  sessionIdentity: string
+  walletAddress: string
   conversationId: string
   text: string
   headers?: HeadersInit
 }
 
 export interface SendConversationMessageInput {
-  sessionIdentity: string
+  walletAddress: string
   text: string
   conversationId?: string
   headers?: HeadersInit
 }
 
+export interface FetchConversationHistoryInput {
+  walletAddress: string
+  conversationId: string
+  count?: number
+  headers?: HeadersInit
+}
+
+export interface DeriveTradeProposalInput {
+  conversationId?: string
+  message: Air3MessageContent
+  headers?: HeadersInit
+}
+
+export interface CreateTradeProposalInput {
+  walletAddress: string
+  conversationId?: string
+  proposal: Air3TradeProposal
+  headers?: HeadersInit
+}
+
+export interface ApproveTradeProposalInput {
+  proposalId: number
+  walletAddress: string
+  notionalUsd?: number
+  headers?: HeadersInit
+}
+
+export interface PreparePacificaAgentInput {
+  pacificaAccount: string
+  maxFeeRate?: string
+  headers?: HeadersInit
+}
+
+export interface SignedPayloadInput {
+  signedPayload: Record<string, unknown>
+  headers?: HeadersInit
+}
+
+export interface ClosePacificaPositionInput {
+  symbol: string
+  side?: 'LONG' | 'SHORT'
+  amount?: number
+  headers?: HeadersInit
+}
+
 export interface FetchMarketContextInput {
   symbol: string
-  limit?: number
   timeframe?: string
-  baseUrl?: string
+  limit?: number
+  headers?: HeadersInit
 }
 
 export class Air3Client {
   constructor(private readonly config: Air3ClientConfig = {}) {}
 
+  requestWalletChallenge(address: string, headers?: HeadersInit) {
+    return requestJson<Air3WalletChallengeResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/auth/challenge`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({ address }),
+      },
+    )
+  }
+
+  verifyWalletChallenge(message: string, signature: string, address: string, headers?: HeadersInit) {
+    return requestJson<Air3AuthVerifyResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/auth/verify`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({ message, signature, address }),
+      },
+      25_000,
+    )
+  }
+
   createSession(input: CreateSessionInput) {
     return requestJson<Air3SessionResponse>(
       this.config,
-      `${resolveRuntimeBaseUrl(this.config)}/api/air3/session`,
+      `${resolveRuntimeBaseUrl(this.config)}/api/airi3/session`,
       {
         method: 'POST',
         headers: {
@@ -50,7 +143,7 @@ export class Air3Client {
           ...input.headers,
         },
         body: JSON.stringify({
-          walletAddress: input.sessionIdentity,
+          walletAddress: input.walletAddress,
           conversationId: input.conversationId,
         }),
       },
@@ -60,7 +153,7 @@ export class Air3Client {
   sendMessage(input: SendMessageInput) {
     return requestJson<{ ok: boolean, responses: Air3MessageEnvelope[] }>(
       this.config,
-      `${resolveRuntimeBaseUrl(this.config)}/api/air3/message`,
+      `${resolveRuntimeBaseUrl(this.config)}/api/airi3/message`,
       {
         method: 'POST',
         headers: {
@@ -68,7 +161,7 @@ export class Air3Client {
           ...input.headers,
         },
         body: JSON.stringify({
-          walletAddress: input.sessionIdentity,
+          walletAddress: input.walletAddress,
           conversationId: input.conversationId,
           text: input.text,
         }),
@@ -79,13 +172,13 @@ export class Air3Client {
 
   async sendConversationMessage(input: SendConversationMessageInput) {
     const session = await this.createSession({
-      sessionIdentity: input.sessionIdentity,
+      walletAddress: input.walletAddress,
       conversationId: input.conversationId,
       headers: input.headers,
     })
 
     const response = await this.sendMessage({
-      sessionIdentity: input.sessionIdentity,
+      walletAddress: input.walletAddress,
       conversationId: session.conversationId,
       text: input.text,
       headers: input.headers,
@@ -97,33 +190,216 @@ export class Air3Client {
     }
   }
 
+  fetchConversationHistory(input: FetchConversationHistoryInput) {
+    const params = new URLSearchParams({
+      walletAddress: input.walletAddress,
+      conversationId: input.conversationId,
+      count: String(input.count ?? 20),
+    })
+
+    return requestJson<Air3HistoryResponse>(
+      this.config,
+      `${resolveRuntimeBaseUrl(this.config)}/api/airi3/history?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: input.headers,
+      },
+    )
+  }
+
+  deriveTradeProposal(input: DeriveTradeProposalInput) {
+    return requestJson<{ ok: boolean, proposal: Air3TradeProposal | null }>(
+      this.config,
+      `${resolveRuntimeBaseUrl(this.config)}/api/airi3/proposal`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          conversationId: input.conversationId,
+          message: input.message,
+        }),
+      },
+      45_000,
+    )
+  }
+
+  createTradeProposal(input: CreateTradeProposalInput) {
+    return requestJson<Air3CreateTradeProposalResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/proposals`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          walletAddress: input.walletAddress,
+          conversation_id: input.conversationId,
+          symbol: input.proposal.symbol,
+          side: input.proposal.side,
+          entry_price: input.proposal.entry,
+          tp_price: input.proposal.tp,
+          sl_price: input.proposal.sl,
+          timeframe: input.proposal.timeframe,
+          confidence: input.proposal.confidence,
+          thesis: input.proposal.thesis,
+          raw_payload_json: JSON.stringify(input.proposal),
+          source_client: 'AIRIFICA_WEB',
+        }),
+      },
+      30_000,
+    )
+  }
+
+  approveTradeProposal(input: ApproveTradeProposalInput) {
+    return requestJson<Air3ApproveTradeProposalResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/proposals/${input.proposalId}/approve`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          walletAddress: input.walletAddress,
+          ...(input.notionalUsd ? { notional_usd: input.notionalUsd } : {}),
+        }),
+      },
+      30_000,
+    )
+  }
+
+  fetchPacificaStatus(headers?: HeadersInit) {
+    return requestJson<{ ok: boolean, status: Air3PacificaOverview['status'] }>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/pacifica/status`,
+      {
+        method: 'GET',
+        headers,
+      },
+    )
+  }
+
+  fetchPacificaOverview(headers?: HeadersInit) {
+    return requestJson<Air3PacificaOverview>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/pacifica/overview`,
+      {
+        method: 'GET',
+        headers,
+      },
+      25_000,
+    )
+  }
+
+  preparePacificaAgent(input: PreparePacificaAgentInput) {
+    return requestJson<Air3PacificaPrepareAgentResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/pacifica/prepare-agent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          pacificaAccount: input.pacificaAccount,
+          ...(input.maxFeeRate ? { max_fee_rate: input.maxFeeRate } : {}),
+        }),
+      },
+      25_000,
+    )
+  }
+
+  approvePacificaBuilder(input: SignedPayloadInput) {
+    return requestJson<{ ok: boolean, pacificaResponse: unknown }>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/pacifica/approve-builder`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          signedPayload: input.signedPayload,
+        }),
+      },
+      30_000,
+    )
+  }
+
+  bindPacificaAgent(input: SignedPayloadInput) {
+    return requestJson<{ ok: boolean, pacificaResponse: unknown }>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/pacifica/bind-agent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          signedPayload: input.signedPayload,
+        }),
+      },
+      30_000,
+    )
+  }
+
+  closePacificaPosition(input: ClosePacificaPositionInput) {
+    return requestJson<Air3ClosePositionResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/pacifica/positions/close`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          symbol: input.symbol,
+          ...(input.side ? { side: input.side } : {}),
+          ...(input.amount ? { amount: input.amount } : {}),
+        }),
+      },
+      30_000,
+    )
+  }
+
   fetchMarketContext(input: FetchMarketContextInput) {
     const params = new URLSearchParams({
       symbol: input.symbol,
+      tf: input.timeframe ?? '1h',
       limit: String(input.limit ?? 96),
-      tf: input.timeframe ?? '15m',
     })
 
     return requestJson<Air3MarketContext>(
       this.config,
-      `${input.baseUrl || resolveServiceBaseUrl(this.config)}/air3/market-context?${params.toString()}`,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/market-context?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: input.headers,
+      },
     )
   }
 
-  fetchPacificaOverview(baseUrl?: string) {
-    return requestJson<Air3PacificaOverview>(
+  fetchHealth(headers?: HeadersInit) {
+    return requestJson<Air3HealthResponse>(
       this.config,
-      `${baseUrl || resolveServiceBaseUrl(this.config)}/air3/pacifica/overview`,
+      `${resolveRuntimeBaseUrl(this.config)}/api/airi3/health`,
+      {
+        method: 'GET',
+        headers,
+      },
     )
   }
 }
-
-const PROPOSAL_ACTIONS = new Set([
-  'GET_CRYPTO_CHART',
-  'GET_TOKEN_CHART',
-  'GET_CRYPTO_ANALYSIS',
-  'GET_TOKEN_ANALYSIS',
-])
 
 export function extractMessageText(envelope: Air3MessageEnvelope) {
   return (envelope.message.text || '').replace(/<\|[^|]*\|>/g, '').trim()
@@ -136,4 +412,3 @@ export function hasPendingProposal(envelope: Air3MessageEnvelope) {
     && !envelope.message.proposal,
   )
 }
-
