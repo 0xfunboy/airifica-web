@@ -14,6 +14,9 @@ importers:
       '@airifica/avatar3d':
         specifier: workspace:*
         version: link:packages/avatar3d
+      idb-keyval:
+        specifier: ^6.2.1
+        version: 6.2.2
       vue:
         specifier: ^3.5.25
         version: 3.5.30(typescript@5.9.3)
@@ -527,6 +530,9 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  idb-keyval@6.2.2:
+    resolution: {integrity: sha512-yjD9nARJ/jb1g+CvD0tlhUHOrJ9Sy0P8T9MF3YaLlHnSRpwPfpTX0XIvpmw3gAJUmEu3FiICLBDPXVwyEvrleg==}
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -1013,6 +1019,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  idb-keyval@6.2.2: {}
 
   magic-string@0.30.21:
     dependencies:

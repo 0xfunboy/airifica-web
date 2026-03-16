@@ -1,9 +1,14 @@
 :root {
   color-scheme: dark;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --page-gutter: clamp(1rem, 2.5vw, 2rem);
+  --panel-bg: rgba(3, 10, 22, 0.7);
+  --panel-border: 1px solid rgba(148, 163, 184, 0.14);
+  --text-muted: rgba(148, 163, 184, 0.82);
   background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.22), transparent 28rem),
-    linear-gradient(180deg, #020617, #0f172a 45%, #111827);
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 26rem),
+    radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.08), transparent 18rem),
+    linear-gradient(180deg, #020617, #09111f 40%, #0f172a 70%, #111827);
   color: #f8fafc;
 }
 
@@ -20,6 +25,7 @@ body,
 
 body {
   min-height: 100vh;
+  background-attachment: fixed;
 }
 
 button,
@@ -27,4 +33,115 @@ input,
 textarea,
 select {
   font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(125, 211, 252, 0.28);
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: var(--panel-border);
+  border-radius: 1.6rem;
+  padding: 1.15rem;
+  box-shadow:
+    0 24px 80px rgba(2, 6, 23, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+}
+
+.panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.panel__eyebrow {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.panel__title {
+  margin: 0.3rem 0 0;
+  font-size: 1.2rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.field__label {
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.field__control {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.62);
+  padding: 0.85rem 0.95rem;
+  outline: none;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.field__control:focus {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(15, 23, 42, 0.86);
+  transform: translateY(-1px);
+}
+
+.button {
+  min-height: 2.85rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 1.1rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: #03111f;
+  transition: transform 160ms ease, opacity 160ms ease, filter 160ms ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: saturate(1.08);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button--ghost {
+  background: rgba(15, 23, 42, 0.62);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.button--secondary {
+  background: rgba(12, 74, 110, 0.46);
+  color: #e0f2fe;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+}
+
+@media (max-width: 960px) {
+  .panel__header {
+    flex-direction: column;
+  }
 }
