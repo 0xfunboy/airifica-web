@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@airifica/air3-client": "workspace:*",
+    "@airifica/avatar3d": "workspace:*",
     "vue": "^3.5.25"
   },
   "devDependencies": {
+    "@types/three": "^0.183.0",
     "@vitejs/plugin-vue": "^6.0.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
