@@ -59,6 +59,22 @@ async function handleSendTranscript() {
   scrollToBottom()
 }
 
+async function handleComposerKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || event.shiftKey)
+    return
+
+  event.preventDefault()
+
+  if (composer.value.trim()) {
+    await handleSubmit()
+    return
+  }
+
+  if (hearing.committedTranscript.value || hearing.interimTranscript.value) {
+    await handleSendTranscript()
+  }
+}
+
 watch(() => wallet.sessionIdentity.value, (identity) => {
   conversation.hydrateForIdentity(identity)
   scrollToBottom()
@@ -164,6 +180,7 @@ onMounted(() => {
         class="conversation-shell__textarea"
         rows="4"
         placeholder="Ask for chart context, analysis or a Pacifica-ready trade setup."
+        @keydown="handleComposerKeydown"
       />
 
       <div class="conversation-shell__composer-bar">

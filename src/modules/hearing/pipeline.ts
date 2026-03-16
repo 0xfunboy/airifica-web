@@ -3,7 +3,7 @@ import { computed, reactive } from 'vue'
 import { readStorage, writeStorage } from '@/lib/storage'
 import { useAudioSession } from '@/modules/audio/session'
 import { useConversationState } from '@/modules/conversation/state'
-import vadWorkletUrl from '@/workers/vad/process.worklet?worker&url'
+import vadWorkletUrl from '@/workers/vad/process.worklet?url'
 
 const AUTO_SEND_KEY = 'airifica:hearing-auto-send'
 const LOCALE_KEY = 'airifica:hearing-locale'
@@ -215,6 +215,15 @@ function buildRecognition() {
   instance.interimResults = true
   instance.maxAlternatives = 1
   instance.lang = state.locale || 'en-US'
+  instance.onstart = () => {
+    state.listening = true
+  }
+  instance.onspeechstart = () => {
+    handleVadSpeechStart()
+  }
+  instance.onspeechend = () => {
+    handleVadSpeechEnd()
+  }
 
   instance.onresult = (event: any) => {
     let interim = ''
@@ -265,6 +274,7 @@ async function transcribeForMediaStream(stream: MediaStream) {
   if (audioContext?.state === 'suspended')
     await audioContext.resume()
 
+  stopRecognition()
   recognition = buildRecognition()
   recognition.start()
 }
