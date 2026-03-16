@@ -53,6 +53,10 @@ const onboardingHint = computed(() => {
   return 'Pacifica account is ready for execution.'
 })
 
+const requiresFunding = computed(() =>
+  Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
+)
+
 function formatUsd(value: number | null | undefined) {
   if (!Number.isFinite(value))
     return '--'
@@ -67,6 +71,43 @@ function formatUsd(value: number | null | undefined) {
 async function refreshOverview() {
   try {
     await pacifica.refreshOverview()
+  }
+  catch {
+  }
+}
+
+async function handleConnectWallet() {
+  try {
+    await wallet.connect()
+    await pacifica.refreshOverview()
+  }
+  catch {
+  }
+}
+
+async function handleSignSession() {
+  try {
+    await wallet.authenticate()
+    await pacifica.refreshOverview()
+  }
+  catch {
+  }
+}
+
+async function handleCompleteOnboarding() {
+  try {
+    await pacifica.setupBuilderAccess()
+  }
+  catch {
+  }
+}
+
+async function handleClosePosition(symbol: string, side?: 'LONG' | 'SHORT' | null) {
+  try {
+    await pacifica.closeSymbolPosition({
+      symbol,
+      side: side || undefined,
+    })
   }
   catch {
   }
@@ -106,6 +147,39 @@ onMounted(() => {
       {{ onboardingHint }}
     </p>
 
+    <div class="pacifica-card__actions">
+      <button
+        v-if="!wallet.isConnected.value"
+        class="pacifica-card__action pacifica-card__action--primary"
+        :disabled="wallet.connecting.value"
+        @click="handleConnectWallet"
+      >
+        {{ wallet.connecting.value ? 'Connecting...' : 'Connect wallet' }}
+      </button>
+      <button
+        v-else-if="!wallet.isAuthenticated.value"
+        class="pacifica-card__action pacifica-card__action--primary"
+        :disabled="wallet.authenticating.value"
+        @click="handleSignSession"
+      >
+        {{ wallet.authenticating.value ? 'Verifying...' : 'Sign session' }}
+      </button>
+      <button
+        v-else-if="!pacifica.readyToExecute.value"
+        class="pacifica-card__action pacifica-card__action--primary"
+        :disabled="pacifica.setupLoading.value"
+        @click="handleCompleteOnboarding"
+      >
+        {{ pacifica.setupLoading.value ? 'Binding builder...' : 'Complete onboarding' }}
+      </button>
+      <button v-else class="pacifica-card__action pacifica-card__action--secondary" :disabled="pacifica.loading.value" @click="refreshOverview">
+        Refresh overview
+      </button>
+      <span v-if="requiresFunding" class="pacifica-card__funding">
+        Deposit funds to enable execution.
+      </span>
+    </div>
+
     <p v-if="pacifica.error.value" class="pacifica-card__error">
       {{ pacifica.error.value }}
     </p>
@@ -135,6 +209,13 @@ onMounted(() => {
             <strong>{{ position.amount.toFixed(4) }}</strong>
             <span>{{ formatUsd(position.entryPrice) }} entry</span>
           </div>
+          <button
+            class="pacifica-card__close"
+            :disabled="pacifica.closingSymbol.value === position.symbol"
+            @click="handleClosePosition(position.symbol, position.side)"
+          >
+            {{ pacifica.closingSymbol.value === position.symbol ? 'Closing...' : 'Close position' }}
+          </button>
         </article>
       </div>
       <p v-else class="pacifica-card__empty">
@@ -175,6 +256,47 @@ onMounted(() => {
 .pacifica-card__refresh:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.pacifica-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pacifica-card__action,
+.pacifica-card__close {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.pacifica-card__action:disabled,
+.pacifica-card__close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pacifica-card__action--primary {
+  background: linear-gradient(135deg, #5bd6ff, #2eaad7);
+  color: #03111b;
+}
+
+.pacifica-card__action--secondary,
+.pacifica-card__close {
+  border-color: rgba(146, 198, 229, 0.16);
+  background: rgba(12, 32, 49, 0.78);
+}
+
+.pacifica-card__funding {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(86, 55, 15, 0.46);
+  color: #ffe6b1;
 }
 
 .pacifica-card__status-grid,
@@ -227,7 +349,7 @@ onMounted(() => {
 }
 
 .pacifica-card__position {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
 }
 
 .pacifica-card__position div {
