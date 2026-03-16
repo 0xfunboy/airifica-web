@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
 
+import ConversationMessageItem from '@/components/ConversationMessageItem.vue'
 import { useConversationState } from '@/modules/conversation/state'
+import { useTradeExecutionPreferences } from '@/modules/product/execution'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const conversation = useConversationState()
+const product = useTradeExecutionPreferences()
 const wallet = useWalletSession()
 const composer = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
@@ -53,6 +56,22 @@ onMounted(() => {
       </div>
       <div class="conversation-card__meta">
         <span>{{ conversation.conversationId.value || 'new session' }}</span>
+        <label class="conversation-card__toggle">
+          <input
+            :checked="product.confirmBeforeTrade.value"
+            type="checkbox"
+            @change="product.setConfirmBeforeTrade(($event.target as HTMLInputElement).checked)"
+          >
+          Confirm
+        </label>
+        <label class="conversation-card__toggle">
+          <input
+            :checked="product.fullAutoMode.value"
+            type="checkbox"
+            @change="product.setFullAutoMode(($event.target as HTMLInputElement).checked)"
+          >
+          Auto
+        </label>
         <button class="conversation-card__reset" :disabled="conversation.sending.value" @click="conversation.resetConversation()">
           Reset
         </button>
@@ -60,26 +79,7 @@ onMounted(() => {
     </div>
 
     <div ref="messagesRef" class="conversation-card__messages">
-      <article
-        v-for="message in conversation.messages.value"
-        :key="message.id"
-        :class="[
-          'conversation-card__message',
-          `conversation-card__message--${message.role}`,
-        ]"
-      >
-        <header>
-          <span>{{ message.role }}</span>
-          <strong>{{ new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</strong>
-        </header>
-        <p>{{ message.content }}</p>
-        <div v-if="message.proposal || message.proposalPending" class="conversation-card__proposal">
-          <span>{{ message.proposalPending ? 'Proposal pending' : 'Trade setup ready' }}</span>
-          <strong v-if="message.proposal">
-            {{ message.proposal.symbol }} · {{ message.proposal.side }} · {{ message.proposal.timeframe }}
-          </strong>
-        </div>
-      </article>
+      <ConversationMessageItem v-for="message in conversation.messages.value" :key="message.id" :message="message" />
 
       <p v-if="!conversation.messages.value.length" class="conversation-card__empty">
         Start the AIR3 conversation. The current session identity is already attached to every request.
@@ -126,9 +126,25 @@ onMounted(() => {
 .conversation-card__meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   color: var(--text-2);
   font-size: 12px;
+}
+
+.conversation-card__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(146, 198, 229, 0.12);
+  background: rgba(8, 20, 33, 0.62);
+}
+
+.conversation-card__toggle input {
+  accent-color: #5bd6ff;
 }
 
 .conversation-card__reset {
@@ -147,61 +163,10 @@ onMounted(() => {
   padding-right: 4px;
 }
 
-.conversation-card__message {
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(146, 198, 229, 0.1);
-}
-
-.conversation-card__message header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.conversation-card__message header span {
-  color: var(--text-2);
-  font-size: 11px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-.conversation-card__message p,
 .conversation-card__empty,
 .conversation-card__error {
   margin: 0;
   line-height: 1.6;
-}
-
-.conversation-card__message--user {
-  background: rgba(10, 30, 46, 0.76);
-}
-
-.conversation-card__message--assistant {
-  background: rgba(8, 20, 33, 0.62);
-}
-
-.conversation-card__message--system {
-  background: rgba(56, 22, 30, 0.52);
-  border-color: rgba(255, 143, 155, 0.16);
-}
-
-.conversation-card__proposal {
-  display: grid;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(91, 214, 255, 0.08);
-}
-
-.conversation-card__proposal span {
-  color: var(--text-2);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .conversation-card__error {

@@ -196,6 +196,7 @@ export function useMarketContext() {
     pacificaPortfolioUrl: computed(() => appConfig.pacificaPortfolioBaseUrl),
     pacificaDepositUrl: computed(() => appConfig.pacificaDepositBaseUrl),
     pacificaWithdrawUrl: computed(() => appConfig.pacificaWithdrawBaseUrl),
+    buildPacificaTradeUrl,
     setSymbol,
     refreshMarketContext,
   }
