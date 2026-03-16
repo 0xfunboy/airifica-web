@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 
+import WalletSessionCard from '@/components/WalletSessionCard.vue'
 import { appConfig } from '@/config/app'
 import { describeUrl, truncateMiddle } from '@/lib/format'
+import { useWalletSession } from '@/modules/wallet/session'
+
+const wallet = useWalletSession()
 
 const endpointCards = computed(() => [
   {
@@ -24,10 +28,6 @@ const endpointCards = computed(() => [
 
 const surfaces = [
   {
-    title: 'Wallet session',
-    description: 'Solana connect, challenge, verify, token storage, request headers and session identity.',
-  },
-  {
     title: 'Pacifica account',
     description: 'Overview, builder approval, agent binding, execution readiness and position control.',
   },
@@ -36,6 +36,36 @@ const surfaces = [
     description: 'Conversation id, assistant proposal follow-up, market sync and avatar state linkage.',
   },
 ]
+
+function handleEmbeddedBootstrap(event: MessageEvent) {
+  if (!event.data || typeof event.data !== 'object')
+    return
+
+  if (event.source !== window.parent)
+    return
+
+  if (appConfig.embeddedAllowedOrigin && event.origin !== appConfig.embeddedAllowedOrigin)
+    return
+
+  if ((event.data as { type?: string }).type !== 'AIRI3_BOOTSTRAP')
+    return
+
+  wallet.hydrateExternalSession({
+    address: (event.data as { walletAddress?: string | null }).walletAddress || null,
+    token: (event.data as { token?: string | null }).token || null,
+    embedded: true,
+  })
+}
+
+onMounted(() => {
+  wallet.bootstrapFromSearch()
+  void wallet.tryRestore()
+  window.addEventListener('message', handleEmbeddedBootstrap)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleEmbeddedBootstrap)
+})
 </script>
 
 <template>
@@ -93,6 +123,7 @@ const surfaces = [
       </section>
 
       <aside class="rail-stack">
+        <WalletSessionCard />
         <section v-for="surface in surfaces" :key="surface.title" class="panel rail-card">
           <p class="eyebrow">
             Module
