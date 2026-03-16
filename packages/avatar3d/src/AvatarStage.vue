@@ -167,9 +167,11 @@ const pointerActive = ref(false)
 const frameHandle = ref<number>()
 const animationCache = new Map<string, AnimationClip>()
 const gestureClipCache = new Map<string, AnimationClip>()
+const gestureClipPromises = new Map<string, Promise<AnimationClip | null>>()
 const activeAnimationUrl = ref<string | null>(null)
 const activeAnimationAction = shallowRef<AnimationAction | null>(null)
 const resolvedExpressions = ref<ResolvedExpressions | null>(null)
+const lookAtBuffer = new Vector3()
 const emotionState = {
   happy: 0,
   sad: 0,
@@ -283,13 +285,13 @@ function setupStage() {
   renderer.shadowMap.enabled = false
   renderer.domElement.className = 'avatar-stage__canvas'
 
-  const ambient = new AmbientLight(new Color('#f6fdff'), 0.72)
-  const hemi = new HemisphereLight(new Color('#dcf7ff'), new Color('#07131f'), 1.45)
-  const key = new DirectionalLight(new Color('#e6fdff'), 1.85)
+  const ambient = new AmbientLight(new Color('#f5f8fc'), 0.78)
+  const hemi = new HemisphereLight(new Color('#f4fbff'), new Color('#0a1420'), 1.2)
+  const key = new DirectionalLight(new Color('#ffffff'), 1.58)
   key.position.set(2.2, 3.6, 2.4)
-  const rim = new DirectionalLight(new Color('#66deff'), 1.05)
+  const rim = new DirectionalLight(new Color('#8be7ff'), 0.38)
   rim.position.set(-3.4, 2.2, -1.8)
-  const fill = new DirectionalLight(new Color('#53b8ff'), 0.35)
+  const fill = new DirectionalLight(new Color('#f0f7ff'), 0.22)
   fill.position.set(0, 1.2, 3.5)
 
   const floor = new Mesh(
@@ -352,6 +354,7 @@ function disposeAvatar() {
   resolvedExpressions.value = null
   animationCache.clear()
   gestureClipCache.clear()
+  gestureClipPromises.clear()
 }
 
 function disposeStage() {
@@ -411,6 +414,48 @@ function ensureAnimationMixer(vrm: VRM) {
   return animationMixerRef.value
 }
 
+function createBreathGestureClip(sourceClip: AnimationClip, runtime: BreathGestureRuntime) {
+  if (!runtime.excerptSeconds)
+    return sourceClip.clone()
+
+  const endFrame = Math.max(1, Math.round(runtime.excerptSeconds * 30))
+  const clip = AnimationUtils.subclip(
+    sourceClip,
+    `${sourceClip.name || runtime.label}-${runtime.excerptSeconds}s`,
+    0,
+    endFrame,
+    30,
+  )
+  clip.resetDuration()
+  return clip
+}
+
+async function resolveBreathGestureClip(vrm: VRM, runtime: BreathGestureRuntime) {
+  const cacheKey = `${runtime.key}:${runtime.excerptSeconds || 'full'}`
+  const cached = gestureClipCache.get(cacheKey)
+  if (cached)
+    return cached
+
+  const pending = gestureClipPromises.get(cacheKey)
+  if (pending)
+    return pending
+
+  const clipPromise = (async () => {
+    const sourceClip = await resolveAnimationClip(vrm, runtime.sourceUrl)
+    if (!sourceClip)
+      return null
+
+    const clip = createBreathGestureClip(sourceClip, runtime)
+    gestureClipCache.set(cacheKey, clip)
+    return clip
+  })().finally(() => {
+    gestureClipPromises.delete(cacheKey)
+  })
+
+  gestureClipPromises.set(cacheKey, clipPromise)
+  return clipPromise
+}
+
 async function applyAmbientAnimation(url: string | null | undefined) {
   const vrm = vrmRef.value
   if (!vrm)
@@ -454,7 +499,7 @@ async function applyAmbientAnimation(url: string | null | undefined) {
   activeAnimationUrl.value = nextUrl
 
   if (nextUrl === BREATH_URL)
-    initializeBreathGestureState()
+    initializeBreathGestureState(vrm)
   else
     resetBreathGestureState()
 }
@@ -475,7 +520,7 @@ function resetBreathGestureState() {
   breathGestureRuntimes = []
 }
 
-function initializeBreathGestureState() {
+function initializeBreathGestureState(vrm?: VRM) {
   breathGestureSessionId += 1
   breathGestureElapsedSeconds = 0
   breathGestureRuntimes = BREATH_GESTURE_SPECS.map(spec => ({
@@ -486,6 +531,11 @@ function initializeBreathGestureState() {
     fadeOutAt: null,
     fadeOutStarted: false,
   }))
+
+  if (vrm) {
+    for (const runtime of breathGestureRuntimes)
+      void resolveBreathGestureClip(vrm, runtime)
+  }
 }
 
 async function triggerBreathGesture(runtime: BreathGestureRuntime) {
@@ -495,25 +545,16 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
   if (!vrm || !mixer || activeAnimationUrl.value !== BREATH_URL)
     return
 
-  let clip = gestureClipCache.get(runtime.sourceUrl) || null
-  if (!clip) {
-    const fullClip = await resolveAnimationClip(vrm, runtime.sourceUrl)
-    if (!fullClip || breathGestureSessionId !== sessionId || activeAnimationUrl.value !== BREATH_URL)
-      return
-
-    clip = runtime.excerptSeconds
-      ? AnimationUtils.subclip(fullClip, `${runtime.key}-excerpt`, 0, Math.max(1, Math.floor(runtime.excerptSeconds * 30)), 30)
-      : fullClip
-    clip.resetDuration()
-    gestureClipCache.set(runtime.sourceUrl, clip)
-  }
+  const clip = await resolveBreathGestureClip(vrm, runtime)
+  if (!clip || breathGestureSessionId !== sessionId || activeAnimationUrl.value !== BREATH_URL)
+    return
 
   const action = mixer.clipAction(clip)
   action.enabled = true
   action.clampWhenFinished = false
   action.setLoop(LoopOnce, 1)
   action.reset()
-  action.setEffectiveWeight(1)
+  action.setEffectiveWeight(0.92)
   action.fadeIn(runtime.fadeInSeconds)
   action.play()
 
@@ -532,7 +573,7 @@ function updateBreathGestures(delta: number) {
   }
 
   if (!breathGestureRuntimes.length)
-    initializeBreathGestureState()
+    initializeBreathGestureState(vrmRef.value || undefined)
 
   breathGestureElapsedSeconds += delta
 
@@ -607,7 +648,8 @@ function applyEyeTracking(vrm: VRM, delta: number) {
 
   const lookTarget = ensureLookAtTarget(vrm)
   if (lookTarget && pointerActive.value) {
-    lookTarget.position.lerp(new Vector3(target.x, target.y, target.z), Math.min(1, delta * 10))
+    lookAtBuffer.set(target.x, target.y, target.z)
+    lookTarget.position.lerp(lookAtBuffer, Math.min(1, delta * 10))
     lookTarget.updateMatrixWorld(true)
   }
 
@@ -619,10 +661,36 @@ function applyHeadTracking(vrm: VRM, delta: number) {
   if (!humanoid)
     return
 
+  const chest = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest)
+  const upperChest = humanoid.getNormalizedBoneNode(VRMHumanBoneName.UpperChest)
+  const leftShoulder = humanoid.getNormalizedBoneNode(VRMHumanBoneName.LeftShoulder)
+  const rightShoulder = humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightShoulder)
   const neck = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Neck)
   const head = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head)
   const targetYaw = pointerActive.value ? pointer.x * 0.12 : 0
   const targetPitch = pointerActive.value ? -pointer.y * 0.08 : 0
+  const torsoYaw = pointerActive.value ? pointer.x * 0.045 : 0
+  const torsoPitch = pointerActive.value ? -pointer.y * 0.032 : 0
+
+  if (chest) {
+    chest.rotation.y = MathUtils.lerp(chest.rotation.y, torsoYaw * 0.72, Math.min(1, delta * 3.8))
+    chest.rotation.x = MathUtils.lerp(chest.rotation.x, torsoPitch * 0.55, Math.min(1, delta * 3.6))
+  }
+
+  if (upperChest) {
+    upperChest.rotation.y = MathUtils.lerp(upperChest.rotation.y, torsoYaw, Math.min(1, delta * 4.1))
+    upperChest.rotation.x = MathUtils.lerp(upperChest.rotation.x, torsoPitch * 0.85, Math.min(1, delta * 4))
+  }
+
+  if (leftShoulder) {
+    leftShoulder.rotation.y = MathUtils.lerp(leftShoulder.rotation.y, torsoYaw * 0.55, Math.min(1, delta * 4.2))
+    leftShoulder.rotation.z = MathUtils.lerp(leftShoulder.rotation.z, torsoYaw * 0.22, Math.min(1, delta * 4.1))
+  }
+
+  if (rightShoulder) {
+    rightShoulder.rotation.y = MathUtils.lerp(rightShoulder.rotation.y, torsoYaw * 0.55, Math.min(1, delta * 4.2))
+    rightShoulder.rotation.z = MathUtils.lerp(rightShoulder.rotation.z, -torsoYaw * 0.22, Math.min(1, delta * 4.1))
+  }
 
   if (neck) {
     neck.rotation.y = MathUtils.lerp(neck.rotation.y, targetYaw * 0.6, Math.min(1, delta * 5))
@@ -866,12 +934,15 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  isolation: isolate;
 }
 
 :global(.avatar-stage__canvas) {
   display: block;
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .avatar-stage__floor {
@@ -882,9 +953,10 @@ onBeforeUnmount(() => {
   height: min(11vw, 140px);
   transform: translateX(-50%);
   border-radius: 999px;
-  background: radial-gradient(circle at center, rgba(87, 222, 255, 0.5), rgba(87, 222, 255, 0.18) 42%, transparent 72%);
-  filter: blur(18px);
+  background: radial-gradient(circle at center, rgba(130, 220, 255, 0.22), rgba(130, 220, 255, 0.08) 42%, transparent 72%);
+  filter: blur(14px);
   pointer-events: none;
+  z-index: 0;
 }
 
 .avatar-stage__overlay {
@@ -896,6 +968,7 @@ onBeforeUnmount(() => {
   padding: 28px;
   background: linear-gradient(180deg, rgba(2, 10, 18, 0.05), rgba(2, 10, 18, 0.7));
   pointer-events: none;
+  z-index: 2;
 }
 
 .avatar-stage__badge {
