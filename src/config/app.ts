@@ -38,6 +38,7 @@ function normalizeApiBase(raw: string | undefined, fallback: string) {
 
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
+  productName: (import.meta.env.VITE_AIRIFICA_PRODUCT_NAME || 'AIR3').trim(),
   runtimeBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '', '', {
     sameOriginFallback: '',
   }),
@@ -46,13 +47,17 @@ export const appConfig = {
     import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '/api',
   ),
   defaultMarket: (import.meta.env.VITE_AIR3_DEFAULT_MARKET || import.meta.env.VITE_AIR3_MARKET_SYMBOL || 'BTC').trim().toUpperCase(),
-  avatarModelUrl: (import.meta.env.VITE_AIRIFICA_AVATAR_MODEL_URL || import.meta.env.VITE_AIR3_MODEL_URL || '').trim(),
+  avatarModelUrl: (import.meta.env.VITE_AIRIFICA_AVATAR_MODEL_URL || import.meta.env.VITE_AIR3_MODEL_URL || '/brand/AIR3_Dress_Final.vrm').trim(),
   pacificaTradeBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_TRADE_BASE_URL || '', 'https://app.pacifica.fi/trade'),
   pacificaPortfolioBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_PORTFOLIO_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaDepositBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_DEPOSIT_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaWithdrawBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || '').trim(),
   embeddedAllowedOrigin: (import.meta.env.VITE_AIR3_EMBED_ALLOWED_ORIGIN || '').trim(),
+  brandLogoUrl: '/brand/AIRewardrop_orizzontal.png',
+  brandIconUrl: '/brand/airtrading_icon.png',
+  stageBackgroundUrl: '/brand/AIR3-extended-Studio.webp',
+  socialPreviewUrl: '/open-graph.png',
 } as const
 
 export type AppConfig = typeof appConfig
