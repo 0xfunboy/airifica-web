@@ -1,11 +1,23 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import TradeProposalCard from '@/components/TradeProposalCard.vue'
 
 import type { ConversationMessage } from '@/modules/conversation/types'
 
-defineProps<{
+const props = defineProps<{
   message: ConversationMessage
 }>()
+
+const chartImageUrl = computed(() => {
+  const image = props.message.image
+  if (!image)
+    return null
+
+  return image.startsWith('data:')
+    ? image
+    : `data:image/png;base64,${image}`
+})
 </script>
 
 <template>
@@ -21,6 +33,13 @@ defineProps<{
     </header>
 
     <p>{{ message.content }}</p>
+
+    <img
+      v-if="chartImageUrl"
+      :src="chartImageUrl"
+      alt="AIR3 chart"
+      class="conversation-message__chart"
+    >
 
     <div v-if="message.proposalPending && !message.proposal" class="conversation-message__proposal-state">
       Proposal follow-up in progress.
@@ -94,6 +113,16 @@ defineProps<{
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.conversation-message__chart {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  border: 1px solid rgba(138, 218, 255, 0.14);
+  border-radius: 16px;
+  object-fit: cover;
+  background: rgba(8, 20, 33, 0.46);
 }
 
 @media (max-width: 760px) {

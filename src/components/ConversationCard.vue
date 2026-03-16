@@ -237,6 +237,7 @@ onMounted(() => {
   grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   gap: 10px;
   height: 100%;
+  min-height: 0;
   padding: 0;
   border: 4px solid rgba(125, 211, 252, 0.16);
   border-radius: 20px;
@@ -315,6 +316,7 @@ onMounted(() => {
   gap: 10px;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 0 16px;
 }
 
