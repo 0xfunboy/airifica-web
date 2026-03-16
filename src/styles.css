@@ -4,7 +4,7 @@
   --bg-0: #020913;
   --bg-1: #05111d;
   --bg-2: #0a1f2e;
-  --panel-bg: rgba(4, 15, 25, 0.7);
+  --panel-bg: rgba(4, 15, 25, 0.58);
   --panel-border: rgba(117, 212, 249, 0.12);
   --line: rgba(129, 202, 232, 0.12);
   --text-0: #eef7ff;
@@ -32,7 +32,7 @@ body,
 body {
   min-height: 100vh;
   color: var(--text-0);
-  background: linear-gradient(180deg, rgba(2, 9, 19, 0.94), rgba(3, 11, 20, 0.96));
+  background: linear-gradient(180deg, rgba(2, 9, 19, 0.92), rgba(3, 11, 20, 0.94));
 }
 
 body::before,
@@ -179,6 +179,12 @@ textarea {
   background: rgba(8, 23, 35, 0.72);
 }
 
+.icon-button--active {
+  border-color: rgba(115, 220, 255, 0.24);
+  background: rgba(14, 44, 60, 0.82);
+  color: #d8fbff;
+}
+
 .icon-button svg {
   width: 16px;
   height: 16px;
@@ -207,6 +213,11 @@ textarea {
   border-color: rgba(73, 211, 154, 0.18);
   background: rgba(13, 55, 41, 0.58);
   color: #d1f8e7;
+}
+
+select option {
+  background: #07131f;
+  color: #eef7ff;
 }
 
 * {

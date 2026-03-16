@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_AIRIFICA_BRAND_NAME?: string
+  readonly VITE_AIRIFICA_PRODUCT_NAME?: string
   readonly VITE_AIRIFICA_AVATAR_MODEL_URL?: string
   readonly VITE_AIR3_RUNTIME_BASE_URL?: string
   readonly VITE_AIR3_RUNTIME_URL?: string

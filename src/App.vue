@@ -8,13 +8,17 @@ import PacificaAccountCard from '@/components/PacificaAccountCard.vue'
 import StageBackdrop from '@/components/StageBackdrop.vue'
 import { appConfig } from '@/config/app'
 import { truncateMiddle } from '@/lib/format'
+import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
+import { useSpeechRuntime } from '@/modules/speech/runtime'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const wallet = useWalletSession()
 const marketContext = useMarketContext()
 const pacifica = usePacificaAccount()
+const hearing = useHearingPipeline()
+const speech = useSpeechRuntime()
 
 const sessionLabel = computed(() => truncateMiddle(wallet.sessionIdentity.value, 18))
 
@@ -91,7 +95,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="stage-shell">
+    <StageBackdrop />
+
     <header class="stage-topbar panel">
       <div class="stage-topbar__brand">
         <div class="brand-lockup">
@@ -126,6 +132,38 @@ onUnmounted(() => {
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-2.64-6.36" />
               <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+
+          <button
+            :class="['icon-button', hearing.listening.value ? 'icon-button--active' : '']"
+            :disabled="!hearing.supported.value"
+            type="button"
+            aria-label="Toggle microphone"
+            title="Toggle microphone"
+            @click="hearing.toggleListening()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+              <path d="M19 10a7 7 0 0 1-14 0" />
+              <path d="M12 17v4" />
+              <path d="M8 21h8" />
+            </svg>
+          </button>
+
+          <button
+            :class="['icon-button', speech.speaking.value ? 'icon-button--active' : '']"
+            :disabled="!speech.speaking.value"
+            type="button"
+            aria-label="Stop speech playback"
+            title="Stop speech playback"
+            @click="speech.stop()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 8v8" />
+              <path d="M10 5v14" />
+              <path d="M14 8v8" />
+              <path d="M18 5v14" />
             </svg>
           </button>
 
@@ -181,55 +219,45 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <main class="stage-layout">
-      <aside class="stage-sidebar stage-sidebar--left">
-        <MarketContextCard />
-        <PacificaAccountCard />
-      </aside>
+    <div class="stage-scene">
+      <AvatarStageCard />
+    </div>
 
-      <section class="stage-surface panel">
-        <StageBackdrop />
+    <aside class="stage-panel stage-panel--left">
+      <MarketContextCard />
+      <PacificaAccountCard />
+    </aside>
 
-        <div class="stage-surface__content">
-          <div class="stage-surface__headline">
-            <div>
-              <p class="eyebrow">
-                Stage surface
-              </p>
-              <h1>{{ appConfig.productName }} avatar</h1>
-            </div>
+    <aside class="stage-panel stage-panel--right">
+      <ConversationCard />
+    </aside>
 
-            <span :class="['status-pill', pacifica.readyToExecute.value ? 'status-pill--success' : '']">
-              {{ stageReadinessLabel }}
-            </span>
-          </div>
-
-          <AvatarStageCard />
-
-          <div class="stage-surface__footer">
-            <span class="meta-chip">conversation linked</span>
-            <span class="meta-chip">{{ marketContext.currentSymbol.value }} context</span>
-            <span class="meta-chip">session {{ wallet.isAuthenticated.value ? 'verified' : 'guest' }}</span>
-          </div>
-        </div>
-      </section>
-
-      <aside class="stage-sidebar stage-sidebar--right">
-        <ConversationCard />
-      </aside>
-    </main>
+    <footer class="stage-footer">
+      <span class="meta-chip">stage {{ stageReadinessLabel }}</span>
+      <span class="meta-chip">{{ hearing.listening.value ? (hearing.speechDetected.value ? 'voice active' : 'mic open') : 'voice idle' }}</span>
+      <span class="meta-chip">speech {{ speech.speaking.value ? 'playing' : 'idle' }}</span>
+    </footer>
   </div>
 </template>
 
 <style scoped>
-.app-shell {
+.stage-shell {
+  position: relative;
   min-height: 100vh;
-  padding: clamp(14px, 1.8vw, 24px);
-  display: grid;
-  gap: clamp(14px, 1.6vw, 20px);
+  overflow: hidden;
+}
+
+.stage-topbar,
+.stage-panel,
+.stage-footer {
+  position: absolute;
+  z-index: 4;
 }
 
 .stage-topbar {
+  top: 18px;
+  left: 18px;
+  right: 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -247,14 +275,13 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.stage-topbar__brand {
-  min-width: 0;
+.stage-topbar__brand,
+.stage-topbar__controls {
   flex-wrap: wrap;
 }
 
 .stage-topbar__controls {
   justify-content: flex-end;
-  flex-wrap: wrap;
 }
 
 .brand-lockup {
@@ -273,7 +300,7 @@ onUnmounted(() => {
 }
 
 .brand-lockup__logo {
-  width: min(210px, 36vw);
+  width: min(210px, 34vw);
   height: auto;
   object-fit: contain;
 }
@@ -282,118 +309,97 @@ onUnmounted(() => {
   letter-spacing: 0.24em;
 }
 
-.stage-layout {
-  display: grid;
-  grid-template-columns: minmax(292px, 340px) minmax(0, 1fr) minmax(360px, 420px);
-  gap: clamp(14px, 1.6vw, 20px);
-  align-items: stretch;
-}
-
-.stage-sidebar {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-
-.stage-surface {
-  position: relative;
-  overflow: hidden;
-  min-height: calc(100vh - 150px);
-}
-
-.stage-surface::after {
-  content: "";
+.stage-scene {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-  pointer-events: none;
-}
-
-.stage-surface__content {
-  position: relative;
   z-index: 1;
-  min-height: inherit;
+}
+
+.stage-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 16px;
-  padding: 20px;
+  pointer-events: auto;
 }
 
-.stage-surface__headline {
+.stage-panel--left {
+  left: 18px;
+  top: 98px;
+  width: min(340px, calc(100vw - 36px));
+}
+
+.stage-panel--right {
+  top: 98px;
+  right: 18px;
+  bottom: 70px;
+  width: min(430px, calc(100vw - 36px));
+}
+
+.stage-footer {
+  left: 50%;
+  bottom: 18px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.stage-surface__headline h1 {
-  margin: 10px 0 0;
-  font-size: 1.34rem;
-  letter-spacing: -0.05em;
-}
-
-.stage-surface__footer {
-  display: flex;
-  flex-wrap: wrap;
   gap: 10px;
+  transform: translateX(-50%);
+  pointer-events: auto;
 }
 
-@media (max-width: 1380px) {
-  .stage-layout {
-    grid-template-columns: minmax(268px, 320px) minmax(0, 1fr) minmax(320px, 380px);
+@media (max-width: 1080px) {
+  .stage-shell {
+    display: grid;
+    gap: 14px;
+    padding: 14px;
   }
 
-  .brand-lockup__logo {
-    width: min(180px, 32vw);
+  .stage-topbar,
+  .stage-panel,
+  .stage-footer,
+  .stage-scene {
+    position: relative;
+    inset: auto;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    width: auto;
+    transform: none;
   }
-}
 
-@media (max-width: 1180px) {
-  .stage-layout {
-    grid-template-columns: 1fr;
+  .stage-topbar {
+    padding: 14px;
   }
 
-  .stage-surface {
-    min-height: auto;
-    order: -1;
+  .stage-scene {
+    min-height: 58vh;
   }
 
-  .stage-sidebar--left,
-  .stage-sidebar--right {
-    grid-template-columns: 1fr;
+  .stage-panel--right {
+    min-height: 760px;
+  }
+
+  .stage-footer {
+    flex-wrap: wrap;
+    justify-content: center;
   }
 }
 
 @media (max-width: 760px) {
   .stage-topbar,
-  .stage-topbar__controls,
-  .stage-topbar__actions,
-  .stage-topbar__identity,
-  .stage-surface__headline {
-    align-items: stretch;
-  }
-
-  .stage-topbar,
   .stage-topbar__brand,
   .stage-topbar__controls,
-  .stage-topbar__actions,
   .stage-topbar__identity,
-  .stage-topbar__chips,
-  .stage-surface__headline {
-    flex-direction: column;
+  .stage-topbar__chips {
+    display: grid;
+    gap: 10px;
   }
 
-  .brand-lockup {
-    width: 100%;
+  .stage-topbar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .brand-lockup__logo {
-    width: min(210px, 52vw);
-  }
-
-  .stage-surface__content {
-    padding: 14px;
+    width: min(210px, 56vw);
   }
 }
 </style>
