@@ -1,29 +1,20 @@
 # Airifica Web
 
-Lean web interface for AIR3 with a VRM-only avatar runtime and a root-first workspace.
+Web stage for AIR3 with:
 
-## Structure
+- VRM avatar runtime on Three
+- AIR3 conversation flow with real session and conversation id
+- Solana wallet connect, challenge and verify
+- Pacifica overview, builder onboarding, agent binding and position close
+- Market context synced from the conversation
 
-```text
-.
-├── package.json
-├── src
-│   ├── components
-│   ├── composables
-│   ├── utils
-│   └── App.vue
-└── packages
-    ├── air3-client
-    └── avatar3d
-```
+## Workspace
 
-## Modules
+- `src/`: application shell, domain modules and UI
+- `packages/air3-client`: typed AIR3 and Pacifica browser client
+- `packages/avatar3d`: VRM runtime package
 
-- `src/`: the single web application. No nested `apps/` layer.
-- `packages/air3-client`: typed AIR3 session, chat, market and Pacifica API client.
-- `packages/avatar3d`: lightweight VRM stage runtime with async loading.
-
-## Development
+## Commands
 
 ```bash
 pnpm install
@@ -37,19 +28,22 @@ pnpm preview
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and fill only what you need.
+Copy `.env.example` to `.env.local` and fill the values required by your runtime.
 
-- `VITE_AIR3_RUNTIME_URL`: AIR3 runtime base URL.
-- `VITE_AIR3_SERVICE_URL`: service API base URL used for market and Pacifica endpoints.
-- `VITE_AIR3_SESSION_IDENTITY`: wallet or guest identity sent to AIR3.
-- `VITE_AIR3_TOKEN`: optional bearer token for protected service endpoints.
-- `VITE_AIR3_MODEL_URL`: default remote VRM URL.
-- `VITE_AIR3_MARKET_SYMBOL`: default market symbol.
-- `VITE_AIR3_AUTO_SPEAK`: enable browser speech synthesis on assistant replies.
+- `VITE_AIRIFICA_BRAND_NAME`
+- `VITE_AIR3_RUNTIME_BASE_URL`
+- `VITE_AIR3_SERVICE_API_URL`
+- `VITE_AIRIFICA_AVATAR_MODEL_URL`
+- `VITE_AIR3_DEFAULT_MARKET`
+- `VITE_AIR3_PACIFICA_TRADE_BASE_URL`
+- `VITE_AIR3_PACIFICA_PORTFOLIO_BASE_URL`
+- `VITE_AIR3_PACIFICA_DEPOSIT_BASE_URL`
+- `VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL`
+- `VITE_AIR3_PACIFICA_REFERRAL_CODE`
+- `VITE_AIR3_EMBED_ALLOWED_ORIGIN`
 
 ## Notes
 
-- The repository ships no bundled avatar model, no Live2D runtime, and no heavyweight font package.
-- The stage supports VRM only.
-- Imported VRM files are stored locally in IndexedDB on the client.
-
+- The repository ships no bundled avatar model.
+- System fonts are used throughout the interface.
+- No Live2D runtime is included.

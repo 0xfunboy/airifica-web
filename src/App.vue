@@ -33,6 +33,8 @@ const endpointCards = computed(() => [
   },
 ])
 
+const sessionLabel = computed(() => truncateMiddle(wallet.sessionIdentity.value, 24))
+
 function handleEmbeddedBootstrap(event: MessageEvent) {
   if (!event.data || typeof event.data !== 'object')
     return
@@ -78,9 +80,10 @@ onUnmounted(() => {
           Wallet-authenticated conversation, Pacifica execution flow, VRM avatar runtime and market context stay wired inside one stage surface.
         </p>
       </div>
-      <div class="app-topbar__meta">
+        <div class="app-topbar__meta">
         <span class="meta-chip">{{ marketContext.currentSymbol.value }} market</span>
         <span class="meta-chip">{{ wallet.isAuthenticated.value ? 'verified session' : 'guest session' }}</span>
+        <span class="meta-chip">{{ sessionLabel }}</span>
         <span class="meta-chip">{{ appConfig.brandName }}</span>
       </div>
     </header>
@@ -96,7 +99,7 @@ onUnmounted(() => {
               </p>
               <h2>Primary avatar surface</h2>
             </div>
-            <span class="stage-shell__status">{{ wallet.sessionIdentity.value }}</span>
+            <span class="stage-shell__status">{{ sessionLabel }}</span>
           </div>
           <AvatarStageCard />
 
