@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
 
+import ConversationCard from '@/components/ConversationCard.vue'
 import PacificaAccountCard from '@/components/PacificaAccountCard.vue'
 import WalletSessionCard from '@/components/WalletSessionCard.vue'
 import { appConfig } from '@/config/app'
@@ -29,8 +30,8 @@ const endpointCards = computed(() => [
 
 const surfaces = [
   {
-    title: 'Conversation state',
-    description: 'Conversation id, assistant proposal follow-up, market sync and avatar state linkage.',
+    title: 'Market context',
+    description: 'Symbol routing, Pacifica links, chart context and stage backdrop remain connected to the conversation.',
   },
 ]
 
@@ -122,6 +123,7 @@ onUnmounted(() => {
       <aside class="rail-stack">
         <WalletSessionCard />
         <PacificaAccountCard />
+        <ConversationCard />
         <section v-for="surface in surfaces" :key="surface.title" class="panel rail-card">
           <p class="eyebrow">
             Module
