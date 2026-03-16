@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
 
+import AvatarStageCard from '@/components/AvatarStageCard.vue'
 import ConversationCard from '@/components/ConversationCard.vue'
 import PacificaAccountCard from '@/components/PacificaAccountCard.vue'
 import WalletSessionCard from '@/components/WalletSessionCard.vue'
@@ -98,16 +99,7 @@ onUnmounted(() => {
           <span class="status-dot" />
         </div>
 
-        <div class="stage-surface__canvas">
-          <div class="stage-surface__glow" />
-          <div class="stage-surface__content">
-            <span class="stage-surface__label">Avatar viewport</span>
-            <strong>Three + VRM runtime mounts here</strong>
-            <p>
-              The shell already reserves the final layout geometry: backdrop, center stage, market rail and conversation workspace.
-            </p>
-          </div>
-        </div>
+        <AvatarStageCard />
 
         <div class="endpoint-grid">
           <article v-for="card in endpointCards" :key="card.label" class="endpoint-card">
