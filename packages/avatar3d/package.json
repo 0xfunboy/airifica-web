@@ -8,8 +8,8 @@
   },
   "dependencies": {
     "@pixiv/three-vrm": "^3.5.0",
+    "@pixiv/three-vrm-animation": "^3.5.0",
     "three": "^0.183.1",
     "vue": "^3.5.25"
   }
 }
-

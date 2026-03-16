@@ -44,6 +44,9 @@ importers:
       '@pixiv/three-vrm':
         specifier: ^3.5.0
         version: 3.5.1(three@0.183.2)
+      '@pixiv/three-vrm-animation':
+        specifier: ^3.5.0
+        version: 3.5.1(three@0.183.2)
       three:
         specifier: ^0.183.1
         version: 0.183.2
@@ -232,6 +235,11 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
+  '@pixiv/three-vrm-animation@3.5.1':
+    resolution: {integrity: sha512-zPfkktP6jOt1d5qPjx7WDwE1U7v95JUo/S0nzBB3AIWmhGPnjrnZ/63MHgZPpiI3Kj3kODXE4HYNkHOIo3mRAQ==}
+    peerDependencies:
+      three: '>=0.137'
+
   '@pixiv/three-vrm-core@3.5.1':
     resolution: {integrity: sha512-uKT9wBXHzE6U3sABdKwNnLOj28akQPGF8+P1EGdEb/j3Fcmn2qmFwUq7rbKwKJP8WGAHp++N1LJn3r+xVjyLBA==}
     peerDependencies:
@@ -285,8 +293,14 @@ packages:
   '@pixiv/types-vrmc-springbone-extended-collider-1.0@3.5.1':
     resolution: {integrity: sha512-Q975/y/3zEKPggYC3E/6uG/RVTt+2k1GpRfR6ngJ9NHM5rzlSab4yDCSx3qePjHpHIJvS9847LK9HPUrG7f3Og==}
 
+  '@pixiv/types-vrmc-vrm-1.0@2.0.3':
+    resolution: {integrity: sha512-RMP34Bk1qLFQv/CRB1Zqvn2qMFfWQfP2Hms5QrrfoBsW9XroZdEe0zPLNbGmUPYh4F7VtBb+B7+RCuymRtpehA==}
+
   '@pixiv/types-vrmc-vrm-1.0@3.5.1':
     resolution: {integrity: sha512-Ugf8Kv5SSORVf8i+P4i5O2iuMuyzKW6ZRvntWuGXFN6YO7Zx38Vn8zbGKtWTs+zR9dfHWdZixjWcW71Vy4NyVw==}
+
+  '@pixiv/types-vrmc-vrm-animation-1.0@3.5.1':
+    resolution: {integrity: sha512-q5UqefIbJmxQg5fVDSQGe2p/zsD7OmhBLSxPseXohj17O7Ew/5gVKyDCFjh7XpGZtpX6Ydmpd2svSI9QACfyaw==}
 
   '@rolldown/pluginutils@1.0.0-rc.2':
     resolution: {integrity: sha512-izyXV/v+cHiRfozX62W9htOAvwMo4/bXKDrQ+vom1L1qRuexPock/7VZDAhnpHCLNejd3NJ6hiab+tO0D44Rgw==}
@@ -739,6 +753,13 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
+  '@pixiv/three-vrm-animation@3.5.1(three@0.183.2)':
+    dependencies:
+      '@pixiv/three-vrm-core': 3.5.1(three@0.183.2)
+      '@pixiv/types-vrmc-vrm-1.0': 3.5.1
+      '@pixiv/types-vrmc-vrm-animation-1.0': 3.5.1
+      three: 0.183.2
+
   '@pixiv/three-vrm-core@3.5.1(three@0.183.2)':
     dependencies:
       '@pixiv/types-vrm-0.0': 3.5.1
@@ -796,7 +817,13 @@ snapshots:
 
   '@pixiv/types-vrmc-springbone-extended-collider-1.0@3.5.1': {}
 
+  '@pixiv/types-vrmc-vrm-1.0@2.0.3': {}
+
   '@pixiv/types-vrmc-vrm-1.0@3.5.1': {}
+
+  '@pixiv/types-vrmc-vrm-animation-1.0@3.5.1':
+    dependencies:
+      '@pixiv/types-vrmc-vrm-1.0': 2.0.3
 
   '@rolldown/pluginutils@1.0.0-rc.2': {}
 

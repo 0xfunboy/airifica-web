@@ -15,7 +15,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('@pixiv/three-vrm'))
+          if (id.includes('@pixiv/three-vrm') || id.includes('@pixiv/three-vrm-animation'))
             return 'vrm-runtime'
 
           if (id.includes('/three/examples/'))
