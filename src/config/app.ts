@@ -39,12 +39,12 @@ function normalizeApiBase(raw: string | undefined, fallback: string) {
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
   productName: (import.meta.env.VITE_AIRIFICA_PRODUCT_NAME || 'AIR3').trim(),
-  runtimeBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '', '', {
+  runtimeBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_ELIZA_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '', '', {
     sameOriginFallback: '',
   }),
   serviceApiBaseUrl: normalizeApiBase(
-    import.meta.env.VITE_AIR3_SERVICE_API_URL || import.meta.env.VITE_AIR3_SERVICE_URL || '',
-    import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '/api',
+    import.meta.env.VITE_AIR3_SERVICE_API_URL || import.meta.env.VITE_AIR3_SERVICE_URL || import.meta.env.VITE_AIR3_ELIZA_BASE_URL || '',
+    import.meta.env.VITE_AIR3_ELIZA_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '/api',
   ),
   defaultMarket: (import.meta.env.VITE_AIR3_DEFAULT_MARKET || import.meta.env.VITE_AIR3_MARKET_SYMBOL || 'BTC').trim().toUpperCase(),
   avatarModelUrl: (import.meta.env.VITE_AIRIFICA_AVATAR_MODEL_URL || import.meta.env.VITE_AIR3_MODEL_URL || '/brand/AIR3_Dress_Final.vrm').trim(),
