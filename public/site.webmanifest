@@ -1,0 +1,23 @@
+{
+  "name": "AIR3",
+  "short_name": "AIR3",
+  "description": "AIR3 trading stage for Pacifica account actions, conversation flow and avatar-guided execution.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#04111d",
+  "theme_color": "#04111d",
+  "icons": [
+    {
+      "src": "/maskable_icon_x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/maskable_icon_x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
