@@ -1,15 +1,15 @@
 import { computed, reactive, watch } from 'vue'
 
-import { BREATH_URL } from '@airifica/avatar3d'
-
 import type { AvatarExpression } from '@airifica/avatar3d'
 
 import { appConfig } from '@/config/app'
 import { useConversationState } from '@/modules/conversation/state'
+import { useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
+import { useVRMAStore } from '@/modules/avatar/vrma'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
 
 const state = reactive({
-  expression: 'neutral' as AvatarExpression,
+  detectedExpression: 'neutral' as AvatarExpression,
   loadingState: appConfig.avatarModelUrl ? 'idle' as 'idle' | 'loading' | 'ready' | 'error' : 'empty' as 'idle' | 'loading' | 'ready' | 'error' | 'empty',
   loadProgress: 0,
   error: null as string | null,
@@ -17,6 +17,8 @@ const state = reactive({
 
 const conversation = useConversationState()
 const speech = useSpeechRuntime()
+const vrmaStore = useVRMAStore()
+const emoteDebugStore = useEmoteDebugStore()
 let initialized = false
 let expressionTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -34,12 +36,12 @@ function detectAvatarExpression(text: string) {
 }
 
 function setExpression(expression: AvatarExpression, durationMs = 3600) {
-  state.expression = expression
+  state.detectedExpression = expression
   if (expressionTimer)
     clearTimeout(expressionTimer)
 
   expressionTimer = setTimeout(() => {
-    state.expression = 'neutral'
+    state.detectedExpression = 'neutral'
   }, durationMs)
 }
 
@@ -51,7 +53,6 @@ function initializeConversationSync() {
 
   watch(() => conversation.sending.value, (sending) => {
     if (sending) {
-      state.expression = 'think'
       if (expressionTimer)
         clearTimeout(expressionTimer)
     }
@@ -62,7 +63,10 @@ function initializeConversationSync() {
     if (!message?.content)
       return
 
-    setExpression(detectAvatarExpression(message.content))
+    const nextExpression = detectAvatarExpression(message.content)
+    if (nextExpression !== 'neutral')
+      emoteDebugStore.notifyReceived(nextExpression)
+    setExpression(nextExpression)
   }, { immediate: true })
 }
 
@@ -91,10 +95,18 @@ function handleLoadError(error: unknown) {
 export function useAvatarPresence() {
   initializeConversationSync()
 
+  const expression = computed<AvatarExpression>(() => {
+    if (emoteDebugStore.testEmotion.value !== 'none')
+      return emoteDebugStore.testEmotion.value
+    if (conversation.sending.value)
+      return 'think'
+    return state.detectedExpression
+  })
+
   return {
     modelUrl: computed(() => appConfig.avatarModelUrl || null),
-    ambientAnimation: computed(() => BREATH_URL),
-    expression: computed(() => state.expression),
+    ambientAnimation: computed(() => vrmaStore.selectedVRMAUrl.value),
+    expression,
     speaking: computed(() => speech.speaking.value),
     mouthOpenSize: computed(() => speech.mouthOpenSize.value),
     loadingState: computed(() => state.loadingState),
