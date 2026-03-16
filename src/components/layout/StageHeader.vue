@@ -88,6 +88,9 @@ function onEmoteChange(event: Event) {
 
 <style scoped>
 .stage-header {
+  position: relative;
+  z-index: 12;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -96,6 +99,8 @@ function onEmoteChange(event: Event) {
 }
 
 .stage-header__controls {
+  position: relative;
+  z-index: 12;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -104,6 +109,8 @@ function onEmoteChange(event: Event) {
 }
 
 .stage-header__select-shell {
+  position: relative;
+  z-index: 12;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -129,6 +136,7 @@ function onEmoteChange(event: Event) {
 
 .stage-header__settings {
   position: relative;
+  z-index: 14;
 }
 
 .stage-header__settings-button {
@@ -159,6 +167,7 @@ function onEmoteChange(event: Event) {
   top: calc(100% + 8px);
   right: 0;
   z-index: 8;
+  isolation: isolate;
   display: grid;
   gap: 6px;
   width: 180px;

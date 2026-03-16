@@ -435,9 +435,9 @@ watch(() => wallet.token.value, () => {
 .stage-backdrop__wash {
   z-index: 0;
   background:
-    radial-gradient(circle at top right, rgba(30, 199, 255, 0.18), transparent 24%),
-    radial-gradient(circle at 18% 24%, rgba(30, 199, 255, 0.1), transparent 22%),
-    linear-gradient(180deg, rgba(1, 9, 20, 0.18), rgba(1, 9, 20, 0.7) 52%, rgba(1, 9, 20, 0.96));
+    radial-gradient(circle at top right, rgba(30, 199, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 18% 24%, rgba(30, 199, 255, 0.04), transparent 22%),
+    linear-gradient(180deg, rgba(1, 9, 20, 0.08), rgba(1, 9, 20, 0.62) 52%, rgba(1, 9, 20, 0.94));
 }
 
 .stage-backdrop__grid {

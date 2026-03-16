@@ -84,7 +84,7 @@ onUnmounted(() => {
 
 .stage-page__header {
   position: relative;
-  z-index: 4;
+  z-index: 20;
   width: 100%;
   padding: 4px 0;
 }
@@ -107,7 +107,7 @@ onUnmounted(() => {
   position: absolute;
   top: 0;
   right: 16px;
-  z-index: 4;
+  z-index: 10;
 }
 
 @media (min-width: 768px) {
