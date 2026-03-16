@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted } from 'vue'
 
 import AvatarStageCard from '@/components/AvatarStageCard.vue'
 import ConversationCard from '@/components/ConversationCard.vue'
+import MarketContextCard from '@/components/MarketContextCard.vue'
 import PacificaAccountCard from '@/components/PacificaAccountCard.vue'
 import WalletSessionCard from '@/components/WalletSessionCard.vue'
 import { appConfig } from '@/config/app'
@@ -28,13 +29,6 @@ const endpointCards = computed(() => [
     detail: appConfig.avatarModelUrl ? truncateMiddle(appConfig.avatarModelUrl, 44) : 'VRM model mounts in the avatar runtime step',
   },
 ])
-
-const surfaces = [
-  {
-    title: 'Market context',
-    description: 'Symbol routing, Pacifica links, chart context and stage backdrop remain connected to the conversation.',
-  },
-]
 
 function handleEmbeddedBootstrap(event: MessageEvent) {
   if (!event.data || typeof event.data !== 'object')
@@ -115,14 +109,8 @@ onUnmounted(() => {
       <aside class="rail-stack">
         <WalletSessionCard />
         <PacificaAccountCard />
+        <MarketContextCard />
         <ConversationCard />
-        <section v-for="surface in surfaces" :key="surface.title" class="panel rail-card">
-          <p class="eyebrow">
-            Module
-          </p>
-          <h2>{{ surface.title }}</h2>
-          <p>{{ surface.description }}</p>
-        </section>
       </aside>
     </main>
   </div>
