@@ -2,11 +2,13 @@
 import type { Air3MarketContext } from '@airifica/air3-client'
 import type { AvatarExpression } from '@airifica/avatar3d'
 
-import { AvatarStage } from '@airifica/avatar3d'
-
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 
 import { formatCompact, formatCurrency, formatPercent, formatRelativeMinutes } from '../utils/format'
+
+const AvatarStage = defineAsyncComponent(() =>
+  import('@airifica/avatar3d').then(module => module.AvatarStage),
+)
 
 const props = defineProps<{
   modelUrl: string | null
@@ -28,6 +30,32 @@ const marketTone = computed(() => {
     return ''
 
   return props.market.changePct >= 0 ? 'stage-panel__tone--up' : 'stage-panel__tone--down'
+})
+
+const chartPath = computed(() => {
+  const candles = props.market?.data || []
+  if (candles.length < 2)
+    return ''
+
+  const closes = candles.map(candle => candle.close)
+  const min = Math.min(...closes)
+  const max = Math.max(...closes)
+  const range = max - min || 1
+  const width = 280
+  const height = 88
+
+  return closes.map((close, index) => {
+    const x = (index / (closes.length - 1)) * width
+    const y = height - ((close - min) / range) * height
+    return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
+  }).join(' ')
+})
+
+const chartAreaPath = computed(() => {
+  if (!chartPath.value)
+    return ''
+
+  return `${chartPath.value} L 280 88 L 0 88 Z`
 })
 </script>
 
@@ -70,6 +98,10 @@ const marketTone = computed(() => {
           <strong>{{ market.symbol }} · {{ formatCurrency(market.price) }}</strong>
           <p>{{ formatPercent(market.changePct) }} · {{ formatRelativeMinutes(market.updatedAt) }}</p>
           <small>OI {{ formatCompact(market.openInterest) }} · Funding {{ market.funding ?? '--' }}</small>
+          <svg v-if="chartPath" class="stage-panel__chart" viewBox="0 0 280 88" preserveAspectRatio="none" aria-hidden="true">
+            <path class="stage-panel__chart-area" :d="chartAreaPath" />
+            <path class="stage-panel__chart-line" :d="chartPath" />
+          </svg>
         </template>
         <template v-else>
           <strong>No market snapshot</strong>
@@ -113,6 +145,24 @@ const marketTone = computed(() => {
   line-height: 1.5;
 }
 
+.stage-panel__chart {
+  width: 100%;
+  height: 5rem;
+  margin-top: 0.3rem;
+}
+
+.stage-panel__chart-area {
+  fill: rgba(125, 211, 252, 0.14);
+}
+
+.stage-panel__chart-line {
+  fill: none;
+  stroke: rgba(186, 230, 253, 0.92);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .stage-panel__tone--up {
   border-color: rgba(74, 222, 128, 0.24);
 }
@@ -121,10 +171,25 @@ const marketTone = computed(() => {
   border-color: rgba(248, 113, 113, 0.24);
 }
 
+.stage-panel__tone--up .stage-panel__chart-area {
+  fill: rgba(74, 222, 128, 0.16);
+}
+
+.stage-panel__tone--up .stage-panel__chart-line {
+  stroke: rgba(134, 239, 172, 0.92);
+}
+
+.stage-panel__tone--down .stage-panel__chart-area {
+  fill: rgba(248, 113, 113, 0.14);
+}
+
+.stage-panel__tone--down .stage-panel__chart-line {
+  stroke: rgba(252, 165, 165, 0.92);
+}
+
 @media (max-width: 960px) {
   .stage-panel__grid {
     grid-template-columns: 1fr;
   }
 }
 </style>
-

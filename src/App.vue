@@ -596,7 +596,16 @@ watch(() => [settings.value.serviceBaseUrl, settings.value.marketSymbol], () => 
     grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
   }
 
+  .workspace__stage {
+    order: 1;
+  }
+
+  .workspace__aside {
+    order: 2;
+  }
+
   .workspace__chat {
+    order: 3;
     grid-column: 1 / -1;
   }
 }

@@ -28,6 +28,18 @@ body {
   background-attachment: fixed;
 }
 
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(125, 211, 252, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.05) 1px, transparent 1px);
+  background-size: 4rem 4rem;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.38), transparent 72%);
+}
+
 button,
 input,
 textarea,
@@ -138,6 +150,26 @@ a {
   background: rgba(12, 74, 110, 0.46);
   color: #e0f2fe;
   border: 1px solid rgba(103, 232, 249, 0.18);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125, 211, 252, 0.26) rgba(15, 23, 42, 0.3);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.32);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(125, 211, 252, 0.22);
+  border-radius: 999px;
 }
 
 @media (max-width: 960px) {
