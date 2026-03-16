@@ -6,34 +6,43 @@ import ConversationCard from '@/components/ConversationCard.vue'
 import MarketContextCard from '@/components/MarketContextCard.vue'
 import PacificaAccountCard from '@/components/PacificaAccountCard.vue'
 import StageBackdrop from '@/components/StageBackdrop.vue'
-import WalletSessionCard from '@/components/WalletSessionCard.vue'
 import { appConfig } from '@/config/app'
-import { describeUrl, truncateMiddle } from '@/lib/format'
+import { truncateMiddle } from '@/lib/format'
 import { useMarketContext } from '@/modules/market/context'
+import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const wallet = useWalletSession()
 const marketContext = useMarketContext()
+const pacifica = usePacificaAccount()
 
-const endpointCards = computed(() => [
-  {
-    label: 'Runtime',
-    value: describeUrl(appConfig.runtimeBaseUrl, 'not configured'),
-    detail: 'AIR3 session, message and proposal flow',
-  },
-  {
-    label: 'Service API',
-    value: describeUrl(appConfig.serviceApiBaseUrl, 'not configured'),
-    detail: 'Pacifica actions, challenge and market context',
-  },
-  {
-    label: 'Avatar',
-    value: describeUrl(appConfig.avatarModelUrl, 'pending'),
-    detail: appConfig.avatarModelUrl ? truncateMiddle(appConfig.avatarModelUrl, 44) : 'VRM model mounts in the avatar runtime step',
-  },
-])
+const sessionLabel = computed(() => truncateMiddle(wallet.sessionIdentity.value, 18))
 
-const sessionLabel = computed(() => truncateMiddle(wallet.sessionIdentity.value, 24))
+const walletStateLabel = computed(() => {
+  if (wallet.isAuthenticated.value)
+    return 'verified session'
+  if (wallet.isConnected.value)
+    return 'wallet connected'
+  return 'guest session'
+})
+
+const walletActionLabel = computed(() => {
+  if (wallet.connecting.value)
+    return 'Connecting...'
+  if (wallet.authenticating.value)
+    return 'Verifying...'
+  if (!wallet.isConnected.value)
+    return 'Connect wallet'
+  return 'Sign session'
+})
+
+const stageReadinessLabel = computed(() => {
+  if (pacifica.readyToExecute.value)
+    return 'Pacifica ready'
+  if (wallet.isAuthenticated.value)
+    return 'Session verified'
+  return 'Wallet required'
+})
 
 function handleEmbeddedBootstrap(event: MessageEvent) {
   if (!event.data || typeof event.data !== 'object')
@@ -55,6 +64,21 @@ function handleEmbeddedBootstrap(event: MessageEvent) {
   })
 }
 
+async function handleWalletPrimaryAction() {
+  try {
+    if (!wallet.isConnected.value)
+      await wallet.connect()
+    else if (!wallet.isAuthenticated.value)
+      await wallet.authenticate()
+  }
+  catch {
+  }
+}
+
+async function handleWalletDisconnect() {
+  await wallet.disconnect()
+}
+
 onMounted(() => {
   wallet.bootstrapFromSearch()
   void wallet.tryRestore()
@@ -68,60 +92,130 @@ onUnmounted(() => {
 
 <template>
   <div class="app-shell">
-    <header class="app-topbar panel">
-      <div>
-        <p class="eyebrow">
-          {{ appConfig.brandName }}
-        </p>
-        <h1 class="app-topbar__title">
-          AIR3 trading stage
-        </h1>
-        <p class="app-topbar__copy">
-          Wallet-authenticated conversation, Pacifica execution flow, VRM avatar runtime and market context stay wired inside one stage surface.
-        </p>
+    <header class="stage-topbar panel">
+      <div class="stage-topbar__brand">
+        <div class="brand-lockup">
+          <img class="brand-lockup__icon" :src="appConfig.brandIconUrl" alt="AIR3">
+          <img class="brand-lockup__logo" :src="appConfig.brandLogoUrl" alt="AIRewardrop">
+        </div>
+
+        <div class="stage-topbar__chips">
+          <span class="status-pill stage-topbar__product">{{ appConfig.productName }}</span>
+          <span class="meta-chip">Pacifica</span>
+          <span class="meta-chip">{{ marketContext.currentSymbol.value }} market</span>
+        </div>
       </div>
-        <div class="app-topbar__meta">
-        <span class="meta-chip">{{ marketContext.currentSymbol.value }} market</span>
-        <span class="meta-chip">{{ wallet.isAuthenticated.value ? 'verified session' : 'guest session' }}</span>
-        <span class="meta-chip">{{ sessionLabel }}</span>
-        <span class="meta-chip">{{ appConfig.brandName }}</span>
+
+      <div class="stage-topbar__controls">
+        <div class="stage-topbar__identity">
+          <span :class="['status-pill', wallet.isAuthenticated.value ? 'status-pill--success' : '']">
+            {{ walletStateLabel }}
+          </span>
+          <span class="meta-chip">{{ sessionLabel }}</span>
+        </div>
+
+        <div class="stage-topbar__actions">
+          <button
+            class="icon-button"
+            :disabled="marketContext.loading.value"
+            type="button"
+            aria-label="Refresh market context"
+            title="Refresh market context"
+            @click="marketContext.refreshMarketContext()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+
+          <a
+            class="icon-button"
+            :href="marketContext.pacificaPortfolioUrl.value"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Pacifica portfolio"
+            title="Open Pacifica portfolio"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h13A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
+              <path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+            </svg>
+          </a>
+
+          <a
+            class="icon-button"
+            :href="marketContext.pacificaTradeUrl.value"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Pacifica trade"
+            title="Open Pacifica trade"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 17 17 7" />
+              <path d="M9 7h8v8" />
+              <path d="M5 5h5" />
+              <path d="M19 19h-5" />
+            </svg>
+          </a>
+
+          <button
+            v-if="!wallet.isAuthenticated.value"
+            class="surface-button surface-button--primary"
+            :disabled="wallet.connecting.value || wallet.authenticating.value"
+            type="button"
+            @click="handleWalletPrimaryAction"
+          >
+            {{ walletActionLabel }}
+          </button>
+
+          <button
+            v-else
+            class="surface-button surface-button--secondary"
+            type="button"
+            @click="handleWalletDisconnect"
+          >
+            {{ wallet.shortAddress.value || 'Disconnect' }}
+          </button>
+        </div>
       </div>
     </header>
 
-    <main class="app-grid">
-      <section class="stage-column">
-        <div class="stage-shell panel">
-          <StageBackdrop />
-          <div class="stage-shell__header">
+    <main class="stage-layout">
+      <aside class="stage-sidebar stage-sidebar--left">
+        <MarketContextCard />
+        <PacificaAccountCard />
+      </aside>
+
+      <section class="stage-surface panel">
+        <StageBackdrop />
+
+        <div class="stage-surface__content">
+          <div class="stage-surface__headline">
             <div>
               <p class="eyebrow">
-                Stage runtime
+                Stage surface
               </p>
-              <h2>Primary avatar surface</h2>
+              <h1>{{ appConfig.productName }} avatar</h1>
             </div>
-            <span class="stage-shell__status">{{ sessionLabel }}</span>
+
+            <span :class="['status-pill', pacifica.readyToExecute.value ? 'status-pill--success' : '']">
+              {{ stageReadinessLabel }}
+            </span>
           </div>
+
           <AvatarStageCard />
 
-          <div class="endpoint-grid">
-            <article v-for="card in endpointCards" :key="card.label" class="endpoint-card">
-              <p class="endpoint-card__label">
-                {{ card.label }}
-              </p>
-              <strong>{{ card.value }}</strong>
-              <span>{{ card.detail }}</span>
-            </article>
+          <div class="stage-surface__footer">
+            <span class="meta-chip">conversation linked</span>
+            <span class="meta-chip">{{ marketContext.currentSymbol.value }} context</span>
+            <span class="meta-chip">session {{ wallet.isAuthenticated.value ? 'verified' : 'guest' }}</span>
           </div>
         </div>
       </section>
 
-      <aside class="workspace-column">
+      <aside class="stage-sidebar stage-sidebar--right">
         <ConversationCard />
-        <div class="workspace-support">
-          <WalletSessionCard />
-          <PacificaAccountCard />
-          <MarketContextCard />
-        </div>
       </aside>
     </main>
   </div>
@@ -130,109 +224,176 @@ onUnmounted(() => {
 <style scoped>
 .app-shell {
   min-height: 100vh;
-  padding: clamp(18px, 2.4vw, 30px);
+  padding: clamp(14px, 1.8vw, 24px);
   display: grid;
-  gap: clamp(18px, 2vw, 24px);
+  gap: clamp(14px, 1.6vw, 20px);
 }
 
-.app-topbar {
+.stage-topbar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 20px;
-  padding: clamp(20px, 2.4vw, 30px);
+  gap: 18px;
+  padding: 16px 18px;
 }
 
-.app-topbar__title {
-  margin: 12px 0 0;
-  font-size: clamp(2rem, 4vw, 3.2rem);
-  line-height: 0.96;
-  letter-spacing: -0.05em;
-}
-
-.app-topbar__copy {
-  max-width: 54rem;
-  margin: 14px 0 0;
-  color: var(--text-1);
-  line-height: 1.6;
-}
-
-.app-topbar__meta {
+.stage-topbar__brand,
+.stage-topbar__controls,
+.stage-topbar__actions,
+.stage-topbar__identity,
+.stage-topbar__chips {
   display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stage-topbar__brand {
+  min-width: 0;
   flex-wrap: wrap;
+}
+
+.stage-topbar__controls {
   justify-content: flex-end;
-  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.app-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(380px, 0.95fr);
-  gap: clamp(18px, 2vw, 24px);
-  align-items: start;
-}
-
-.stage-column,
-.workspace-column {
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
 
-.stage-shell {
-  position: relative;
-  padding: 20px;
-  display: grid;
-  gap: 18px;
-  overflow: hidden;
+.brand-lockup__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(117, 212, 249, 0.14);
 }
 
-.stage-shell__header {
+.brand-lockup__logo {
+  width: min(210px, 36vw);
+  height: auto;
+  object-fit: contain;
+}
+
+.stage-topbar__product {
+  letter-spacing: 0.24em;
+}
+
+.stage-layout {
+  display: grid;
+  grid-template-columns: minmax(292px, 340px) minmax(0, 1fr) minmax(360px, 420px);
+  gap: clamp(14px, 1.6vw, 20px);
+  align-items: stretch;
+}
+
+.stage-sidebar {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.stage-surface {
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100vh - 150px);
+}
+
+.stage-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  pointer-events: none;
+}
+
+.stage-surface__content {
   position: relative;
   z-index: 1;
+  min-height: inherit;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 20px;
+}
+
+.stage-surface__headline {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.stage-shell__header h2 {
-  margin: 12px 0 0;
-  font-size: 1.28rem;
+.stage-surface__headline h1 {
+  margin: 10px 0 0;
+  font-size: 1.34rem;
+  letter-spacing: -0.05em;
 }
 
-.stage-shell__status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(146, 198, 229, 0.12);
-  background: rgba(8, 20, 33, 0.62);
-  color: var(--text-1);
+.stage-surface__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.workspace-column {
-  display: grid;
-  gap: 18px;
-}
+@media (max-width: 1380px) {
+  .stage-layout {
+    grid-template-columns: minmax(268px, 320px) minmax(0, 1fr) minmax(320px, 380px);
+  }
 
-.workspace-support {
-  display: grid;
-  gap: 18px;
+  .brand-lockup__logo {
+    width: min(180px, 32vw);
+  }
 }
 
 @media (max-width: 1180px) {
-  .app-grid {
+  .stage-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-surface {
+    min-height: auto;
+    order: -1;
+  }
+
+  .stage-sidebar--left,
+  .stage-sidebar--right {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 760px) {
-  .app-topbar,
-  .stage-shell__header {
+  .stage-topbar,
+  .stage-topbar__controls,
+  .stage-topbar__actions,
+  .stage-topbar__identity,
+  .stage-surface__headline {
+    align-items: stretch;
+  }
+
+  .stage-topbar,
+  .stage-topbar__brand,
+  .stage-topbar__controls,
+  .stage-topbar__actions,
+  .stage-topbar__identity,
+  .stage-topbar__chips,
+  .stage-surface__headline {
     flex-direction: column;
   }
 
-  .app-topbar__meta {
-    justify-content: flex-start;
+  .brand-lockup {
+    width: 100%;
+  }
+
+  .brand-lockup__logo {
+    width: min(210px, 52vw);
+  }
+
+  .stage-surface__content {
+    padding: 14px;
   }
 }
 </style>
