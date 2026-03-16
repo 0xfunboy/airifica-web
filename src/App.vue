@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
 
+import PacificaAccountCard from '@/components/PacificaAccountCard.vue'
 import WalletSessionCard from '@/components/WalletSessionCard.vue'
 import { appConfig } from '@/config/app'
 import { describeUrl, truncateMiddle } from '@/lib/format'
@@ -27,10 +28,6 @@ const endpointCards = computed(() => [
 ])
 
 const surfaces = [
-  {
-    title: 'Pacifica account',
-    description: 'Overview, builder approval, agent binding, execution readiness and position control.',
-  },
   {
     title: 'Conversation state',
     description: 'Conversation id, assistant proposal follow-up, market sync and avatar state linkage.',
@@ -124,6 +121,7 @@ onUnmounted(() => {
 
       <aside class="rail-stack">
         <WalletSessionCard />
+        <PacificaAccountCard />
         <section v-for="surface in surfaces" :key="surface.title" class="panel rail-card">
           <p class="eyebrow">
             Module
