@@ -26,6 +26,14 @@ const PROPOSAL_ACTIONS = new Set([
   'GET_TOKEN_ANALYSIS',
 ])
 
+function isNotFoundError(error: unknown) {
+  return error instanceof Error && /\b404\b/.test(error.message)
+}
+
+function uniqueUrls(urls: Array<string | null | undefined>) {
+  return [...new Set(urls.filter((value): value is string => Boolean(value)))]
+}
+
 export interface CreateSessionInput {
   walletAddress: string
   conversationId?: string
@@ -101,10 +109,40 @@ export interface FetchMarketContextInput {
 export class Air3Client {
   constructor(private readonly config: Air3ClientConfig = {}) {}
 
+  private resolveAuthEndpointCandidates(path: '/auth/challenge' | '/auth/verify') {
+    const runtimeBaseUrl = resolveRuntimeBaseUrl(this.config)
+    const serviceApiBaseUrl = resolveServiceApiBaseUrl(this.config)
+
+    return uniqueUrls([
+      `${serviceApiBaseUrl}${path}`,
+      runtimeBaseUrl ? `${runtimeBaseUrl}/api${path}` : null,
+      runtimeBaseUrl ? `${runtimeBaseUrl}${path}` : null,
+      `/api${path}`,
+      path,
+    ])
+  }
+
+  private async requestAuthEndpoint<T>(path: '/auth/challenge' | '/auth/verify', init: RequestInit, timeoutMs: number) {
+    const candidates = this.resolveAuthEndpointCandidates(path)
+    let lastError: unknown = null
+
+    for (const url of candidates) {
+      try {
+        return await requestJson<T>(this.config, url, init, timeoutMs)
+      }
+      catch (error) {
+        lastError = error
+        if (!isNotFoundError(error) || url === candidates[candidates.length - 1])
+          throw error
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Authentication endpoint unavailable.')
+  }
+
   requestWalletChallenge(address: string, headers?: HeadersInit) {
-    return requestJson<Air3WalletChallengeResponse>(
-      this.config,
-      `${resolveServiceApiBaseUrl(this.config)}/auth/challenge`,
+    return this.requestAuthEndpoint<Air3WalletChallengeResponse>(
+      '/auth/challenge',
       {
         method: 'POST',
         headers: {
@@ -113,13 +151,13 @@ export class Air3Client {
         },
         body: JSON.stringify({ address }),
       },
+      20_000,
     )
   }
 
   verifyWalletChallenge(message: string, signature: string, address: string, headers?: HeadersInit) {
-    return requestJson<Air3AuthVerifyResponse>(
-      this.config,
-      `${resolveServiceApiBaseUrl(this.config)}/auth/verify`,
+    return this.requestAuthEndpoint<Air3AuthVerifyResponse>(
+      '/auth/verify',
       {
         method: 'POST',
         headers: {
