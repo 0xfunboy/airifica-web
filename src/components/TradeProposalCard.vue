@@ -227,7 +227,7 @@ onMounted(() => {
         <span class="proposal-card__eyebrow">Pacifica suggestion</span>
         <strong>{{ proposal.symbol }} · {{ proposal.side }}</strong>
       </div>
-      <span class="proposal-card__confidence">{{ confidencePct }}%</span>
+      <span class="status-pill proposal-card__confidence">{{ confidencePct }}%</span>
     </div>
 
     <div class="proposal-card__levels">
@@ -255,40 +255,44 @@ onMounted(() => {
     </label>
 
     <div class="proposal-card__links">
-      <a :href="pacificaTradeUrl" target="_blank" rel="noreferrer">Trade</a>
-      <a :href="pacificaDepositUrl" target="_blank" rel="noreferrer">Deposit</a>
-      <a :href="pacificaWithdrawUrl" target="_blank" rel="noreferrer">Withdraw</a>
+      <a class="surface-link" :href="pacificaTradeUrl" target="_blank" rel="noreferrer">Trade</a>
+      <a class="surface-link" :href="pacificaDepositUrl" target="_blank" rel="noreferrer">Deposit</a>
+      <a class="surface-link" :href="pacificaWithdrawUrl" target="_blank" rel="noreferrer">Withdraw</a>
     </div>
 
     <div class="proposal-card__actions">
       <button
         v-if="!wallet.isConnected.value"
-        class="proposal-card__action proposal-card__action--primary"
+        class="surface-button surface-button--primary proposal-card__action"
         :disabled="wallet.connecting.value"
+        type="button"
         @click="handleConnectWallet"
       >
         {{ wallet.connecting.value ? 'Connecting...' : 'Connect wallet' }}
       </button>
       <button
         v-else-if="!wallet.isAuthenticated.value"
-        class="proposal-card__action proposal-card__action--primary"
+        class="surface-button surface-button--primary proposal-card__action"
         :disabled="wallet.authenticating.value"
+        type="button"
         @click="handleSignSession"
       >
         {{ wallet.authenticating.value ? 'Verifying...' : 'Sign session' }}
       </button>
       <button
         v-else-if="requiresOnboarding"
-        class="proposal-card__action proposal-card__action--primary"
+        class="surface-button surface-button--primary proposal-card__action"
         :disabled="pacifica.setupLoading.value"
+        type="button"
         @click="handleCompleteOnboarding"
       >
         {{ pacifica.setupLoading.value ? 'Binding builder...' : 'Complete onboarding' }}
       </button>
       <button
         v-else
-        class="proposal-card__action proposal-card__action--primary"
+        class="surface-button surface-button--primary proposal-card__action"
         :disabled="executing || !canExecute"
+        type="button"
         @click="handleExecuteClick"
       >
         {{
@@ -313,11 +317,11 @@ onMounted(() => {
 <style scoped>
 .proposal-card {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   padding: 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(91, 214, 255, 0.16);
-  background: rgba(6, 20, 33, 0.74);
+  border-radius: 20px;
+  border: 1px solid rgba(91, 214, 255, 0.14);
+  background: rgba(5, 17, 28, 0.78);
 }
 
 .proposal-card__header,
@@ -337,6 +341,12 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
+.proposal-card__header strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1rem;
+}
+
 .proposal-card__levels {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -350,9 +360,10 @@ onMounted(() => {
 
 .proposal-card__levels article {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   padding: 12px;
-  background: rgba(8, 20, 33, 0.62);
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  background: rgba(8, 20, 33, 0.44);
 }
 
 .proposal-card__levels span,
@@ -361,15 +372,6 @@ onMounted(() => {
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-}
-
-.proposal-card__confidence {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: rgba(91, 214, 255, 0.12);
 }
 
 .proposal-card__thesis,
@@ -384,9 +386,9 @@ onMounted(() => {
 }
 
 .proposal-card__field input {
-  min-height: 40px;
-  border: 1px solid rgba(146, 198, 229, 0.16);
-  background: rgba(8, 20, 33, 0.62);
+  min-height: 42px;
+  border: 1px solid rgba(138, 218, 255, 0.12);
+  background: rgba(2, 12, 21, 0.78);
   padding: 0 12px;
   outline: none;
 }
@@ -394,46 +396,28 @@ onMounted(() => {
 .proposal-card__links {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-}
-
-.proposal-card__links a,
-.proposal-card__action {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  text-decoration: none;
-}
-
-.proposal-card__links a {
-  border: 1px solid rgba(146, 198, 229, 0.16);
-  background: rgba(12, 32, 49, 0.78);
+  gap: 8px;
 }
 
 .proposal-card__action {
-  border: 1px solid transparent;
+  min-height: 36px;
+  padding: 0 12px;
 }
 
-.proposal-card__action--primary {
-  background: linear-gradient(135deg, #5bd6ff, #2eaad7);
-  color: #03111b;
-}
-
-.proposal-card__action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.proposal-card__links :deep(.surface-link) {
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 .proposal-card__note {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 12px;
   border-radius: 999px;
-  background: rgba(86, 55, 15, 0.46);
+  background: rgba(86, 55, 15, 0.5);
   color: #ffe6b1;
+  font-size: 0.86rem;
 }
 
 .proposal-card__result--success {
