@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AvatarExpression } from './types'
+import type { AvatarExpression, SpeechVisemeWeights } from './types'
 
 import type { AnimationAction, AnimationClip, Object3D } from 'three'
 
@@ -49,6 +49,7 @@ const props = withDefaults(defineProps<{
   modelUrl?: string | null
   speaking?: boolean
   manualMouthOpen?: number
+  visemeWeights?: Partial<SpeechVisemeWeights> | null
   expression?: AvatarExpression
   ambientAnimation?: string
   brightness?: number
@@ -64,6 +65,7 @@ const props = withDefaults(defineProps<{
   modelUrl: null,
   speaking: false,
   manualMouthOpen: 0,
+  visemeWeights: null,
   expression: 'neutral',
   ambientAnimation: BREATH_URL,
   brightness: 1,
@@ -210,6 +212,13 @@ const emotionState = {
   angry: 0,
   surprised: 0,
   relaxed: 0,
+}
+const speechVisemeState: SpeechVisemeWeights = {
+  A: 0,
+  E: 0,
+  I: 0,
+  O: 0,
+  U: 0,
 }
 const secondaryTrackingState = {
   chestYaw: 0,
@@ -837,29 +846,82 @@ function normalizeManualMouthOpen(value: number | undefined) {
   return Math.max(0, Math.min(1, numeric / 100))
 }
 
-function applySpeechExpressions(vrm: VRM, elapsed: number) {
+function normalizeVisemeWeights(input: Partial<SpeechVisemeWeights> | null | undefined): SpeechVisemeWeights {
+  return {
+    A: Math.max(0, Math.min(1, Number(input?.A || 0))),
+    E: Math.max(0, Math.min(1, Number(input?.E || 0))),
+    I: Math.max(0, Math.min(1, Number(input?.I || 0))),
+    O: Math.max(0, Math.min(1, Number(input?.O || 0))),
+    U: Math.max(0, Math.min(1, Number(input?.U || 0))),
+  }
+}
+
+function applySpeechExpressions(vrm: VRM, delta: number) {
   const manager = vrm.expressionManager
   const bindings = resolvedExpressions.value
   if (!manager || !bindings)
     return
 
   const manualStrength = normalizeManualMouthOpen(props.manualMouthOpen)
-  const fallbackTalking = props.speaking ? (0.18 + (Math.sin(elapsed * 16) * 0.5 + 0.5) * 0.32) : 0
-  const mouth = Math.max(manualStrength, fallbackTalking)
-  const a = Math.min(0.82, mouth)
-  const o = Math.min(0.58, mouth * 0.66)
-  const i = Math.min(0.42, mouth * 0.34)
+  const incoming = normalizeVisemeWeights(props.visemeWeights)
+  const keys: Array<keyof SpeechVisemeWeights> = ['A', 'E', 'I', 'O', 'U']
+  let winner: keyof SpeechVisemeWeights = 'I'
+  let runner: keyof SpeechVisemeWeights = 'E'
+  let winnerValue = -Infinity
+  let runnerValue = -Infinity
+
+  for (const key of keys) {
+    const value = incoming[key]
+    if (value > winnerValue) {
+      runnerValue = winnerValue
+      runner = winner
+      winnerValue = value
+      winner = key
+    }
+    else if (value > runnerValue) {
+      runnerValue = value
+      runner = key
+    }
+  }
+
+  const target: SpeechVisemeWeights = {
+    A: 0,
+    E: 0,
+    I: 0,
+    O: 0,
+    U: 0,
+  }
+
+  if (winnerValue > 0.015) {
+    target[winner] = Math.min(0.76, winnerValue)
+    if (runnerValue > 0.05)
+      target[runner] = Math.min(0.42, runnerValue * 0.62)
+  }
+
+  if (manualStrength > 0.02) {
+    target.A = Math.max(target.A, Math.min(0.78, 0.24 + manualStrength * 0.54))
+    target.O = Math.max(target.O, Math.min(0.56, 0.12 + manualStrength * 0.3))
+    target.I = Math.max(target.I, Math.min(0.28, manualStrength * 0.18))
+  }
+
+  for (const key of keys) {
+    const current = speechVisemeState[key]
+    const next = target[key]
+    const lambda = next > current ? 24 : 16
+    const alpha = 1 - Math.exp(-lambda * delta)
+    speechVisemeState[key] = MathUtils.lerp(current, next, alpha)
+  }
 
   if (bindings.aa)
-    manager.setValue(bindings.aa, a)
-  if (bindings.ou)
-    manager.setValue(bindings.ou, o)
-  if (bindings.oh)
-    manager.setValue(bindings.oh, o * 0.82)
-  if (bindings.ih)
-    manager.setValue(bindings.ih, i)
+    manager.setValue(bindings.aa, speechVisemeState.A)
   if (bindings.ee)
-    manager.setValue(bindings.ee, i * 0.72)
+    manager.setValue(bindings.ee, speechVisemeState.E)
+  if (bindings.ih)
+    manager.setValue(bindings.ih, speechVisemeState.I)
+  if (bindings.oh)
+    manager.setValue(bindings.oh, speechVisemeState.O)
+  if (bindings.ou)
+    manager.setValue(bindings.ou, speechVisemeState.U)
 }
 
 function applyEmotionExpressions(vrm: VRM, delta: number) {
@@ -993,7 +1055,6 @@ function animate() {
     return
 
   const delta = clock.getDelta()
-  const elapsed = clock.getElapsedTime()
   const vrm = vrmRef.value
 
   if (vrm) {
@@ -1002,7 +1063,7 @@ function animate() {
     applyEyeTracking(vrm, delta)
     applyHeadTracking(vrm, delta)
     applyEmotionExpressions(vrm, delta)
-    applySpeechExpressions(vrm, elapsed)
+    applySpeechExpressions(vrm, delta)
     blink.update(vrm, delta)
     vrm.update(delta)
   }

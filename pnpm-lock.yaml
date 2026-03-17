@@ -17,6 +17,9 @@ importers:
       vue:
         specifier: ^3.5.25
         version: 3.5.30(typescript@5.9.3)
+      wlipsync:
+        specifier: ^1.3.0
+        version: 1.3.0
     devDependencies:
       '@types/node':
         specifier: ^24.6.1
@@ -656,6 +659,9 @@ packages:
       typescript:
         optional: true
 
+  wlipsync@1.3.0:
+    resolution: {integrity: sha512-wYF85QAWCQE2rma9qoXok5we77XouCKxNh0HvbzRAtSIhc/QZbSh2rh5vKgWYHD4jrTE8+CwaxvU9oEUqYO9Zw==}
+
 snapshots:
 
   '@babel/helper-string-parser@7.27.1': {}
@@ -1149,3 +1155,5 @@ snapshots:
       '@vue/shared': 3.5.30
     optionalDependencies:
       typescript: 5.9.3
+
+  wlipsync@1.3.0: {}

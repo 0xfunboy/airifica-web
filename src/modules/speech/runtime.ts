@@ -1,8 +1,21 @@
 import { computed, reactive, watch } from 'vue'
+import { createWLipSyncNode } from 'wlipsync'
+import type { Profile } from 'wlipsync'
 
 import { appConfig } from '@/config/app'
 import { readStorage, writeStorage } from '@/lib/storage'
 import { useConversationState } from '@/modules/conversation/state'
+import lipSyncProfile from '@/modules/speech/assets/lip-sync-profile.json' with { type: 'json' }
+import {
+  blendSpeechVisemeWeights,
+  cloneSpeechVisemeWeights,
+  createSpeechVisemeTimeline,
+  maxSpeechVisemeWeight,
+  sampleSpeechVisemeTimeline,
+  zeroSpeechVisemeWeights,
+  type SpeechVisemeFrame,
+  type SpeechVisemeWeights,
+} from '@/modules/speech/visemes'
 
 const AUTO_SPEAK_KEY = 'airifica:auto-speak'
 const LOCALE_KEY = 'airifica:speech-locale'
@@ -13,6 +26,11 @@ type SpeechMode = 'browser' | 'external'
 type PlaybackClock = {
   currentTime: () => number
   playing: () => boolean
+}
+
+type LipSyncNodeLike = {
+  volume?: number
+  weights?: Record<string, number>
 }
 
 function getStorageScope() {
@@ -89,6 +107,7 @@ const state = reactive({
   supported: resolveInitialMode() !== null,
   speaking: false,
   mouthOpenSize: 0,
+  visemeWeights: cloneSpeechVisemeWeights(zeroSpeechVisemeWeights),
   error: null as string | null,
   queue: [] as Array<{ id: string, text: string }>,
   preferredMode: resolveInitialMode() as SpeechMode | null,
@@ -107,9 +126,11 @@ let currentSource: AudioBufferSourceNode | null = null
 let currentGain: GainNode | null = null
 let currentPlaybackClock: PlaybackClock | null = null
 let outputAudioContext: AudioContext | null = null
+let outputLipSyncNodePromise: Promise<LipSyncNodeLike> | null = null
+let currentLipSyncNode: LipSyncNodeLike | null = null
 let audioUnlockBound = false
 let mouthFrameId: number | undefined
-let mouthTarget = 0
+let activeVisemeTimeline: SpeechVisemeFrame[] | null = null
 
 function persistSettings() {
   writeStorage(getStorageScope(), AUTO_SPEAK_KEY, state.autoSpeakEnabled)
@@ -119,6 +140,50 @@ function persistSettings() {
     writeStorage(getStorageScope(), MODE_KEY, state.preferredMode)
 }
 
+function updateVisemeWeights(target: Partial<SpeechVisemeWeights>, deltaSeconds: number) {
+  const next = cloneSpeechVisemeWeights(target)
+  const current = state.visemeWeights
+  for (const key of Object.keys(current) as Array<keyof SpeechVisemeWeights>) {
+    const from = current[key]
+    const to = next[key]
+    const lambda = to > from ? 22 : 16
+    const alpha = 1 - Math.exp(-lambda * deltaSeconds)
+    current[key] = from + (to - from) * alpha
+  }
+  state.mouthOpenSize = maxSpeechVisemeWeight(current) * 100
+}
+
+function sampleWLipSyncWeights(node: LipSyncNodeLike | null) {
+  if (!node)
+    return cloneSpeechVisemeWeights(zeroSpeechVisemeWeights)
+
+  const rawWeights = node.weights || {}
+  const volume = Math.min(Math.max(node.volume || 0, 0), 1)
+  const amplitude = Math.min(1, volume * 0.95) ** 0.72
+  const projected = cloneSpeechVisemeWeights(zeroSpeechVisemeWeights)
+  const rawToLip = {
+    A: 'A',
+    E: 'E',
+    I: 'I',
+    O: 'O',
+    U: 'U',
+    S: 'I',
+  } as const
+
+  for (const [rawKey, lipKey] of Object.entries(rawToLip) as Array<[keyof typeof rawToLip, keyof SpeechVisemeWeights]>) {
+    const value = Math.max(0, Math.min(1, Number(rawWeights[rawKey] || 0))) * amplitude
+    projected[lipKey] = Math.max(projected[lipKey], value)
+  }
+
+  return projected
+}
+
+function resetVisemeState() {
+  activeVisemeTimeline = null
+  currentLipSyncNode = null
+  updateVisemeWeights(zeroSpeechVisemeWeights, 1)
+}
+
 function stopLipSync() {
   if (mouthFrameId) {
     window.cancelAnimationFrame(mouthFrameId)
@@ -126,34 +191,15 @@ function stopLipSync() {
   }
 
   state.speaking = false
-  state.mouthOpenSize = 0
-  mouthTarget = 0
+  resetVisemeState()
 }
 
-function startSpeechSynthesisLipSync() {
+function startSpeechLipSync(clock: PlaybackClock, timeline: SpeechVisemeFrame[], lipSyncNode?: LipSyncNodeLike | null) {
   stopLipSync()
   state.speaking = true
-  mouthTarget = 24
-
-  const tick = () => {
-    mouthTarget *= 0.82
-    state.mouthOpenSize = state.mouthOpenSize * 0.72 + mouthTarget * 0.28
-
-    if (!state.speaking && state.mouthOpenSize < 0.5) {
-      state.mouthOpenSize = 0
-      mouthFrameId = undefined
-      return
-    }
-
-    mouthFrameId = window.requestAnimationFrame(tick)
-  }
-
-  mouthFrameId = window.requestAnimationFrame(tick)
-}
-
-function startExternalAudioLipSync(clock: PlaybackClock) {
-  stopLipSync()
-  state.speaking = true
+  activeVisemeTimeline = timeline
+  currentLipSyncNode = lipSyncNode || null
+  let previousTimestamp = performance.now()
 
   const tick = () => {
     if (!state.speaking || !clock.playing()) {
@@ -161,14 +207,18 @@ function startExternalAudioLipSync(clock: PlaybackClock) {
       return
     }
 
-    const playbackTime = clock.currentTime()
-    const phasePrimary = playbackTime * 11.6
-    const phaseSecondary = playbackTime * 6.4
-    const energy = 20
-      + (Math.sin(phasePrimary) * 0.5 + 0.5) * 18
-      + (Math.sin(phaseSecondary) * 0.5 + 0.5) * 10
-    mouthTarget = energy
-    state.mouthOpenSize = state.mouthOpenSize * 0.7 + mouthTarget * 0.3
+    const now = performance.now()
+    const deltaSeconds = Math.max(1 / 120, (now - previousTimestamp) / 1000)
+    previousTimestamp = now
+    const elapsedMs = clock.currentTime() * 1000
+    const timelineWeights = activeVisemeTimeline ? sampleSpeechVisemeTimeline(activeVisemeTimeline, elapsedMs) : zeroSpeechVisemeWeights
+    const audioWeights = sampleWLipSyncWeights(currentLipSyncNode)
+    const audioStrength = maxSpeechVisemeWeight(audioWeights)
+    const target = audioStrength > 0.02
+      ? blendSpeechVisemeWeights(timelineWeights, audioWeights, 0.68)
+      : timelineWeights
+
+    updateVisemeWeights(target, deltaSeconds)
     mouthFrameId = window.requestAnimationFrame(tick)
   }
 
@@ -191,6 +241,8 @@ function cleanupExternalPlayback() {
   currentSource = null
   currentGain = null
   currentPlaybackClock = null
+  currentLipSyncNode = null
+  activeVisemeTimeline = null
 
   if (currentAudio) {
     currentAudio.pause()
@@ -226,6 +278,18 @@ async function ensureOutputAudioContext() {
   }
 
   return outputAudioContext
+}
+
+async function ensureOutputLipSyncNode(context: AudioContext) {
+  if (!outputLipSyncNodePromise) {
+    outputLipSyncNodePromise = createWLipSyncNode(context, lipSyncProfile as Profile)
+      .catch((error) => {
+        outputLipSyncNodePromise = null
+        throw error
+      })
+  }
+
+  return outputLipSyncNodePromise
 }
 
 function bindAudioUnlock() {
@@ -308,11 +372,12 @@ async function playBrowserQueueItem(next: { id: string, text: string }) {
 
   utterance.onstart = () => {
     state.activeMode = 'browser'
-    startSpeechSynthesisLipSync()
-  }
-
-  utterance.onboundary = () => {
-    mouthTarget = 44 + Math.random() * 22
+    const startedAt = performance.now()
+    const timeline = createSpeechVisemeTimeline(next.text)
+    startSpeechLipSync({
+      currentTime: () => Math.max(0, (performance.now() - startedAt) / 1000),
+      playing: () => currentUtterance === utterance && window.speechSynthesis.speaking,
+    }, timeline)
   }
 
   utterance.onend = () => {
@@ -461,13 +526,22 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     const decoded = await context.decodeAudioData(await blob.arrayBuffer())
     const source = context.createBufferSource()
     const gain = context.createGain()
+    let lipSyncNode: LipSyncNodeLike | null = null
     source.buffer = decoded
     source.connect(gain)
+    try {
+      lipSyncNode = await ensureOutputLipSyncNode(context)
+      source.connect(lipSyncNode as AudioNode)
+    }
+    catch (error) {
+      console.warn('[airifica][tts] lip sync node unavailable', error)
+    }
     gain.connect(context.destination)
 
     currentSource = source
     currentGain = gain
     const startedAt = context.currentTime
+    const timeline = createSpeechVisemeTimeline(next.text, decoded.duration * 1000)
     currentPlaybackClock = {
       currentTime: () => Math.max(0, context.currentTime - startedAt),
       playing: () => currentSource === source && (context.currentTime - startedAt) < decoded.duration,
@@ -488,7 +562,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
       durationSec: Number(decoded.duration.toFixed(2)),
       decodeMs: Math.round(performance.now() - decodeStartedAt),
     })
-    startExternalAudioLipSync(currentPlaybackClock)
+    startSpeechLipSync(currentPlaybackClock, timeline, lipSyncNode)
     source.start()
     return true
   }
@@ -504,10 +578,10 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
   audio.onplay = () => {
     state.activeMode = 'external'
     console.info('[airifica][tts] playback:html-audio')
-    startExternalAudioLipSync({
+    startSpeechLipSync({
       currentTime: () => audio.currentTime,
       playing: () => !audio.paused && !audio.ended,
-    })
+    }, createSpeechVisemeTimeline(next.text, Math.max(audio.duration || 0, 0) * 1000 || undefined))
   }
 
   audio.onended = () => {
@@ -672,6 +746,7 @@ export function useSpeechRuntime() {
     preferredMode: computed(() => state.preferredMode),
     speaking: computed(() => state.speaking),
     mouthOpenSize: computed(() => state.mouthOpenSize),
+    visemeWeights: computed(() => state.visemeWeights),
     error: computed(() => state.error),
     queueSize: computed(() => state.queue.length),
     activeMode: computed(() => state.activeMode),

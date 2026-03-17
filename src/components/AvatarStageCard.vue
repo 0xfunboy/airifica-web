@@ -16,6 +16,7 @@ const lighting = useAvatarLighting()
       :expression="avatar.expression.value"
       :speaking="avatar.speaking.value"
       :manual-mouth-open="avatar.mouthOpenSize.value"
+      :viseme-weights="avatar.visemeWeights.value"
       :ambient-animation="avatar.ambientAnimation.value"
       :brightness="lighting.brightness.value"
       :contrast="lighting.contrast.value"
