@@ -29,6 +29,15 @@ const autoExecutionStarted = ref(false)
 const strategyOpen = ref(false)
 
 const confidencePct = computed(() => Math.round((props.proposal.confidence || 0) * 100))
+const confidenceStyle = computed(() => {
+  const tone = Math.max(0, Math.min(1, confidencePct.value / 100))
+  const hue = Math.round(tone * 120)
+  return {
+    color: `hsl(${hue} 88% 72%)`,
+    borderColor: `hsla(${hue}, 82%, 54%, 0.26)`,
+    background: `hsla(${hue}, 82%, 18%, 0.42)`,
+  }
+})
 const requiresOnboarding = computed(() => wallet.isAuthenticated.value && !pacifica.readyToExecute.value)
 const requiresFunding = computed(() =>
   wallet.isAuthenticated.value && pacifica.readyToExecute.value && ((pacifica.account.value?.availableToSpend || 0) <= 0),
@@ -244,7 +253,9 @@ function toggleStrategy() {
         <span class="proposal-card__timeframe">{{ proposal.timeframe }}</span>
       </div>
       <span :class="sideTone.className">{{ sideTone.label }}</span>
-      <span class="status-pill proposal-card__confidence">{{ confidencePct }}%</span>
+      <span class="status-pill proposal-card__confidence" :style="confidenceStyle" title="Confidence">
+        {{ confidencePct }}%
+      </span>
     </div>
 
     <div class="proposal-card__levels">
@@ -279,7 +290,7 @@ function toggleStrategy() {
 
       <button
         v-if="requiresOnboarding"
-        class="surface-link proposal-card__utility-link"
+        class="proposal-card__utility-link proposal-card__utility-link--primary"
         :disabled="pacifica.setupLoading.value"
         type="button"
         @click="handleCompleteOnboarding"
@@ -288,7 +299,7 @@ function toggleStrategy() {
       </button>
       <a
         v-else
-        class="surface-link proposal-card__utility-link"
+        class="proposal-card__utility-link proposal-card__utility-link--primary"
         :href="pacificaTradeUrl"
         target="_blank"
         rel="noreferrer"
@@ -470,11 +481,20 @@ function toggleStrategy() {
 
 .proposal-card__utility-link,
 .proposal-card__strategy-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 34px;
   padding: 0 12px;
+  border-radius: 12px;
 }
 
 .proposal-card__utility-link {
+  border: 0;
+  background: #67e8f9;
+  color: #0f172a;
+  font-size: 0.76rem;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -485,6 +505,16 @@ function toggleStrategy() {
   font-size: 0.72rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  transition: color 160ms ease, text-shadow 160ms ease;
+}
+
+.proposal-card__strategy-toggle:hover {
+  color: #facc15;
+  text-shadow: 0 0 16px rgba(250, 204, 21, 0.34);
+}
+
+.proposal-card__utility-link--primary:hover {
+  background: #8af4ff;
 }
 
 .proposal-card__note {

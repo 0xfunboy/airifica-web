@@ -4,27 +4,15 @@ import { ref } from 'vue'
 import HeaderLink from '@/components/layout/HeaderLink.vue'
 import PacificaTradeButton from '@/components/layout/PacificaTradeButton.vue'
 import WalletConnectButton from '@/components/layout/WalletConnectButton.vue'
-import { EMOTE_DEBUG_OPTIONS, useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
-import { useVRMAStore, VRMA_LIST } from '@/modules/avatar/vrma'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useMarketContext } from '@/modules/market/context'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
 
-const vrmaStore = useVRMAStore()
-const emoteDebugStore = useEmoteDebugStore()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const marketContext = useMarketContext()
 
 const settingsOpen = ref(false)
-
-function onAnimChange(event: Event) {
-  vrmaStore.select((event.target as HTMLSelectElement).value)
-}
-
-function onEmoteChange(event: Event) {
-  emoteDebugStore.setTestEmotion((event.target as HTMLSelectElement).value)
-}
 </script>
 
 <template>
@@ -32,24 +20,6 @@ function onEmoteChange(event: Event) {
     <HeaderLink />
 
     <div class="stage-header__controls">
-      <label class="stage-header__select-shell">
-        <span>Anim:</span>
-        <select :value="vrmaStore.selectedVRMALabel.value" @change="onAnimChange">
-          <option v-for="animation in VRMA_LIST" :key="animation.label" :value="animation.label">
-            {{ animation.label }}
-          </option>
-        </select>
-      </label>
-
-      <label class="stage-header__select-shell">
-        <span>Emote:</span>
-        <select :value="emoteDebugStore.testEmotion.value" @change="onEmoteChange">
-          <option v-for="emotion in EMOTE_DEBUG_OPTIONS" :key="emotion" :value="emotion">
-            {{ emotion }}
-          </option>
-        </select>
-      </label>
-
       <PacificaTradeButton />
       <WalletConnectButton />
 
@@ -89,7 +59,7 @@ function onEmoteChange(event: Event) {
 <style scoped>
 .stage-header {
   position: relative;
-  z-index: 12;
+  z-index: 32;
   isolation: isolate;
   display: flex;
   align-items: center;
@@ -100,7 +70,7 @@ function onEmoteChange(event: Event) {
 
 .stage-header__controls {
   position: relative;
-  z-index: 12;
+  z-index: 32;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -108,35 +78,9 @@ function onEmoteChange(event: Event) {
   gap: 8px;
 }
 
-.stage-header__select-shell {
-  position: relative;
-  z-index: 12;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 0 10px;
-  border-radius: 16px;
-  border: 1px solid rgba(138, 218, 255, 0.14);
-  background: rgba(248, 251, 255, 0.74);
-  color: #122232;
-  font-size: 0.78rem;
-  font-weight: 600;
-  backdrop-filter: blur(16px);
-}
-
-.stage-header__select-shell select {
-  min-width: 112px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-size: 0.76rem;
-  outline: none;
-}
-
 .stage-header__settings {
   position: relative;
-  z-index: 14;
+  z-index: 40;
 }
 
 .stage-header__settings-button {
@@ -166,7 +110,7 @@ function onEmoteChange(event: Event) {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 8;
+  z-index: 48;
   isolation: isolate;
   display: grid;
   gap: 6px;
@@ -210,16 +154,6 @@ function onEmoteChange(event: Event) {
 @media (max-width: 720px) {
   .stage-header__controls {
     gap: 6px;
-  }
-
-  .stage-header__select-shell {
-    flex: 1 1 calc(50% - 6px);
-    min-width: 0;
-  }
-
-  .stage-header__select-shell select {
-    min-width: 0;
-    width: 100%;
   }
 }
 </style>

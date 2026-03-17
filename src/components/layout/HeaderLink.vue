@@ -5,6 +5,8 @@ import { appConfig } from '@/config/app'
 <template>
   <a class="header-link" href="/" aria-label="AIR3 home">
     <img :src="appConfig.brandIconUrl" alt="" class="header-link__icon">
+    <span class="header-link__title">{{ appConfig.productName }} Agent</span>
+    <span class="header-link__by">by</span>
     <img :src="appConfig.brandLogoUrl" alt="AIRewardrop" class="header-link__logo">
   </a>
 </template>
@@ -27,6 +29,23 @@ import { appConfig } from '@/config/app'
   flex: 0 0 auto;
 }
 
+.header-link__title {
+  color: #f3fbff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.header-link__by {
+  color: rgba(223, 236, 247, 0.56);
+  font-size: 0.76rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .header-link__logo {
   width: auto;
   height: 30px;
@@ -43,6 +62,14 @@ import { appConfig } from '@/config/app'
     width: 32px;
     height: 32px;
     border-radius: 10px;
+  }
+
+  .header-link__title {
+    font-size: 0.84rem;
+  }
+
+  .header-link__by {
+    font-size: 0.68rem;
   }
 
   .header-link__logo {

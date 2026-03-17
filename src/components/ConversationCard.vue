@@ -383,7 +383,7 @@ onMounted(() => {
 .conversation-shell__composer {
   display: grid;
   gap: 10px;
-  padding: 0 16px 16px;
+  padding: 0 16px 6px;
 }
 
 .conversation-shell__textarea {
@@ -394,15 +394,15 @@ onMounted(() => {
   border-radius: 18px 18px 0 0;
   background: rgba(17, 42, 60, 0.28);
   color: var(--text-0);
-  padding: 14px 14px 52px;
+  padding: 12px 14px 14px;
   resize: none;
   outline: none;
 }
 
 .conversation-shell__composer-bar {
-  margin-top: 2px;
+  margin-top: 0;
   padding-inline: 10px;
-  min-height: 38px;
+  min-height: 34px;
 }
 
 .conversation-shell__left-actions,
@@ -481,7 +481,7 @@ onMounted(() => {
 .conversation-shell__reset-fab {
   position: absolute;
   right: 18px;
-  bottom: -66px;
+  bottom: -18px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -526,7 +526,7 @@ onMounted(() => {
   }
 
   .conversation-shell__reset-fab {
-    bottom: -62px;
+    bottom: -14px;
   }
 }
 

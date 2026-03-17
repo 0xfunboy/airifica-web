@@ -27,6 +27,10 @@ const currentPacificaPosition = computed(() =>
   pacifica.getPositionForSymbol(marketContext.currentSymbol.value),
 )
 
+const requiresSessionSignature = computed(() =>
+  Boolean(wallet.isConnected.value && !wallet.isAuthenticated.value),
+)
+
 const canConnectPacifica = computed(() =>
   Boolean(wallet.isAuthenticated.value && !pacifica.readyToExecute.value),
 )
@@ -138,6 +142,15 @@ async function handleConnectWallet() {
   }
 }
 
+async function handleAuthenticateWallet() {
+  try {
+    await wallet.authenticate()
+    await refreshPacificaOverview()
+  }
+  catch {
+  }
+}
+
 async function handleCloseCurrentPosition() {
   const position = currentPacificaPosition.value
   if (!position)
@@ -186,18 +199,18 @@ watch(() => wallet.token.value, () => {
     </div>
 
     <section class="stage-backdrop__market-surface" aria-label="AIR3 market surface">
-      <div class="stage-backdrop__surface-head">
-        <div class="stage-backdrop__surface-copy">
-          <span class="stage-backdrop__eyebrow">AIR3 Market Surface</span>
-          <span class="stage-backdrop__surface-symbol">{{ marketContext.currentSymbol.value }}</span>
-          <span class="stage-backdrop__surface-description">
-            Pacifica market context rendered inside AIR3. Trade execution routes through your Pacifica account via the AIRewardrop builder program.
-          </span>
+        <div class="stage-backdrop__surface-head">
+          <div class="stage-backdrop__surface-copy">
+            <span class="stage-backdrop__eyebrow">AIR3 Market Surface</span>
+            <span class="stage-backdrop__surface-symbol">{{ marketContext.currentSymbol.value }}</span>
+            <span class="stage-backdrop__surface-description">
+              Pacifica market context rendered inside AIR3. Trade execution routes through your Pacifica account via the AIRewardrop builder program.
+            </span>
+          </div>
+          <div v-if="pacifica.readyToExecute.value" class="stage-backdrop__surface-status">
+            Builder ready
+          </div>
         </div>
-        <div class="stage-backdrop__surface-status">
-          {{ pacifica.readyToExecute.value ? 'Builder ready' : 'Builder setup' }}
-        </div>
-      </div>
 
       <div v-if="market" class="stage-backdrop__metrics">
         <div class="stage-backdrop__metric">
@@ -294,13 +307,23 @@ watch(() => wallet.token.value, () => {
 
             <div class="stage-backdrop__account-actions">
               <button
-                v-if="!wallet.isConnected.value || !wallet.isAuthenticated.value"
+                v-if="!wallet.isConnected.value"
                 :disabled="wallet.connecting.value || wallet.authenticating.value"
                 class="stage-backdrop__primary-action"
                 type="button"
                 @click="handleConnectWallet"
               >
                 {{ wallet.connecting.value || wallet.authenticating.value ? 'Connecting…' : 'Connect your Pacifica wallet' }}
+              </button>
+
+              <button
+                v-else-if="requiresSessionSignature"
+                :disabled="wallet.authenticating.value"
+                class="stage-backdrop__primary-action"
+                type="button"
+                @click="handleAuthenticateWallet"
+              >
+                {{ wallet.authenticating.value ? 'Signing…' : 'Sign Pacifica session' }}
               </button>
 
               <button
