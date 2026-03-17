@@ -18,11 +18,51 @@ interface PersistedConversation {
 
 const wallet = useWalletSession()
 
-const PENDING_STATUS_ROTATION = [
-  'Waiting API reply',
-  'Collecting market context',
-  'Formulating response',
-  'Preparing AIR3 execution hints',
+const PENDING_STATUS_PHASES = [
+  {
+    startsAtMs: 0,
+    entries: [
+      'Opening AIR3 session',
+      'Resolving wallet identity',
+      'Loading conversation context',
+      'Checking market surface',
+      'Reading recent news feed',
+      'Scanning portfolio state',
+    ],
+  },
+  {
+    startsAtMs: 6_000,
+    entries: [
+      'Interrogating knowledge context',
+      'Merging live market signals',
+      'Reviewing last conversation turns',
+      'Reconciling Pacifica account state',
+      'Evaluating trade constraints',
+      'Enumerating response paths',
+    ],
+  },
+  {
+    startsAtMs: 13_000,
+    entries: [
+      'Thinking through market structure',
+      'Cross-checking execution hints',
+      'Drafting trade narrative',
+      'Preparing chart instructions',
+      'Formulating response',
+      'Writing final reply',
+    ],
+  },
+  {
+    startsAtMs: 22_000,
+    entries: [
+      'Finalizing response payload',
+      'Staging chart output',
+      'Queuing speech pipeline',
+      'Preparing voice playback',
+      'Packaging AIR3 reply',
+      'Delivering response',
+    ],
+  },
 ] as const
 
 const state = reactive({
@@ -37,6 +77,8 @@ const state = reactive({
 })
 
 let pendingStatusTimer: ReturnType<typeof setInterval> | undefined
+let pendingStatusCursor = 0
+let lastPendingStatus = ''
 
 function getStorageScope() {
   return typeof window === 'undefined' ? null : window.localStorage
@@ -114,6 +156,36 @@ function showPendingReply(status: string) {
 
 function updatePendingReplyStatus(status: string) {
   state.pendingReplyStatus = status
+  lastPendingStatus = status
+}
+
+function resolvePendingStatusPhase(elapsedMs: number) {
+  for (let index = PENDING_STATUS_PHASES.length - 1; index >= 0; index -= 1) {
+    const phase = PENDING_STATUS_PHASES[index]
+    if (elapsedMs >= phase.startsAtMs)
+      return phase
+  }
+
+  return PENDING_STATUS_PHASES[0]
+}
+
+function resolveNextPendingStatus() {
+  const elapsedMs = Math.max(0, Date.now() - state.pendingReplyStartedAt)
+  const phase = resolvePendingStatusPhase(elapsedMs)
+  const entries = phase.entries
+  if (!entries.length)
+    return 'Formulating response'
+
+  const offset = pendingStatusCursor % entries.length
+  pendingStatusCursor += 1
+
+  for (let step = 0; step < entries.length; step += 1) {
+    const candidate = entries[(offset + step) % entries.length]
+    if (candidate !== lastPendingStatus)
+      return candidate
+  }
+
+  return entries[offset]
 }
 
 function startPendingReplyRotation() {
@@ -121,14 +193,13 @@ function startPendingReplyRotation() {
     return
 
   clearPendingReplyStatusTimer()
-  let index = 0
+  pendingStatusCursor = Math.floor(Math.random() * 3)
   pendingStatusTimer = setInterval(() => {
     if (!state.pendingReplyVisible)
       return
 
-    index = (index + 1) % PENDING_STATUS_ROTATION.length
-    updatePendingReplyStatus(PENDING_STATUS_ROTATION[index])
-  }, 1900)
+    updatePendingReplyStatus(resolveNextPendingStatus())
+  }, 1700)
 }
 
 function hidePendingReply() {
@@ -136,6 +207,7 @@ function hidePendingReply() {
   state.pendingReplyVisible = false
   state.pendingReplyStartedAt = 0
   state.pendingReplyStatus = ''
+  lastPendingStatus = ''
 }
 
 function createAssistantMessage(envelope: Air3MessageEnvelope) {
@@ -200,7 +272,7 @@ async function sendMessage(text: string) {
 
   state.sending = true
   state.error = null
-  showPendingReply('Opening session')
+  showPendingReply('Opening AIR3 session')
 
   try {
     const client = createAir3Client({
@@ -214,7 +286,7 @@ async function sendMessage(text: string) {
     })
 
     state.conversationId = session.conversationId
-    updatePendingReplyStatus(PENDING_STATUS_ROTATION[0])
+    updatePendingReplyStatus(resolveNextPendingStatus())
     startPendingReplyRotation()
 
     const response = await client.sendMessage({
@@ -233,7 +305,7 @@ async function sendMessage(text: string) {
       return
     }
 
-    updatePendingReplyStatus('Processing response')
+    updatePendingReplyStatus('Preparing final response')
     const assistantMessages = response.responses.map(createAssistantMessage)
     hidePendingReply()
     for (const message of assistantMessages)
