@@ -7,6 +7,7 @@ import { createAir3Client } from '@/lib/air3'
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useTradeExecutionPreferences } from '@/modules/product/execution'
+import { computeProposalConfidence, computeRiskReward } from '@/modules/trade/proposalMetrics'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const props = defineProps<{
@@ -28,7 +29,13 @@ const notionalUsd = ref('0')
 const autoExecutionStarted = ref(false)
 const strategyOpen = ref(false)
 
-const confidencePct = computed(() => Math.round((props.proposal.confidence || 0) * 100))
+const marketPrice = computed(() =>
+  marketContext.currentSymbol.value === props.proposal.symbol ? marketContext.market.value?.price ?? null : null,
+)
+const derivedConfidence = computed(() => computeProposalConfidence(props.proposal, { marketPrice: marketPrice.value }))
+const confidencePct = computed(() => Math.round(derivedConfidence.value * 100))
+const riskReward = computed(() => computeRiskReward(props.proposal))
+const riskRewardLabel = computed(() => Number.isFinite(riskReward.value) && riskReward.value > 0 ? riskReward.value.toFixed(2) : '--')
 const confidenceStyle = computed(() => {
   const tone = Math.max(0, Math.min(1, confidencePct.value / 100))
   const hue = Math.round(tone * 120)
@@ -38,6 +45,19 @@ const confidenceStyle = computed(() => {
     background: `hsla(${hue}, 82%, 18%, 0.42)`,
   }
 })
+const riskRewardStyle = computed(() => {
+  const tone = Math.max(0, Math.min(1, riskReward.value / 3))
+  const hue = Math.round(tone * 120)
+  return {
+    color: `hsl(${hue} 88% 72%)`,
+    borderColor: `hsla(${hue}, 82%, 54%, 0.24)`,
+    background: `hsla(${hue}, 82%, 16%, 0.32)`,
+  }
+})
+const proposalForExecution = computed(() => ({
+  ...props.proposal,
+  confidence: Number(derivedConfidence.value.toFixed(2)),
+}))
 const requiresOnboarding = computed(() => wallet.isAuthenticated.value && !pacifica.readyToExecute.value)
 const requiresFunding = computed(() =>
   wallet.isAuthenticated.value && pacifica.readyToExecute.value && ((pacifica.account.value?.availableToSpend || 0) <= 0),
@@ -120,7 +140,7 @@ async function handleExecute() {
     const proposalResponse = await client.createTradeProposal({
       walletAddress: wallet.address.value,
       conversationId: props.conversationId,
-      proposal: props.proposal,
+      proposal: proposalForExecution.value,
       headers: wallet.buildRequestHeaders(),
     })
 
@@ -252,7 +272,10 @@ function toggleStrategy() {
         <strong>${{ proposal.symbol }}</strong>
         <span class="proposal-card__timeframe">{{ proposal.timeframe }}</span>
       </div>
-      <span :class="sideTone.className">{{ sideTone.label }}</span>
+      <div class="proposal-card__signal-wrap">
+        <span :class="sideTone.className">{{ sideTone.label }}</span>
+        <span class="proposal-card__risk-reward" :style="riskRewardStyle">R/R: {{ riskRewardLabel }}</span>
+      </div>
       <div class="proposal-card__confidence-wrap">
         <span class="proposal-card__confidence-label">Confidence:</span>
         <span class="status-pill proposal-card__confidence" :style="confidenceStyle" title="Confidence">
@@ -397,6 +420,12 @@ function toggleStrategy() {
   gap: 8px;
 }
 
+.proposal-card__signal-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .proposal-card__confidence-wrap {
   display: inline-flex;
   align-items: center;
@@ -430,6 +459,20 @@ function toggleStrategy() {
   border-radius: 2px;
   color: #fff;
   font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.proposal-card__risk-reward {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border: 1px solid rgba(138, 218, 255, 0.14);
+  border-radius: 2px;
+  font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -483,10 +526,11 @@ function toggleStrategy() {
 }
 
 .proposal-card__field input {
-  min-height: 34px;
+  min-height: 20px;
   border: 1px solid rgba(138, 218, 255, 0.12);
   background: rgba(2, 12, 21, 0.78);
-  padding: 0 12px;
+  padding: 0 8px;
+  font-size: 0.82rem;
   outline: none;
 }
 
