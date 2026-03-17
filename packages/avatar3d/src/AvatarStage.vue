@@ -270,7 +270,7 @@ function setPointerActivity(event: PointerEvent) {
 
   pointerIdleTimer = setTimeout(() => {
     pointerActive.value = false
-  }, 1200)
+  }, 140)
 }
 
 function resetPointerActivity() {
@@ -682,13 +682,14 @@ function applyEyeTracking(vrm: VRM, delta: number) {
   focusTarget.z = target.z
 
   const lookTarget = ensureLookAtTarget(vrm)
-  if (lookTarget && pointerActive.value) {
+  if (lookTarget) {
     lookAtBuffer.set(target.x, target.y, target.z)
-    lookTarget.position.lerp(lookAtBuffer, Math.min(1, delta * 10))
+    lookTarget.position.lerp(lookAtBuffer, Math.min(1, delta * (pointerActive.value ? 16 : 8)))
     lookTarget.updateMatrixWorld(true)
   }
 
-  idleEyeSaccades.update(vrm, target, delta)
+  if (!pointerActive.value && lookTarget && lookTarget.position.distanceTo(lookAtBuffer) < 0.06)
+    idleEyeSaccades.update(vrm, target, delta)
 }
 
 function applyAdditiveBoneOffset(bone: Object3D | null | undefined, pitch: number, yaw: number, roll = 0) {
@@ -715,18 +716,21 @@ function applyHeadTracking(vrm: VRM, delta: number) {
   const head = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head)
   const sourceYaw = tracking.x * tracking.influence
   const sourcePitch = -tracking.y * tracking.influence
+  const bodyLambda = pointerActive.value ? 8 : 1.35
+  const neckLambda = pointerActive.value ? 9.4 : 1.2
+  const headLambda = pointerActive.value ? 10.4 : 1.15
 
-  secondaryTrackingState.chestYaw = MathUtils.damp(secondaryTrackingState.chestYaw, sourceYaw * 0.038, 7.2, delta)
-  secondaryTrackingState.chestPitch = MathUtils.damp(secondaryTrackingState.chestPitch, sourcePitch * 0.024, 7, delta)
-  secondaryTrackingState.upperChestYaw = MathUtils.damp(secondaryTrackingState.upperChestYaw, sourceYaw * 0.056, 8, delta)
-  secondaryTrackingState.upperChestPitch = MathUtils.damp(secondaryTrackingState.upperChestPitch, sourcePitch * 0.034, 7.8, delta)
-  secondaryTrackingState.neckYaw = MathUtils.damp(secondaryTrackingState.neckYaw, sourceYaw * 0.082, 9, delta)
-  secondaryTrackingState.neckPitch = MathUtils.damp(secondaryTrackingState.neckPitch, sourcePitch * 0.058, 8.8, delta)
-  secondaryTrackingState.headYaw = MathUtils.damp(secondaryTrackingState.headYaw, sourceYaw * 0.11, 10.5, delta)
-  secondaryTrackingState.headPitch = MathUtils.damp(secondaryTrackingState.headPitch, sourcePitch * 0.082, 10, delta)
-  secondaryTrackingState.headRoll = MathUtils.damp(secondaryTrackingState.headRoll, -sourceYaw * 0.018, 9.2, delta)
-  secondaryTrackingState.shoulderYaw = MathUtils.damp(secondaryTrackingState.shoulderYaw, sourceYaw * 0.028, 6.8, delta)
-  secondaryTrackingState.shoulderRoll = MathUtils.damp(secondaryTrackingState.shoulderRoll, sourceYaw * 0.024, 6.8, delta)
+  secondaryTrackingState.chestYaw = MathUtils.damp(secondaryTrackingState.chestYaw, sourceYaw * 0.038, bodyLambda, delta)
+  secondaryTrackingState.chestPitch = MathUtils.damp(secondaryTrackingState.chestPitch, sourcePitch * 0.024, bodyLambda, delta)
+  secondaryTrackingState.upperChestYaw = MathUtils.damp(secondaryTrackingState.upperChestYaw, sourceYaw * 0.056, bodyLambda, delta)
+  secondaryTrackingState.upperChestPitch = MathUtils.damp(secondaryTrackingState.upperChestPitch, sourcePitch * 0.034, bodyLambda, delta)
+  secondaryTrackingState.neckYaw = MathUtils.damp(secondaryTrackingState.neckYaw, sourceYaw * 0.082, neckLambda, delta)
+  secondaryTrackingState.neckPitch = MathUtils.damp(secondaryTrackingState.neckPitch, sourcePitch * 0.058, neckLambda, delta)
+  secondaryTrackingState.headYaw = MathUtils.damp(secondaryTrackingState.headYaw, sourceYaw * 0.11, headLambda, delta)
+  secondaryTrackingState.headPitch = MathUtils.damp(secondaryTrackingState.headPitch, sourcePitch * 0.082, headLambda, delta)
+  secondaryTrackingState.headRoll = MathUtils.damp(secondaryTrackingState.headRoll, -sourceYaw * 0.018, headLambda, delta)
+  secondaryTrackingState.shoulderYaw = MathUtils.damp(secondaryTrackingState.shoulderYaw, sourceYaw * 0.028, bodyLambda, delta)
+  secondaryTrackingState.shoulderRoll = MathUtils.damp(secondaryTrackingState.shoulderRoll, sourceYaw * 0.024, bodyLambda, delta)
 
   applyAdditiveBoneOffset(chest, secondaryTrackingState.chestPitch, secondaryTrackingState.chestYaw)
   applyAdditiveBoneOffset(upperChest, secondaryTrackingState.upperChestPitch, secondaryTrackingState.upperChestYaw)
