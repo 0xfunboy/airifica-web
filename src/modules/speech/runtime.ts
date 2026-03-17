@@ -10,6 +10,10 @@ const VOICE_KEY = 'airifica:speech-voice'
 const MODE_KEY = 'airifica:speech-mode'
 
 type SpeechMode = 'browser' | 'external'
+type PlaybackClock = {
+  currentTime: () => number
+  playing: () => boolean
+}
 
 function getStorageScope() {
   return typeof window === 'undefined' ? null : window.localStorage
@@ -98,6 +102,11 @@ let currentUtterance: SpeechSynthesisUtterance | null = null
 let currentAudio: HTMLAudioElement | null = null
 let currentAudioUrl: string | null = null
 let currentFetchController: AbortController | null = null
+let currentSource: AudioBufferSourceNode | null = null
+let currentGain: GainNode | null = null
+let currentPlaybackClock: PlaybackClock | null = null
+let outputAudioContext: AudioContext | null = null
+let audioUnlockBound = false
 let mouthFrameId: number | undefined
 let mouthTarget = 0
 
@@ -141,23 +150,22 @@ function startSpeechSynthesisLipSync() {
   mouthFrameId = window.requestAnimationFrame(tick)
 }
 
-function startExternalAudioLipSync(audio: HTMLAudioElement) {
+function startExternalAudioLipSync(clock: PlaybackClock) {
   stopLipSync()
   state.speaking = true
 
   const tick = () => {
-    if (!state.speaking || currentAudio !== audio) {
+    if (!state.speaking || !clock.playing()) {
       mouthFrameId = undefined
       return
     }
 
-    const phasePrimary = audio.currentTime * 11.6
-    const phaseSecondary = audio.currentTime * 6.4
-    const energy = audio.paused
-      ? 0
-      : 20
-        + (Math.sin(phasePrimary) * 0.5 + 0.5) * 18
-        + (Math.sin(phaseSecondary) * 0.5 + 0.5) * 10
+    const playbackTime = clock.currentTime()
+    const phasePrimary = playbackTime * 11.6
+    const phaseSecondary = playbackTime * 6.4
+    const energy = 20
+      + (Math.sin(phasePrimary) * 0.5 + 0.5) * 18
+      + (Math.sin(phaseSecondary) * 0.5 + 0.5) * 10
     mouthTarget = energy
     state.mouthOpenSize = state.mouthOpenSize * 0.7 + mouthTarget * 0.3
     mouthFrameId = window.requestAnimationFrame(tick)
@@ -167,6 +175,22 @@ function startExternalAudioLipSync(audio: HTMLAudioElement) {
 }
 
 function cleanupExternalPlayback() {
+  if (currentSource) {
+    try {
+      currentSource.stop()
+    }
+    catch {
+    }
+    currentSource.disconnect()
+  }
+
+  if (currentGain)
+    currentGain.disconnect()
+
+  currentSource = null
+  currentGain = null
+  currentPlaybackClock = null
+
   if (currentAudio) {
     currentAudio.pause()
     currentAudio.src = ''
@@ -179,6 +203,48 @@ function cleanupExternalPlayback() {
     URL.revokeObjectURL(currentAudioUrl)
     currentAudioUrl = null
   }
+}
+
+async function ensureOutputAudioContext() {
+  if (typeof window === 'undefined')
+    return null
+
+  const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  if (!AudioContextCtor)
+    return null
+
+  if (!outputAudioContext)
+    outputAudioContext = new AudioContextCtor({ latencyHint: 'interactive' })
+
+  if (outputAudioContext.state === 'suspended') {
+    try {
+      await outputAudioContext.resume()
+    }
+    catch {
+    }
+  }
+
+  return outputAudioContext
+}
+
+function bindAudioUnlock() {
+  if (audioUnlockBound || typeof window === 'undefined')
+    return
+
+  const unlock = () => {
+    void ensureOutputAudioContext().then((context) => {
+      if (context?.state === 'running') {
+        window.removeEventListener('pointerdown', unlock)
+        window.removeEventListener('keydown', unlock)
+        window.removeEventListener('touchstart', unlock)
+      }
+    })
+  }
+
+  audioUnlockBound = true
+  window.addEventListener('pointerdown', unlock, { passive: true })
+  window.addEventListener('keydown', unlock, { passive: true })
+  window.addEventListener('touchstart', unlock, { passive: true })
 }
 
 function stop(reason = 'manual-stop') {
@@ -351,6 +417,40 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     return false
 
   const blob = await fetchExternalSpeech(next.text)
+  const context = await ensureOutputAudioContext()
+
+  if (context?.state === 'running') {
+    const decoded = await context.decodeAudioData(await blob.arrayBuffer())
+    const source = context.createBufferSource()
+    const gain = context.createGain()
+    source.buffer = decoded
+    source.connect(gain)
+    gain.connect(context.destination)
+
+    currentSource = source
+    currentGain = gain
+    const startedAt = context.currentTime
+    currentPlaybackClock = {
+      currentTime: () => Math.max(0, context.currentTime - startedAt),
+      playing: () => currentSource === source && (context.currentTime - startedAt) < decoded.duration,
+    }
+
+    source.onended = () => {
+      if (currentSource !== source)
+        return
+
+      cleanupExternalPlayback()
+      state.queue.shift()
+      stopLipSync()
+      void processQueue()
+    }
+
+    state.activeMode = 'external'
+    startExternalAudioLipSync(currentPlaybackClock)
+    source.start()
+    return true
+  }
+
   const objectUrl = URL.createObjectURL(blob)
   const audio = new Audio()
   audio.preload = 'auto'
@@ -361,7 +461,10 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
 
   audio.onplay = () => {
     state.activeMode = 'external'
-    startExternalAudioLipSync(audio)
+    startExternalAudioLipSync({
+      currentTime: () => audio.currentTime,
+      playing: () => !audio.paused && !audio.ended,
+    })
   }
 
   audio.onended = () => {
@@ -443,6 +546,7 @@ function preview(text: string) {
   if (!normalized)
     return false
 
+  void ensureOutputAudioContext()
   stop('manual-stop')
   state.error = null
   state.supported = resolvePreferredSpeechMode() !== null
@@ -483,6 +587,7 @@ function initialize() {
     return
 
   initialized = true
+  bindAudioUnlock()
   for (const message of conversation.messages.value) {
     if (message.role === 'assistant')
       seenAssistantMessages.add(message.id)
