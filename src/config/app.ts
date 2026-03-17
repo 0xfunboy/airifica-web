@@ -57,6 +57,8 @@ function resolveEndpointUrl(baseUrl: string, path: string) {
 
 const ttsBaseUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_BASE_URL || '', '')
 const ttsSpeechPath = (import.meta.env.VITE_AIR3_TTS_SPEECH_PATH || '/v1/audio/speech').trim()
+const rawTtsProvider = (import.meta.env.VITE_AIR3_TTS_PROVIDER || (ttsBaseUrl ? 'external' : 'browser')).trim().toLowerCase()
+const normalizedTtsProvider = rawTtsProvider === 'openai-compatible' ? 'external' : rawTtsProvider
 
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
@@ -77,7 +79,7 @@ export const appConfig = {
   pacificaBuilderCode: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_CODE || 'AIRewardrop').trim(),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || 'AIRewardrop').trim(),
   embeddedAllowedOrigin: (import.meta.env.VITE_AIR3_EMBED_ALLOWED_ORIGIN || '').trim(),
-  ttsProvider: (import.meta.env.VITE_AIR3_TTS_PROVIDER || (ttsBaseUrl ? 'openai-compatible' : 'browser')).trim(),
+  ttsProvider: normalizedTtsProvider === 'external' ? 'external' : 'browser',
   ttsBaseUrl,
   ttsSpeechPath,
   ttsSpeechUrl: resolveEndpointUrl(ttsBaseUrl, ttsSpeechPath),

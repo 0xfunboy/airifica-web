@@ -7,6 +7,7 @@ import { useConversationState } from '@/modules/conversation/state'
 const AUTO_SPEAK_KEY = 'airifica:auto-speak'
 const LOCALE_KEY = 'airifica:speech-locale'
 const VOICE_KEY = 'airifica:speech-voice'
+const MODE_KEY = 'airifica:speech-mode'
 
 type SpeechMode = 'browser' | 'external'
 
@@ -54,26 +55,40 @@ function canUseExternalSpeech() {
   return typeof window !== 'undefined' && Boolean(appConfig.ttsSpeechUrl)
 }
 
+function isModeAvailable(mode: SpeechMode) {
+  return mode === 'browser' ? canUseBrowserSpeech() : canUseExternalSpeech()
+}
+
 function resolvePreferredSpeechMode(): SpeechMode | null {
-  if (appConfig.ttsProvider === 'openai-compatible' && canUseExternalSpeech())
+  if (appConfig.ttsProvider === 'external' && canUseExternalSpeech())
     return 'external'
-  if (canUseBrowserSpeech())
+  if (appConfig.ttsProvider === 'browser' && canUseBrowserSpeech())
     return 'browser'
   if (canUseExternalSpeech())
     return 'external'
+  if (canUseBrowserSpeech())
+    return 'browser'
   return null
+}
+
+function resolveInitialMode() {
+  const storedMode = readStorage<SpeechMode | null>(getStorageScope(), MODE_KEY, null)
+  if (storedMode && isModeAvailable(storedMode))
+    return storedMode
+  return resolvePreferredSpeechMode()
 }
 
 const state = reactive({
   autoSpeakEnabled: readStorage(getStorageScope(), AUTO_SPEAK_KEY, true),
   locale: readStorage(getStorageScope(), LOCALE_KEY, typeof navigator !== 'undefined' ? navigator.language : 'en-US'),
   voiceId: readStorage(getStorageScope(), VOICE_KEY, ''),
-  supported: resolvePreferredSpeechMode() !== null,
+  supported: resolveInitialMode() !== null,
   speaking: false,
   mouthOpenSize: 0,
   error: null as string | null,
   queue: [] as Array<{ id: string, text: string }>,
-  activeMode: resolvePreferredSpeechMode() as SpeechMode | null,
+  preferredMode: resolveInitialMode() as SpeechMode | null,
+  activeMode: resolveInitialMode() as SpeechMode | null,
 })
 
 const conversation = useConversationState()
@@ -90,6 +105,8 @@ function persistSettings() {
   writeStorage(getStorageScope(), AUTO_SPEAK_KEY, state.autoSpeakEnabled)
   writeStorage(getStorageScope(), LOCALE_KEY, state.locale)
   writeStorage(getStorageScope(), VOICE_KEY, state.voiceId)
+  if (state.preferredMode)
+    writeStorage(getStorageScope(), MODE_KEY, state.preferredMode)
 }
 
 function stopLipSync() {
@@ -345,7 +362,9 @@ async function processQueue() {
     return
   }
 
-  const preferredMode = resolvePreferredSpeechMode()
+  const preferredMode = state.preferredMode && isModeAvailable(state.preferredMode)
+    ? state.preferredMode
+    : resolvePreferredSpeechMode()
   if (!preferredMode) {
     state.error = 'No speech provider is available.'
     state.queue = []
@@ -406,6 +425,21 @@ function setLocale(value: string) {
   persistSettings()
 }
 
+function setPreferredMode(value: SpeechMode) {
+  if (!isModeAvailable(value))
+    return
+
+  state.preferredMode = value
+  if (!state.speaking)
+    state.activeMode = value
+  state.supported = true
+  state.error = null
+  persistSettings()
+
+  if (state.queue.length > 0 && !currentUtterance && !currentAudio && !currentFetchController)
+    void processQueue()
+}
+
 function initialize() {
   if (initialized)
     return
@@ -437,17 +471,24 @@ export function useSpeechRuntime() {
 
   return {
     supported: computed(() => state.supported),
+    availableModes: computed(() => ({
+      browser: canUseBrowserSpeech(),
+      external: canUseExternalSpeech(),
+    })),
     autoSpeakEnabled: computed(() => state.autoSpeakEnabled),
     locale: computed(() => state.locale),
     voiceId: computed(() => state.voiceId),
+    preferredMode: computed(() => state.preferredMode),
     speaking: computed(() => state.speaking),
     mouthOpenSize: computed(() => state.mouthOpenSize),
     error: computed(() => state.error),
     queueSize: computed(() => state.queue.length),
     activeMode: computed(() => state.activeMode),
+    externalEndpoint: computed(() => appConfig.ttsSpeechUrl),
     enqueue,
     stop,
     setAutoSpeakEnabled,
     setLocale,
+    setPreferredMode,
   }
 }

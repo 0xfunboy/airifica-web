@@ -53,6 +53,39 @@ const settingsOpen = ref(false)
             <span>Open portfolio</span>
           </a>
 
+          <div class="stage-header__tts-panel">
+            <div class="stage-header__lighting-head">
+              <span>TTS Mode</span>
+              <strong>{{ speech.activeMode.value || 'off' }}</strong>
+            </div>
+            <div class="stage-header__mode-toggle">
+              <button
+                class="stage-header__mode-option"
+                :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'browser' }"
+                :disabled="!speech.availableModes.value.browser"
+                type="button"
+                @click="speech.setPreferredMode('browser')"
+              >
+                Browser
+              </button>
+              <button
+                class="stage-header__mode-option"
+                :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'external' }"
+                :disabled="!speech.availableModes.value.external"
+                type="button"
+                @click="speech.setPreferredMode('external')"
+              >
+                External
+              </button>
+            </div>
+            <p v-if="speech.availableModes.value.external && speech.externalEndpoint.value" class="stage-header__mode-hint">
+              {{ speech.externalEndpoint.value }}
+            </p>
+            <p v-else class="stage-header__mode-hint">
+              External server unavailable in env.
+            </p>
+          </div>
+
           <div class="stage-header__lighting-panel">
             <div class="stage-header__lighting-head">
               <span>Avatar lighting</span>
@@ -205,6 +238,14 @@ const settingsOpen = ref(false)
   border-top: 1px solid rgba(138, 218, 255, 0.1);
 }
 
+.stage-header__tts-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(138, 218, 255, 0.1);
+}
+
 .stage-header__lighting-head,
 .stage-header__slider-head {
   display: flex;
@@ -235,6 +276,34 @@ const settingsOpen = ref(false)
 .stage-header__slider {
   width: 100%;
   accent-color: #67e8f9;
+}
+
+.stage-header__mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stage-header__mode-option {
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(138, 218, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-1);
+}
+
+.stage-header__mode-option--active {
+  border-color: rgba(103, 232, 249, 0.24);
+  background: rgba(103, 232, 249, 0.14);
+  color: rgba(240, 249, 255, 0.96);
+}
+
+.stage-header__mode-hint {
+  margin: 0;
+  color: rgba(186, 230, 253, 0.62);
+  font-size: 0.7rem;
+  line-height: 1.45;
+  word-break: break-word;
 }
 
 @media (max-width: 1080px) {
