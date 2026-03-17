@@ -15,6 +15,14 @@ const speech = useSpeechRuntime()
 const marketContext = useMarketContext()
 
 const settingsOpen = ref(false)
+
+function toggleAutoSpeak() {
+  speech.setAutoSpeakEnabled(!speech.autoSpeakEnabled.value)
+}
+
+function previewSpeech() {
+  speech.preview('Airifica external speech test.')
+}
 </script>
 
 <template>
@@ -48,6 +56,12 @@ const settingsOpen = ref(false)
           </button>
           <button class="stage-header__utility" :disabled="!speech.speaking.value" type="button" @click="speech.stop()">
             <span>Stop speech</span>
+          </button>
+          <button class="stage-header__utility" type="button" @click="toggleAutoSpeak">
+            <span>{{ speech.autoSpeakEnabled.value ? 'Auto speak on' : 'Auto speak off' }}</span>
+          </button>
+          <button class="stage-header__utility" :disabled="!speech.supported.value" type="button" @click="previewSpeech">
+            <span>Test voice</span>
           </button>
           <a class="stage-header__utility" :href="marketContext.pacificaPortfolioUrl.value" target="_blank" rel="noopener noreferrer">
             <span>Open portfolio</span>
@@ -85,6 +99,12 @@ const settingsOpen = ref(false)
             </p>
             <p v-else class="stage-header__mode-hint">
               External server unavailable in env.
+            </p>
+            <p class="stage-header__mode-hint">
+              Auto speak: {{ speech.autoSpeakEnabled.value ? 'on' : 'off' }} · Queue: {{ speech.queueSize.value }}
+            </p>
+            <p v-if="speech.error.value" class="stage-header__mode-hint stage-header__mode-hint--error">
+              {{ speech.error.value }}
             </p>
           </div>
 
@@ -311,6 +331,10 @@ const settingsOpen = ref(false)
   font-size: 0.7rem;
   line-height: 1.45;
   word-break: break-word;
+}
+
+.stage-header__mode-hint--error {
+  color: rgba(255, 190, 190, 0.88);
 }
 
 @media (max-width: 1080px) {

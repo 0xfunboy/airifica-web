@@ -426,15 +426,29 @@ async function processQueue() {
 }
 
 function enqueue(text: string, id: string) {
-  if (!state.supported || !state.autoSpeakEnabled)
-    return
-
   const normalized = text.trim()
   if (!normalized)
-    return
+    return false
+
+  if (!state.supported || !state.autoSpeakEnabled)
+    return false
 
   state.queue.push({ id, text: normalized })
   void processQueue()
+  return true
+}
+
+function preview(text: string) {
+  const normalized = text.trim()
+  if (!normalized)
+    return false
+
+  stop('manual-stop')
+  state.error = null
+  state.supported = resolvePreferredSpeechMode() !== null
+  state.queue = [{ id: `preview-${Date.now()}`, text: normalized }]
+  void processQueue()
+  return true
 }
 
 function setAutoSpeakEnabled(value: boolean) {
@@ -510,6 +524,7 @@ export function useSpeechRuntime() {
     activeMode: computed(() => state.activeMode),
     externalEndpoint: computed(() => appConfig.ttsSpeechUrl),
     enqueue,
+    preview,
     stop,
     setAutoSpeakEnabled,
     setLocale,
