@@ -250,7 +250,7 @@ onMounted(() => {
   height: 100%;
   min-height: 0;
   padding: 0;
-  border: 4px solid rgba(125, 211, 252, 0.16);
+  border: 2px solid rgba(125, 211, 252, 0.16);
   border-radius: 20px;
   background: rgba(6, 22, 34, 0.72);
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.32);
@@ -400,7 +400,7 @@ onMounted(() => {
 }
 
 .conversation-shell__composer-bar {
-  margin-top: -46px;
+  margin-top: 2px;
   padding-inline: 10px;
   min-height: 38px;
 }
@@ -481,7 +481,7 @@ onMounted(() => {
 .conversation-shell__reset-fab {
   position: absolute;
   right: 18px;
-  bottom: -18px;
+  bottom: -66px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -526,7 +526,7 @@ onMounted(() => {
   }
 
   .conversation-shell__reset-fab {
-    bottom: -14px;
+    bottom: -62px;
   }
 }
 
