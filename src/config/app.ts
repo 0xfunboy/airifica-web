@@ -68,7 +68,11 @@ function resolveEndpointUrl(baseUrl: string, path: string) {
 }
 
 const ttsBaseUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_BASE_URL || '', '')
+const ttsDevProxyUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_DEV_PROXY_URL || '', 'http://127.0.0.1:4041')
 const ttsSpeechPath = (import.meta.env.VITE_AIR3_TTS_SPEECH_PATH || '/v1/audio/speech').trim()
+const ttsRequestBaseUrl = import.meta.env.DEV && ttsBaseUrl
+  ? ttsDevProxyUrl
+  : ttsBaseUrl
 const rawTtsProvider = (import.meta.env.VITE_AIR3_TTS_PROVIDER || (ttsBaseUrl ? 'external' : 'browser')).trim().toLowerCase()
 const normalizedTtsProvider = rawTtsProvider === 'chatterbox'
   ? 'fastapi'
@@ -101,8 +105,9 @@ export const appConfig = {
       ? 'fastapi'
       : 'openai-compatible',
   ttsBaseUrl,
+  ttsDevProxyUrl,
   ttsSpeechPath,
-  ttsSpeechUrl: resolveEndpointUrl(ttsBaseUrl, ttsSpeechPath),
+  ttsSpeechUrl: resolveEndpointUrl(ttsRequestBaseUrl, ttsSpeechPath),
   ttsModel: (import.meta.env.VITE_AIR3_TTS_MODEL || 'gpt-4o-mini-tts').trim(),
   ttsVoice: (import.meta.env.VITE_AIR3_TTS_VOICE || 'alloy').trim(),
   ttsVoiceMode: (import.meta.env.VITE_AIR3_TTS_VOICE_MODE || 'predefined').trim(),

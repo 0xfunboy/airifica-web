@@ -21,6 +21,7 @@ interface ImportMetaEnv {
   readonly VITE_AIR3_EMBED_ALLOWED_ORIGIN?: string
   readonly VITE_AIR3_TTS_PROVIDER?: string
   readonly VITE_AIR3_TTS_BASE_URL?: string
+  readonly VITE_AIR3_TTS_DEV_PROXY_URL?: string
   readonly VITE_AIR3_TTS_SPEECH_PATH?: string
   readonly VITE_AIR3_TTS_MODEL?: string
   readonly VITE_AIR3_TTS_VOICE?: string
