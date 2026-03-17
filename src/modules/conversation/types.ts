@@ -11,4 +11,6 @@ export interface ConversationMessage {
   proposal?: Air3TradeProposal
   proposalPending?: boolean
   meta?: Air3MessageMeta
+  pending?: boolean
+  statusNote?: string
 }

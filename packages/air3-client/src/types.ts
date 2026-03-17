@@ -96,6 +96,11 @@ export interface Air3PacificaPrepareAgentResponse {
   }
 }
 
+export interface Air3PacificaPrepareAgentOptions {
+  builderCode?: string
+  referralCode?: string
+}
+
 export interface Air3PacificaAccountSnapshot {
   balance: number
   equity: number

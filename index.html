@@ -30,9 +30,149 @@
       content="Avatar-led AIR3 interface for Pacifica account actions, real conversation flow and Solana wallet execution."
     >
     <meta name="twitter:image" content="/open-graph.png">
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: #04111d;
+        color: #eef7ff;
+      }
+
+      body {
+        background:
+          radial-gradient(circle at top, rgba(46, 153, 184, 0.16), transparent 42%),
+          linear-gradient(180deg, #04111d 0%, #020913 100%);
+      }
+
+      #app {
+        min-height: 100vh;
+      }
+
+      .app-preload {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        padding: 24px;
+        overflow: hidden;
+      }
+
+      .app-preload::before,
+      .app-preload::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .app-preload::before {
+        background:
+          linear-gradient(180deg, rgba(2, 9, 19, 0.36), rgba(2, 9, 19, 0.84)),
+          url("/brand/AIR3-extended-Studio.webp") center center / cover no-repeat;
+        opacity: 0.44;
+        filter: blur(14px) saturate(1.08);
+        transform: scale(1.03);
+      }
+
+      .app-preload::after {
+        background-image:
+          linear-gradient(rgba(88, 194, 236, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(88, 194, 236, 0.08) 1px, transparent 1px);
+        background-size: 72px 72px;
+        opacity: 0.24;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.84), rgba(0, 0, 0, 0.08));
+      }
+
+      .app-preload__panel {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 18px;
+        justify-items: center;
+        width: min(420px, 100%);
+        padding: 28px 24px;
+        border-radius: 28px;
+        border: 1px solid rgba(117, 212, 249, 0.16);
+        background: rgba(4, 15, 25, 0.62);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+        backdrop-filter: blur(18px);
+      }
+
+      .app-preload__logo {
+        width: min(240px, 72vw);
+        height: auto;
+      }
+
+      .app-preload__ring {
+        width: 64px;
+        height: 64px;
+        border-radius: 999px;
+        border: 3px solid rgba(91, 214, 255, 0.18);
+        border-top-color: #5bd6ff;
+        animation: app-preload-spin 1s linear infinite;
+      }
+
+      .app-preload__progress {
+        position: relative;
+        width: 100%;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(12, 36, 52, 0.72);
+        overflow: hidden;
+      }
+
+      .app-preload__progress > span {
+        display: block;
+        width: 42%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #2fa8cf, #72ecff);
+        animation: app-preload-progress 1.4s ease-in-out infinite;
+      }
+
+      .app-preload__title {
+        margin: 0;
+        font-size: 0.95rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .app-preload__detail {
+        margin: 0;
+        color: rgba(223, 236, 247, 0.7);
+        font-size: 0.88rem;
+      }
+
+      @keyframes app-preload-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes app-preload-progress {
+        0% {
+          transform: translateX(-120%);
+        }
+        100% {
+          transform: translateX(320%);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="app-preload" aria-live="polite">
+        <div class="app-preload__panel">
+          <img class="app-preload__logo" src="/brand/AIRewardrop_orizzontal.png" alt="AIRewardrop">
+          <div class="app-preload__ring" aria-hidden="true"></div>
+          <div class="app-preload__progress" aria-hidden="true">
+            <span></span>
+          </div>
+          <p class="app-preload__title">Loading stage runtime</p>
+          <p class="app-preload__detail">Preparing avatar scene, conversation session and market surface.</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

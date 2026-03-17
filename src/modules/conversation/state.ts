@@ -18,13 +18,25 @@ interface PersistedConversation {
 
 const wallet = useWalletSession()
 
+const PENDING_STATUS_ROTATION = [
+  'Waiting API reply',
+  'Collecting market context',
+  'Formulating response',
+  'Preparing AIR3 execution hints',
+] as const
+
 const state = reactive({
   hydratedIdentity: '',
   conversationId: '',
   messages: [] as ConversationMessage[],
   sending: false,
   error: null as string | null,
+  pendingReplyVisible: false,
+  pendingReplyStartedAt: 0,
+  pendingReplyStatus: '',
 })
+
+let pendingStatusTimer: ReturnType<typeof setInterval> | undefined
 
 function getStorageScope() {
   return typeof window === 'undefined' ? null : window.localStorage
@@ -85,6 +97,45 @@ function patchMessage(messageId: string, patch: Partial<ConversationMessage>) {
 
   Object.assign(target, patch)
   persist()
+}
+
+function clearPendingReplyStatusTimer() {
+  if (pendingStatusTimer) {
+    clearInterval(pendingStatusTimer)
+    pendingStatusTimer = undefined
+  }
+}
+
+function showPendingReply(status: string) {
+  state.pendingReplyVisible = true
+  state.pendingReplyStartedAt = Date.now()
+  state.pendingReplyStatus = status
+}
+
+function updatePendingReplyStatus(status: string) {
+  state.pendingReplyStatus = status
+}
+
+function startPendingReplyRotation() {
+  if (typeof window === 'undefined')
+    return
+
+  clearPendingReplyStatusTimer()
+  let index = 0
+  pendingStatusTimer = setInterval(() => {
+    if (!state.pendingReplyVisible)
+      return
+
+    index = (index + 1) % PENDING_STATUS_ROTATION.length
+    updatePendingReplyStatus(PENDING_STATUS_ROTATION[index])
+  }, 1900)
+}
+
+function hidePendingReply() {
+  clearPendingReplyStatusTimer()
+  state.pendingReplyVisible = false
+  state.pendingReplyStartedAt = 0
+  state.pendingReplyStatus = ''
 }
 
 function createAssistantMessage(envelope: Air3MessageEnvelope) {
@@ -149,22 +200,32 @@ async function sendMessage(text: string) {
 
   state.sending = true
   state.error = null
+  showPendingReply('Opening session')
 
   try {
     const client = createAir3Client({
       token: wallet.token.value || undefined,
     })
 
-    const response = await client.sendConversationMessage({
+    const session = await client.createSession({
       walletAddress: wallet.sessionIdentity.value,
       conversationId: state.conversationId || undefined,
+      headers: wallet.buildRequestHeaders(),
+    })
+
+    state.conversationId = session.conversationId
+    updatePendingReplyStatus(PENDING_STATUS_ROTATION[0])
+    startPendingReplyRotation()
+
+    const response = await client.sendMessage({
+      walletAddress: wallet.sessionIdentity.value,
+      conversationId: session.conversationId,
       text: content,
       headers: wallet.buildRequestHeaders(),
     })
 
-    state.conversationId = response.conversationId
-
     if (!response.responses.length) {
+      hidePendingReply()
       pushMessage({
         role: 'system',
         content: 'AIR3 returned an empty response payload.',
@@ -172,7 +233,9 @@ async function sendMessage(text: string) {
       return
     }
 
+    updatePendingReplyStatus('Processing response')
     const assistantMessages = response.responses.map(createAssistantMessage)
+    hidePendingReply()
     for (const message of assistantMessages)
       pushMessage(message)
 
@@ -182,6 +245,7 @@ async function sendMessage(text: string) {
     }
   }
   catch (error) {
+    hidePendingReply()
     state.error = error instanceof Error ? error.message : 'Failed to contact AIR3.'
     pushMessage({
       role: 'system',
@@ -218,6 +282,19 @@ export function useConversationState() {
     messages: computed(() => state.messages),
     sending: computed(() => state.sending),
     error: computed(() => state.error),
+    pendingMessage: computed<ConversationMessage | null>(() => {
+      if (!state.pendingReplyVisible)
+        return null
+
+      return {
+        id: 'pending-assistant',
+        role: 'assistant',
+        content: '',
+        createdAt: state.pendingReplyStartedAt || Date.now(),
+        pending: true,
+        statusNote: state.pendingReplyStatus,
+      }
+    }),
     hasConversation: computed(() => Boolean(state.conversationId || state.messages.length)),
     latestAssistantMessage: computed(() =>
       [...state.messages].reverse().find(message => message.role === 'assistant') || null,

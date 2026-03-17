@@ -6,6 +6,7 @@ import type {
   Air3PacificaStatus,
 } from '@airifica/air3-client'
 
+import { appConfig } from '@/config/app'
 import { createAir3Client } from '@/lib/air3'
 import { useWalletSession } from '@/modules/wallet/session'
 
@@ -98,6 +99,10 @@ export function usePacificaAccount() {
       const prepared = await client.preparePacificaAgent({
         pacificaAccount: wallet.address.value,
         maxFeeRate: options?.maxFeeRate,
+        options: {
+          builderCode: appConfig.pacificaBuilderCode,
+          referralCode: appConfig.pacificaReferralCode,
+        },
         headers: wallet.buildRequestHeaders(),
       })
 

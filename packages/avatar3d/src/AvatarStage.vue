@@ -172,12 +172,28 @@ const activeAnimationUrl = ref<string | null>(null)
 const activeAnimationAction = shallowRef<AnimationAction | null>(null)
 const resolvedExpressions = ref<ResolvedExpressions | null>(null)
 const lookAtBuffer = new Vector3()
+const trackingEuler = new Euler()
+const trackingDeltaQuaternion = new Quaternion()
+const trackingBaseQuaternion = new Quaternion()
 const emotionState = {
   happy: 0,
   sad: 0,
   angry: 0,
   surprised: 0,
   relaxed: 0,
+}
+const secondaryTrackingState = {
+  chestYaw: 0,
+  chestPitch: 0,
+  upperChestYaw: 0,
+  upperChestPitch: 0,
+  neckYaw: 0,
+  neckPitch: 0,
+  headYaw: 0,
+  headPitch: 0,
+  headRoll: 0,
+  shoulderYaw: 0,
+  shoulderRoll: 0,
 }
 let resizeObserver: ResizeObserver | undefined
 let activeLoadToken = 0
@@ -550,11 +566,13 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
     return
 
   const action = mixer.clipAction(clip)
+  action.stop()
   action.enabled = true
   action.clampWhenFinished = false
   action.setLoop(LoopOnce, 1)
+  action.setEffectiveTimeScale(1)
   action.reset()
-  action.setEffectiveWeight(0.92)
+  action.setEffectiveWeight(1)
   action.fadeIn(runtime.fadeInSeconds)
   action.play()
 
@@ -640,6 +658,23 @@ function resolveCameraTrackingTarget() {
   }
 }
 
+function resolveTrackingInput() {
+  const camera = cameraRef.value
+  if (pointerActive.value)
+    return { x: pointer.x, y: pointer.y, influence: 1 }
+
+  if (!camera) {
+    return { x: 0, y: 0, influence: 0.35 }
+  }
+
+  const target = resolveCameraTrackingTarget()
+  return {
+    x: MathUtils.clamp(target.x / Math.max(0.42, camera.position.z * 0.16), -1, 1),
+    y: MathUtils.clamp((target.y - modelHeadHeight.value) / Math.max(0.28, modelHeadHeight.value * 0.22), -1, 1),
+    influence: 0.4,
+  }
+}
+
 function applyEyeTracking(vrm: VRM, delta: number) {
   const target = pointerActive.value ? computeLookAtMouse() : resolveCameraTrackingTarget()
   focusTarget.x = target.x
@@ -656,52 +691,49 @@ function applyEyeTracking(vrm: VRM, delta: number) {
   idleEyeSaccades.update(vrm, target, delta)
 }
 
+function applyAdditiveBoneOffset(bone: Object3D | null | undefined, pitch: number, yaw: number, roll = 0) {
+  if (!bone)
+    return
+
+  trackingBaseQuaternion.copy(bone.quaternion)
+  trackingEuler.set(pitch, yaw, roll, 'XYZ')
+  trackingDeltaQuaternion.setFromEuler(trackingEuler)
+  bone.quaternion.copy(trackingBaseQuaternion.multiply(trackingDeltaQuaternion))
+}
+
 function applyHeadTracking(vrm: VRM, delta: number) {
   const humanoid = vrm.humanoid
   if (!humanoid)
     return
 
+  const tracking = resolveTrackingInput()
   const chest = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest)
   const upperChest = humanoid.getNormalizedBoneNode(VRMHumanBoneName.UpperChest)
   const leftShoulder = humanoid.getNormalizedBoneNode(VRMHumanBoneName.LeftShoulder)
   const rightShoulder = humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightShoulder)
   const neck = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Neck)
   const head = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head)
-  const targetYaw = pointerActive.value ? pointer.x * 0.12 : 0
-  const targetPitch = pointerActive.value ? -pointer.y * 0.08 : 0
-  const torsoYaw = pointerActive.value ? pointer.x * 0.045 : 0
-  const torsoPitch = pointerActive.value ? -pointer.y * 0.032 : 0
+  const sourceYaw = tracking.x * tracking.influence
+  const sourcePitch = -tracking.y * tracking.influence
 
-  if (chest) {
-    chest.rotation.y = MathUtils.lerp(chest.rotation.y, torsoYaw * 0.72, Math.min(1, delta * 3.8))
-    chest.rotation.x = MathUtils.lerp(chest.rotation.x, torsoPitch * 0.55, Math.min(1, delta * 3.6))
-  }
+  secondaryTrackingState.chestYaw = MathUtils.damp(secondaryTrackingState.chestYaw, sourceYaw * 0.038, 7.2, delta)
+  secondaryTrackingState.chestPitch = MathUtils.damp(secondaryTrackingState.chestPitch, sourcePitch * 0.024, 7, delta)
+  secondaryTrackingState.upperChestYaw = MathUtils.damp(secondaryTrackingState.upperChestYaw, sourceYaw * 0.056, 8, delta)
+  secondaryTrackingState.upperChestPitch = MathUtils.damp(secondaryTrackingState.upperChestPitch, sourcePitch * 0.034, 7.8, delta)
+  secondaryTrackingState.neckYaw = MathUtils.damp(secondaryTrackingState.neckYaw, sourceYaw * 0.082, 9, delta)
+  secondaryTrackingState.neckPitch = MathUtils.damp(secondaryTrackingState.neckPitch, sourcePitch * 0.058, 8.8, delta)
+  secondaryTrackingState.headYaw = MathUtils.damp(secondaryTrackingState.headYaw, sourceYaw * 0.11, 10.5, delta)
+  secondaryTrackingState.headPitch = MathUtils.damp(secondaryTrackingState.headPitch, sourcePitch * 0.082, 10, delta)
+  secondaryTrackingState.headRoll = MathUtils.damp(secondaryTrackingState.headRoll, -sourceYaw * 0.018, 9.2, delta)
+  secondaryTrackingState.shoulderYaw = MathUtils.damp(secondaryTrackingState.shoulderYaw, sourceYaw * 0.028, 6.8, delta)
+  secondaryTrackingState.shoulderRoll = MathUtils.damp(secondaryTrackingState.shoulderRoll, sourceYaw * 0.024, 6.8, delta)
 
-  if (upperChest) {
-    upperChest.rotation.y = MathUtils.lerp(upperChest.rotation.y, torsoYaw, Math.min(1, delta * 4.1))
-    upperChest.rotation.x = MathUtils.lerp(upperChest.rotation.x, torsoPitch * 0.85, Math.min(1, delta * 4))
-  }
-
-  if (leftShoulder) {
-    leftShoulder.rotation.y = MathUtils.lerp(leftShoulder.rotation.y, torsoYaw * 0.55, Math.min(1, delta * 4.2))
-    leftShoulder.rotation.z = MathUtils.lerp(leftShoulder.rotation.z, torsoYaw * 0.22, Math.min(1, delta * 4.1))
-  }
-
-  if (rightShoulder) {
-    rightShoulder.rotation.y = MathUtils.lerp(rightShoulder.rotation.y, torsoYaw * 0.55, Math.min(1, delta * 4.2))
-    rightShoulder.rotation.z = MathUtils.lerp(rightShoulder.rotation.z, -torsoYaw * 0.22, Math.min(1, delta * 4.1))
-  }
-
-  if (neck) {
-    neck.rotation.y = MathUtils.lerp(neck.rotation.y, targetYaw * 0.6, Math.min(1, delta * 5))
-    neck.rotation.x = MathUtils.lerp(neck.rotation.x, targetPitch * 0.7, Math.min(1, delta * 5))
-  }
-
-  if (head) {
-    head.rotation.y = MathUtils.lerp(head.rotation.y, targetYaw, Math.min(1, delta * 5.5))
-    head.rotation.x = MathUtils.lerp(head.rotation.x, targetPitch, Math.min(1, delta * 5.5))
-    head.rotation.z = MathUtils.lerp(head.rotation.z, pointerActive.value ? -pointer.x * 0.03 : 0, Math.min(1, delta * 5))
-  }
+  applyAdditiveBoneOffset(chest, secondaryTrackingState.chestPitch, secondaryTrackingState.chestYaw)
+  applyAdditiveBoneOffset(upperChest, secondaryTrackingState.upperChestPitch, secondaryTrackingState.upperChestYaw)
+  applyAdditiveBoneOffset(leftShoulder, secondaryTrackingState.chestPitch * 0.18, secondaryTrackingState.shoulderYaw, secondaryTrackingState.shoulderRoll)
+  applyAdditiveBoneOffset(rightShoulder, secondaryTrackingState.chestPitch * 0.18, secondaryTrackingState.shoulderYaw, -secondaryTrackingState.shoulderRoll)
+  applyAdditiveBoneOffset(neck, secondaryTrackingState.neckPitch, secondaryTrackingState.neckYaw)
+  applyAdditiveBoneOffset(head, secondaryTrackingState.headPitch, secondaryTrackingState.headYaw, secondaryTrackingState.headRoll)
 }
 
 function normalizeManualMouthOpen(value: number | undefined) {

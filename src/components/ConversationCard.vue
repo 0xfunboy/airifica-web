@@ -84,6 +84,10 @@ watch(() => conversation.messages.value.length, () => {
   scrollToBottom()
 })
 
+watch(() => conversation.pendingMessage.value?.statusNote, () => {
+  scrollToBottom()
+})
+
 onMounted(() => {
   scrollToBottom()
 })
@@ -124,6 +128,7 @@ onMounted(() => {
 
     <div ref="messagesRef" class="conversation-shell__history">
       <ConversationMessageItem v-for="message in conversation.messages.value" :key="message.id" :message="message" />
+      <ConversationMessageItem v-if="conversation.pendingMessage.value" :message="conversation.pendingMessage.value" />
 
       <p v-if="!conversation.messages.value.length" class="conversation-shell__empty">
         AIR3 is ready. Wallet identity, conversation session and market context are attached to the stage runtime.

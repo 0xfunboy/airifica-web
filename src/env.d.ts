@@ -16,6 +16,7 @@ interface ImportMetaEnv {
   readonly VITE_AIR3_PACIFICA_PORTFOLIO_BASE_URL?: string
   readonly VITE_AIR3_PACIFICA_DEPOSIT_BASE_URL?: string
   readonly VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL?: string
+  readonly VITE_AIR3_PACIFICA_BUILDER_CODE?: string
   readonly VITE_AIR3_PACIFICA_REFERRAL_CODE?: string
   readonly VITE_AIR3_EMBED_ALLOWED_ORIGIN?: string
 }

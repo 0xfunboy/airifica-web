@@ -10,6 +10,7 @@ import type {
   Air3MessageContent,
   Air3MessageEnvelope,
   Air3PacificaOverview,
+  Air3PacificaPrepareAgentOptions,
   Air3PacificaPrepareAgentResponse,
   Air3SessionResponse,
   Air3TradeProposal,
@@ -84,6 +85,7 @@ export interface ApproveTradeProposalInput {
 export interface PreparePacificaAgentInput {
   pacificaAccount: string
   maxFeeRate?: string
+  options?: Air3PacificaPrepareAgentOptions
   headers?: HeadersInit
 }
 
@@ -348,6 +350,8 @@ export class Air3Client {
         body: JSON.stringify({
           pacificaAccount: input.pacificaAccount,
           ...(input.maxFeeRate ? { max_fee_rate: input.maxFeeRate } : {}),
+          ...(input.options?.builderCode ? { builderCode: input.options.builderCode } : {}),
+          ...(input.options?.referralCode ? { referralCode: input.options.referralCode } : {}),
         }),
       },
       25_000,
