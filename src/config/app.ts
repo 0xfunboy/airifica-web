@@ -36,6 +36,23 @@ function normalizeApiBase(raw: string | undefined, fallback: string) {
   return value.endsWith('/api') ? value : `${value}/api`
 }
 
+function resolveEndpointUrl(baseUrl: string, path: string) {
+  const normalizedBase = baseUrl.trim().replace(/\/+$/, '')
+  const normalizedPath = path.trim()
+  if (!normalizedBase)
+    return ''
+  if (!normalizedPath)
+    return normalizedBase
+  if (/^https?:\/\//i.test(normalizedPath))
+    return normalizedPath.replace(/\/+$/, '')
+  if (normalizedPath.startsWith('/'))
+    return `${normalizedBase}${normalizedPath}`
+  return `${normalizedBase}/${normalizedPath}`
+}
+
+const ttsBaseUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_BASE_URL || '', '')
+const ttsSpeechPath = (import.meta.env.VITE_AIR3_TTS_SPEECH_PATH || '/v1/audio/speech').trim()
+
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
   productName: (import.meta.env.VITE_AIRIFICA_PRODUCT_NAME || 'AIR3').trim(),
@@ -55,8 +72,17 @@ export const appConfig = {
   pacificaBuilderCode: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_CODE || 'AIRewardrop').trim(),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || 'AIRewardrop').trim(),
   embeddedAllowedOrigin: (import.meta.env.VITE_AIR3_EMBED_ALLOWED_ORIGIN || '').trim(),
+  ttsProvider: (import.meta.env.VITE_AIR3_TTS_PROVIDER || (ttsBaseUrl ? 'openai-compatible' : 'browser')).trim(),
+  ttsBaseUrl,
+  ttsSpeechPath,
+  ttsSpeechUrl: resolveEndpointUrl(ttsBaseUrl, ttsSpeechPath),
+  ttsModel: (import.meta.env.VITE_AIR3_TTS_MODEL || 'gpt-4o-mini-tts').trim(),
+  ttsVoice: (import.meta.env.VITE_AIR3_TTS_VOICE || 'alloy').trim(),
+  ttsApiKey: (import.meta.env.VITE_AIR3_TTS_API_KEY || '').trim(),
+  ttsResponseFormat: (import.meta.env.VITE_AIR3_TTS_RESPONSE_FORMAT || 'mp3').trim(),
   brandLogoUrl: '/brand/AIRewardrop_orizzontal.png',
   brandIconUrl: '/brand/airtrading_icon.png',
+  brandSiteUrl: 'https://airewrdrop.xyz',
   stageBackgroundUrl: '/brand/AIR3-extended-Studio.webp',
   socialPreviewUrl: '/open-graph.png',
 } as const

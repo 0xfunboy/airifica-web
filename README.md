@@ -74,6 +74,13 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - `VITE_AIR3_RUNTIME_BASE_URL`: optional legacy runtime alias
 - `VITE_AIRIFICA_AVATAR_MODEL_URL`: override for the default VRM model
 - `VITE_AIR3_DEFAULT_MARKET`: initial market symbol
+- `VITE_AIR3_TTS_PROVIDER`: `browser` or `openai-compatible`
+- `VITE_AIR3_TTS_BASE_URL`: base URL for an OpenAI-compatible or FastAPI speech service
+- `VITE_AIR3_TTS_SPEECH_PATH`: speech endpoint path, default `/v1/audio/speech`
+- `VITE_AIR3_TTS_MODEL`
+- `VITE_AIR3_TTS_VOICE`
+- `VITE_AIR3_TTS_API_KEY`
+- `VITE_AIR3_TTS_RESPONSE_FORMAT`
 
 ### Pacifica
 
@@ -94,3 +101,4 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - the project uses a system font stack only
 - the default stage asset set is already included in `public/brand`
 - no Live2D runtime is included
+- the external TTS path expects an OpenAI-compatible `audio/speech` response and falls back to browser speech when unavailable

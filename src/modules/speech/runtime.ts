@@ -1,11 +1,14 @@
 import { computed, reactive, watch } from 'vue'
 
+import { appConfig } from '@/config/app'
 import { readStorage, writeStorage } from '@/lib/storage'
 import { useConversationState } from '@/modules/conversation/state'
 
 const AUTO_SPEAK_KEY = 'airifica:auto-speak'
 const LOCALE_KEY = 'airifica:speech-locale'
 const VOICE_KEY = 'airifica:speech-voice'
+
+type SpeechMode = 'browser' | 'external'
 
 function getStorageScope() {
   return typeof window === 'undefined' ? null : window.localStorage
@@ -43,21 +46,43 @@ function pickBrowserSpeechVoice(voices: SpeechSynthesisVoice[], preferredLocale:
     .at(0)?.voice
 }
 
+function canUseBrowserSpeech() {
+  return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window
+}
+
+function canUseExternalSpeech() {
+  return typeof window !== 'undefined' && Boolean(appConfig.ttsSpeechUrl)
+}
+
+function resolvePreferredSpeechMode(): SpeechMode | null {
+  if (appConfig.ttsProvider === 'openai-compatible' && canUseExternalSpeech())
+    return 'external'
+  if (canUseBrowserSpeech())
+    return 'browser'
+  if (canUseExternalSpeech())
+    return 'external'
+  return null
+}
+
 const state = reactive({
   autoSpeakEnabled: readStorage(getStorageScope(), AUTO_SPEAK_KEY, true),
   locale: readStorage(getStorageScope(), LOCALE_KEY, typeof navigator !== 'undefined' ? navigator.language : 'en-US'),
   voiceId: readStorage(getStorageScope(), VOICE_KEY, ''),
-  supported: typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window,
+  supported: resolvePreferredSpeechMode() !== null,
   speaking: false,
   mouthOpenSize: 0,
   error: null as string | null,
   queue: [] as Array<{ id: string, text: string }>,
+  activeMode: resolvePreferredSpeechMode() as SpeechMode | null,
 })
 
 const conversation = useConversationState()
 const seenAssistantMessages = new Set<string>()
 let initialized = false
 let currentUtterance: SpeechSynthesisUtterance | null = null
+let currentAudio: HTMLAudioElement | null = null
+let currentAudioUrl: string | null = null
+let currentFetchController: AbortController | null = null
 let mouthFrameId: number | undefined
 let mouthTarget = 0
 
@@ -78,7 +103,7 @@ function stopLipSync() {
   mouthTarget = 0
 }
 
-function startLipSync() {
+function startSpeechSynthesisLipSync() {
   stopLipSync()
   state.speaking = true
   mouthTarget = 24
@@ -99,19 +124,66 @@ function startLipSync() {
   mouthFrameId = window.requestAnimationFrame(tick)
 }
 
+function startExternalAudioLipSync(audio: HTMLAudioElement) {
+  stopLipSync()
+  state.speaking = true
+
+  const tick = () => {
+    if (!state.speaking || currentAudio !== audio) {
+      mouthFrameId = undefined
+      return
+    }
+
+    const phasePrimary = audio.currentTime * 11.6
+    const phaseSecondary = audio.currentTime * 6.4
+    const energy = audio.paused
+      ? 0
+      : 20
+        + (Math.sin(phasePrimary) * 0.5 + 0.5) * 18
+        + (Math.sin(phaseSecondary) * 0.5 + 0.5) * 10
+    mouthTarget = energy
+    state.mouthOpenSize = state.mouthOpenSize * 0.7 + mouthTarget * 0.3
+    mouthFrameId = window.requestAnimationFrame(tick)
+  }
+
+  mouthFrameId = window.requestAnimationFrame(tick)
+}
+
+function cleanupExternalPlayback() {
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio.src = ''
+    currentAudio.load()
+  }
+
+  currentAudio = null
+
+  if (currentAudioUrl) {
+    URL.revokeObjectURL(currentAudioUrl)
+    currentAudioUrl = null
+  }
+}
+
 function stop(reason = 'manual-stop') {
   state.queue = []
-  if (!state.supported)
-    return
 
-  try {
-    window.speechSynthesis.cancel()
-  }
-  catch {
+  if (canUseBrowserSpeech()) {
+    try {
+      window.speechSynthesis.cancel()
+    }
+    catch {
+    }
   }
 
   currentUtterance = null
-  state.error = reason === 'manual-stop' ? null : reason
+
+  if (currentFetchController) {
+    currentFetchController.abort(reason)
+    currentFetchController = null
+  }
+
+  cleanupExternalPlayback()
+  state.error = reason === 'manual-stop' || reason === 'new-message' || reason === 'disabled' ? null : reason
   stopLipSync()
 }
 
@@ -129,19 +201,11 @@ async function waitForVoices() {
   })
 }
 
-async function processQueue() {
-  if (!state.supported || currentUtterance || state.queue.length === 0)
-    return
+async function playBrowserQueueItem(next: { id: string, text: string }) {
+  if (!canUseBrowserSpeech())
+    return false
 
-  const next = state.queue[0]
-  const normalized = next.text.trim()
-  if (!normalized) {
-    state.queue.shift()
-    void processQueue()
-    return
-  }
-
-  const utterance = new SpeechSynthesisUtterance(normalized)
+  const utterance = new SpeechSynthesisUtterance(next.text)
   utterance.lang = state.locale || 'en-US'
   utterance.rate = 1
   utterance.pitch = 1
@@ -159,7 +223,8 @@ async function processQueue() {
   }
 
   utterance.onstart = () => {
-    startLipSync()
+    state.activeMode = 'browser'
+    startSpeechSynthesisLipSync()
   }
 
   utterance.onboundary = () => {
@@ -183,6 +248,138 @@ async function processQueue() {
 
   currentUtterance = utterance
   window.speechSynthesis.speak(utterance)
+  return true
+}
+
+async function fetchExternalSpeech(text: string) {
+  if (!appConfig.ttsSpeechUrl)
+    throw new Error('External TTS endpoint is not configured.')
+
+  currentFetchController?.abort('restart')
+  currentFetchController = new AbortController()
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  if (appConfig.ttsApiKey)
+    headers.Authorization = `Bearer ${appConfig.ttsApiKey}`
+
+  const response = await fetch(appConfig.ttsSpeechUrl, {
+    method: 'POST',
+    headers,
+    signal: currentFetchController.signal,
+    body: JSON.stringify({
+      model: appConfig.ttsModel,
+      voice: appConfig.ttsVoice,
+      input: text,
+      response_format: appConfig.ttsResponseFormat,
+      format: appConfig.ttsResponseFormat,
+    }),
+  })
+
+  if (!response.ok) {
+    let details = ''
+    try {
+      details = await response.text()
+    }
+    catch {
+    }
+    throw new Error(details || `External TTS failed with ${response.status} ${response.statusText}.`)
+  }
+
+  const blob = await response.blob()
+  if (!blob.size)
+    throw new Error('External TTS returned an empty audio payload.')
+
+  currentFetchController = null
+  return blob
+}
+
+async function playExternalQueueItem(next: { id: string, text: string }) {
+  if (!canUseExternalSpeech())
+    return false
+
+  const blob = await fetchExternalSpeech(next.text)
+  const objectUrl = URL.createObjectURL(blob)
+  const audio = new Audio()
+  audio.preload = 'auto'
+  audio.src = objectUrl
+
+  currentAudio = audio
+  currentAudioUrl = objectUrl
+
+  audio.onplay = () => {
+    state.activeMode = 'external'
+    startExternalAudioLipSync(audio)
+  }
+
+  audio.onended = () => {
+    cleanupExternalPlayback()
+    state.queue.shift()
+    stopLipSync()
+    void processQueue()
+  }
+
+  audio.onerror = () => {
+    cleanupExternalPlayback()
+    state.queue.shift()
+    state.error = 'External TTS playback failed.'
+    stopLipSync()
+    void processQueue()
+  }
+
+  await audio.play()
+  return true
+}
+
+async function processQueue() {
+  if (currentUtterance || currentAudio || currentFetchController || state.queue.length === 0)
+    return
+
+  const next = state.queue[0]
+  const normalized = next.text.trim()
+  if (!normalized) {
+    state.queue.shift()
+    void processQueue()
+    return
+  }
+
+  const preferredMode = resolvePreferredSpeechMode()
+  if (!preferredMode) {
+    state.error = 'No speech provider is available.'
+    state.queue = []
+    return
+  }
+
+  try {
+    if (preferredMode === 'external') {
+      await playExternalQueueItem({ ...next, text: normalized })
+      return
+    }
+
+    const started = await playBrowserQueueItem({ ...next, text: normalized })
+    if (!started)
+      throw new Error('Speech playback unavailable.')
+  }
+  catch (error) {
+    if (preferredMode === 'external' && canUseBrowserSpeech()) {
+      try {
+        await playBrowserQueueItem({ ...next, text: normalized })
+        return
+      }
+      catch {
+      }
+    }
+
+    state.queue.shift()
+    cleanupExternalPlayback()
+    currentFetchController = null
+    currentUtterance = null
+    state.error = error instanceof Error ? error.message : 'Speech playback failed.'
+    stopLipSync()
+    void processQueue()
+  }
 }
 
 function enqueue(text: string, id: string) {
@@ -247,6 +444,7 @@ export function useSpeechRuntime() {
     mouthOpenSize: computed(() => state.mouthOpenSize),
     error: computed(() => state.error),
     queueSize: computed(() => state.queue.length),
+    activeMode: computed(() => state.activeMode),
     enqueue,
     stop,
     setAutoSpeakEnabled,
