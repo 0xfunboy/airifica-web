@@ -57,7 +57,7 @@ function resolveEndpointUrl(baseUrl: string, path: string) {
   const normalizedBase = baseUrl.trim().replace(/\/+$/, '')
   const normalizedPath = path.trim()
   if (!normalizedBase)
-    return ''
+    return normalizedPath.startsWith('/') ? normalizedPath : ''
   if (!normalizedPath)
     return normalizedBase
   if (/^https?:\/\//i.test(normalizedPath))
