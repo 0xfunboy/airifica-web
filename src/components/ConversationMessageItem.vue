@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import TradeProposalCard from '@/components/TradeProposalCard.vue'
 import { appConfig } from '@/config/app'
@@ -9,6 +9,7 @@ import type { ConversationMessage } from '@/modules/conversation/types'
 const props = defineProps<{
   message: ConversationMessage
 }>()
+const chartExpanded = ref(false)
 
 const chartImageUrl = computed(() => {
   const image = props.message.image
@@ -24,7 +25,7 @@ const speakerLabel = computed(() => {
   if (props.message.role === 'assistant')
     return appConfig.brandName.toLowerCase()
   if (props.message.role === 'user')
-    return 'you'
+    return ''
   return 'system'
 })
 
@@ -42,6 +43,13 @@ const normalizedContent = computed(() => {
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 })
+
+function toggleChartExpanded() {
+  if (!chartImageUrl.value)
+    return
+
+  chartExpanded.value = !chartExpanded.value
+}
 </script>
 
 <template>
@@ -53,7 +61,7 @@ const normalizedContent = computed(() => {
   >
     <div class="conversation-message__bubble">
       <header class="conversation-message__header">
-        <span>{{ speakerLabel }}</span>
+        <span v-if="speakerLabel">{{ speakerLabel }}</span>
         <strong>{{ new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</strong>
       </header>
 
@@ -67,12 +75,18 @@ const normalizedContent = computed(() => {
         <span />
       </div>
 
-      <img
+      <button
         v-if="chartImageUrl"
-        :src="chartImageUrl"
-        alt="AIR3 chart"
-        class="conversation-message__chart"
+        class="conversation-message__chart-button"
+        type="button"
+        @click="toggleChartExpanded"
       >
+        <img
+          :src="chartImageUrl"
+          alt="AIR3 chart"
+          class="conversation-message__chart"
+        >
+      </button>
 
       <div v-if="message.proposalPending && !message.proposal" class="conversation-message__proposal-state">
         Proposal follow-up in progress.
@@ -90,6 +104,23 @@ const normalizedContent = computed(() => {
     <p v-if="message.pending && message.statusNote" class="conversation-message__activity">
       {{ message.statusNote }}
     </p>
+
+    <Teleport to="body">
+      <button
+        v-if="chartExpanded && chartImageUrl"
+        class="conversation-message__chart-overlay"
+        type="button"
+        aria-label="Close chart preview"
+        @click="toggleChartExpanded"
+      >
+        <img
+          :src="chartImageUrl"
+          alt="AIR3 chart enlarged"
+          class="conversation-message__chart-overlay-image"
+          @click.stop="toggleChartExpanded"
+        >
+      </button>
+    </Teleport>
   </article>
 </template>
 
@@ -112,11 +143,12 @@ const normalizedContent = computed(() => {
 .conversation-message__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
 }
 
 .conversation-message__header span {
+  margin-right: auto;
   color: var(--text-2);
   font-size: 10px;
   letter-spacing: 0.2em;
@@ -145,7 +177,9 @@ const normalizedContent = computed(() => {
 
 .conversation-message--user .conversation-message__bubble {
   margin-left: 18px;
-  background: linear-gradient(180deg, rgba(11, 38, 56, 0.84), rgba(8, 23, 35, 0.82));
+  border-color: rgba(150, 231, 255, 0.22);
+  background: linear-gradient(180deg, rgba(36, 92, 134, 0.96), rgba(22, 60, 97, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 32px rgba(12, 46, 74, 0.22);
 }
 
 .conversation-message--system .conversation-message__bubble {
@@ -200,6 +234,36 @@ const normalizedContent = computed(() => {
   border-radius: 16px;
   object-fit: cover;
   background: rgba(8, 20, 33, 0.46);
+}
+
+.conversation-message__chart-button {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.conversation-message__chart-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 4vh 4vw;
+  border: 0;
+  background: rgba(2, 10, 17, 0.82);
+  backdrop-filter: blur(10px);
+  cursor: zoom-out;
+}
+
+.conversation-message__chart-overlay-image {
+  display: block;
+  width: auto;
+  max-width: min(1480px, 92vw);
+  max-height: 90vh;
+  border-radius: 20px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
 }
 
 @media (max-width: 760px) {

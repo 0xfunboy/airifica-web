@@ -2,12 +2,9 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import ConversationMessageItem from '@/components/ConversationMessageItem.vue'
-import { truncateMiddle } from '@/lib/format'
 import { useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
 import { useConversationState } from '@/modules/conversation/state'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
-import { useMarketContext } from '@/modules/market/context'
-import { useTradeExecutionPreferences } from '@/modules/product/execution'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
 import { useWalletSession } from '@/modules/wallet/session'
 
@@ -23,17 +20,31 @@ const EMOTE_INDICATOR_COLORS: Record<string, string> = {
 const conversation = useConversationState()
 const emoteDebugStore = useEmoteDebugStore()
 const hearing = useHearingPipeline()
-const marketContext = useMarketContext()
-const product = useTradeExecutionPreferences()
 const speech = useSpeechRuntime()
 const wallet = useWalletSession()
 
 const composer = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
+const composerRef = ref<HTMLTextAreaElement | null>(null)
+const COMPOSER_MIN_HEIGHT = 56
+const COMPOSER_MAX_HEIGHT = 112
 
 const emoteIndicatorColor = computed(() =>
   EMOTE_INDICATOR_COLORS[emoteDebugStore.lastReceived.value?.name ?? 'neutral'] ?? '#94a3b8',
 )
+
+function syncComposerHeight() {
+  nextTick(() => {
+    const field = composerRef.value
+    if (!field)
+      return
+
+    field.style.height = 'auto'
+    const nextHeight = Math.max(COMPOSER_MIN_HEIGHT, Math.min(COMPOSER_MAX_HEIGHT, field.scrollHeight))
+    field.style.height = `${nextHeight}px`
+    field.style.overflowY = field.scrollHeight > COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden'
+  })
+}
 
 function scrollToBottom() {
   nextTick(() => {
@@ -50,6 +61,7 @@ async function handleSubmit() {
     return
 
   composer.value = ''
+  syncComposerHeight()
   await conversation.sendMessage(text)
   scrollToBottom()
 }
@@ -64,15 +76,8 @@ async function handleComposerKeydown(event: KeyboardEvent) {
     return
 
   event.preventDefault()
-
-  if (composer.value.trim()) {
+  if (composer.value.trim())
     await handleSubmit()
-    return
-  }
-
-  if (hearing.committedTranscript.value || hearing.interimTranscript.value) {
-    await handleSendTranscript()
-  }
 }
 
 watch(() => wallet.sessionIdentity.value, (identity) => {
@@ -88,158 +93,159 @@ watch(() => conversation.pendingMessage.value?.statusNote, () => {
   scrollToBottom()
 })
 
+watch(composer, () => {
+  syncComposerHeight()
+})
+
 onMounted(() => {
   scrollToBottom()
+  syncComposerHeight()
 })
 </script>
 
 <template>
-  <section class="conversation-shell">
-    <div v-if="conversation.sending.value" class="conversation-shell__scan">
-      <div class="conversation-shell__scan-bar" />
-    </div>
-
-    <div class="conversation-shell__meta">
-      <span class="meta-chip">{{ marketContext.currentSymbol.value }}</span>
-      <span class="meta-chip">{{ truncateMiddle(conversation.conversationId.value || 'new session', 16) }}</span>
-
-      <label class="conversation-shell__toggle">
-        <input
-          :checked="product.confirmBeforeTrade.value"
-          type="checkbox"
-          @change="product.setConfirmBeforeTrade(($event.target as HTMLInputElement).checked)"
-        >
-        Confirm
-      </label>
-
-      <label class="conversation-shell__toggle">
-        <input
-          :checked="product.fullAutoMode.value"
-          type="checkbox"
-          @change="product.setFullAutoMode(($event.target as HTMLInputElement).checked)"
-        >
-        Auto
-      </label>
-
-      <button class="conversation-shell__ghost" :disabled="conversation.sending.value" type="button" @click="conversation.resetConversation()">
-        Reset
-      </button>
-    </div>
-
-    <div ref="messagesRef" class="conversation-shell__history">
-      <ConversationMessageItem v-for="message in conversation.messages.value" :key="message.id" :message="message" />
-      <ConversationMessageItem v-if="conversation.pendingMessage.value" :message="conversation.pendingMessage.value" />
-
-      <p v-if="!conversation.messages.value.length" class="conversation-shell__empty">
-        AIR3 is ready. Wallet identity, conversation session and market context are attached to the stage runtime.
-      </p>
-    </div>
-
-    <p v-if="conversation.error.value" class="conversation-shell__error">
-      {{ conversation.error.value }}
-    </p>
-
-    <div v-if="hearing.supported.value && (hearing.committedTranscript.value || hearing.interimTranscript.value)" class="conversation-shell__transcript">
-      <div class="conversation-shell__transcript-head">
-        <span>Voice transcript</span>
-        <span>{{ Math.round(hearing.volumeLevel.value * 100) }}%</span>
+  <div class="conversation-shell-wrap">
+    <section class="conversation-shell">
+      <div v-if="conversation.sending.value" class="conversation-shell__scan">
+        <div class="conversation-shell__scan-bar" />
       </div>
-      <p>
-        <span>{{ hearing.committedTranscript.value }}</span>
-        <span class="conversation-shell__transcript-interim">{{ hearing.interimTranscript.value }}</span>
+
+      <div ref="messagesRef" class="conversation-shell__history">
+        <ConversationMessageItem v-for="message in conversation.messages.value" :key="message.id" :message="message" />
+        <ConversationMessageItem v-if="conversation.pendingMessage.value" :message="conversation.pendingMessage.value" />
+
+        <p v-if="!conversation.messages.value.length" class="conversation-shell__empty">
+          AIR3 is ready. Wallet identity, conversation session and market context are attached to the stage runtime.
+        </p>
+      </div>
+
+      <p v-if="conversation.error.value" class="conversation-shell__error">
+        {{ conversation.error.value }}
       </p>
-      <div class="conversation-shell__transcript-actions">
-        <label class="conversation-shell__toggle">
-          <input
-            :checked="hearing.autoSendEnabled.value"
-            type="checkbox"
-            @change="hearing.setAutoSendEnabled(($event.target as HTMLInputElement).checked)"
+
+      <div v-if="hearing.supported.value && (hearing.committedTranscript.value || hearing.interimTranscript.value)" class="conversation-shell__transcript">
+        <div class="conversation-shell__transcript-head">
+          <span>Voice transcript</span>
+          <span>{{ Math.round(hearing.volumeLevel.value * 100) }}%</span>
+        </div>
+        <p>
+          <span>{{ hearing.committedTranscript.value }}</span>
+          <span class="conversation-shell__transcript-interim">{{ hearing.interimTranscript.value }}</span>
+        </p>
+        <div class="conversation-shell__transcript-actions">
+          <label class="conversation-shell__toggle">
+            <input
+              :checked="hearing.autoSendEnabled.value"
+              type="checkbox"
+              @change="hearing.setAutoSendEnabled(($event.target as HTMLInputElement).checked)"
+            >
+            Auto-send voice
+          </label>
+
+          <select
+            class="conversation-shell__select"
+            :value="hearing.selectedInputId.value"
+            @change="hearing.setSelectedInput(($event.target as HTMLSelectElement).value)"
           >
-          Auto-send voice
-        </label>
+            <option v-for="input in hearing.availableInputs.value" :key="input.deviceId" :value="input.deviceId">
+              {{ input.label || `Microphone ${input.deviceId.slice(0, 6)}` }}
+            </option>
+          </select>
 
-        <select
-          class="conversation-shell__select"
-          :value="hearing.selectedInputId.value"
-          @change="hearing.setSelectedInput(($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="input in hearing.availableInputs.value" :key="input.deviceId" :value="input.deviceId">
-            {{ input.label || `Microphone ${input.deviceId.slice(0, 6)}` }}
-          </option>
-        </select>
-
-        <button
-          v-if="!hearing.autoSendEnabled.value && hearing.committedTranscript.value"
-          class="conversation-shell__secondary"
-          type="button"
-          @click="handleSendTranscript"
-        >
-          Send transcript
-        </button>
-      </div>
-    </div>
-
-    <form class="conversation-shell__composer" @submit.prevent="handleSubmit">
-      <textarea
-        v-model="composer"
-        class="conversation-shell__textarea"
-        rows="4"
-        placeholder="Ask for chart context, analysis or a Pacifica-ready trade setup."
-        @keydown="handleComposerKeydown"
-      />
-
-      <div class="conversation-shell__composer-bar">
-        <div class="conversation-shell__left-actions">
           <button
-            v-if="speech.speaking.value"
-            class="conversation-shell__control conversation-shell__control--stop"
+            v-if="!hearing.autoSendEnabled.value && hearing.committedTranscript.value"
+            class="conversation-shell__secondary"
             type="button"
-            @click="speech.stop()"
+            @click="handleSendTranscript"
           >
-            Stop speech
+            Send transcript
           </button>
+        </div>
+      </div>
 
-          <div class="conversation-shell__emotion-indicator" title="Last emotion token received">
-            <span class="conversation-shell__emotion-dot" :style="{ backgroundColor: emoteIndicatorColor }" />
-            <span>{{ emoteDebugStore.lastReceived.value?.name ?? '—' }}</span>
+      <form class="conversation-shell__composer" @submit.prevent="handleSubmit">
+        <textarea
+          ref="composerRef"
+          v-model="composer"
+          class="conversation-shell__textarea"
+          rows="2"
+          placeholder="Ask for chart context, analysis or a Pacifica-ready trade setup."
+          @keydown="handleComposerKeydown"
+        />
+
+        <div class="conversation-shell__composer-bar">
+          <div class="conversation-shell__left-actions">
+            <button
+              v-if="speech.speaking.value"
+              class="conversation-shell__control conversation-shell__control--stop"
+              type="button"
+              @click="speech.stop()"
+            >
+              Stop speech
+            </button>
+
+            <div class="conversation-shell__emotion-indicator" title="Last emotion token received">
+              <span class="conversation-shell__emotion-dot" :style="{ backgroundColor: emoteIndicatorColor }" />
+              <span>{{ emoteDebugStore.lastReceived.value?.name ?? '—' }}</span>
+            </div>
+
+            <button
+              :class="['conversation-shell__icon-button', hearing.listening.value ? 'conversation-shell__icon-button--active' : '']"
+              type="button"
+              :title="hearing.listening.value ? 'Stop microphone' : 'Start microphone'"
+              @click="hearing.toggleListening()"
+            >
+              <span v-if="hearing.listening.value" class="conversation-shell__mic-level">
+                <span :style="{ transform: `scaleY(${Math.max(0.18, hearing.volumeLevel.value)})` }" />
+              </span>
+              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+                <path d="M19 10a7 7 0 0 1-14 0" />
+                <path d="M12 17v4" />
+                <path d="M8 21h8" />
+              </svg>
+            </button>
           </div>
 
-          <button
-            :class="['conversation-shell__icon-button', hearing.listening.value ? 'conversation-shell__icon-button--active' : '']"
-            type="button"
-            :title="hearing.listening.value ? 'Stop microphone' : 'Start microphone'"
-            @click="hearing.toggleListening()"
-          >
-            <span v-if="hearing.listening.value" class="conversation-shell__mic-level">
-              <span :style="{ transform: `scaleY(${Math.max(0.18, hearing.volumeLevel.value)})` }" />
-            </span>
-            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
-              <path d="M19 10a7 7 0 0 1-14 0" />
-              <path d="M12 17v4" />
-              <path d="M8 21h8" />
-            </svg>
-          </button>
+          <div class="conversation-shell__right-actions">
+            <button class="conversation-shell__send" :disabled="conversation.sending.value || !composer.trim()" type="submit">
+              {{ conversation.sending.value ? 'Sending…' : 'Send' }}
+            </button>
+          </div>
         </div>
+      </form>
+    </section>
 
-        <div class="conversation-shell__right-actions">
-          <span class="conversation-shell__session">
-            {{ truncateMiddle(wallet.sessionIdentity.value, 14) }}
-          </span>
-          <button class="conversation-shell__send" :disabled="conversation.sending.value || !composer.trim()" type="submit">
-            {{ conversation.sending.value ? 'Sending…' : 'Send' }}
-          </button>
-        </div>
-      </div>
-    </form>
-  </section>
+    <button
+      class="conversation-shell__reset-fab"
+      :disabled="conversation.sending.value"
+      type="button"
+      title="Reset conversation"
+      aria-label="Reset conversation"
+      @click="conversation.resetConversation()"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16" />
+        <path d="M9.5 3h5l1 2H8.5l1-2Z" />
+        <path d="M7 7l.8 11.2A2 2 0 0 0 9.8 20h4.4a2 2 0 0 0 2-1.8L17 7" />
+        <path d="M10 11v5" />
+        <path d="M14 11v5" />
+      </svg>
+    </button>
+  </div>
 </template>
 
 <style scoped>
+.conversation-shell-wrap {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+}
+
 .conversation-shell {
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
   gap: 10px;
   height: 100%;
   min-height: 0;
@@ -268,14 +274,6 @@ onMounted(() => {
   background: #5bd6ff;
   transform-origin: left center;
   animation: conversation-shell-scan 2s linear infinite;
-}
-
-.conversation-shell__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 16px 0;
 }
 
 .conversation-shell__toggle {
@@ -322,7 +320,7 @@ onMounted(() => {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 0 16px;
+  padding: 16px 16px 0;
 }
 
 .conversation-shell__empty {
@@ -390,21 +388,21 @@ onMounted(() => {
 
 .conversation-shell__textarea {
   width: 100%;
-  min-height: 112px;
-  max-height: 300px;
+  min-height: 56px;
+  max-height: 112px;
   border: 0;
   border-radius: 18px 18px 0 0;
   background: rgba(17, 42, 60, 0.28);
   color: var(--text-0);
-  padding: 16px 16px 60px;
-  resize: vertical;
+  padding: 14px 14px 52px;
+  resize: none;
   outline: none;
 }
 
 .conversation-shell__composer-bar {
-  margin-top: -54px;
+  margin-top: -46px;
   padding-inline: 10px;
-  min-height: 44px;
+  min-height: 38px;
 }
 
 .conversation-shell__left-actions,
@@ -473,18 +471,44 @@ onMounted(() => {
   transform-origin: center bottom;
 }
 
-.conversation-shell__session {
-  color: rgba(186, 230, 253, 0.62);
-  font-size: 0.74rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .conversation-shell__send {
   padding: 0 14px;
   background: #5bd6ff;
   color: #04111c;
   font-weight: 700;
+}
+
+.conversation-shell__reset-fab {
+  position: absolute;
+  right: 18px;
+  bottom: -18px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(138, 218, 255, 0.14);
+  background: rgba(8, 23, 35, 0.92);
+  color: rgba(223, 236, 247, 0.84);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.conversation-shell__reset-fab svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.conversation-shell__reset-fab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 @keyframes conversation-shell-scan {
@@ -499,6 +523,10 @@ onMounted(() => {
 @media (max-width: 980px) {
   .conversation-shell {
     min-height: 720px;
+  }
+
+  .conversation-shell__reset-fab {
+    bottom: -14px;
   }
 }
 
