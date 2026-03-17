@@ -36,6 +36,11 @@ function normalizeApiBase(raw: string | undefined, fallback: string) {
   return value.endsWith('/api') ? value : `${value}/api`
 }
 
+function normalizeNumber(raw: string | undefined, fallback: number) {
+  const numeric = Number(raw)
+  return Number.isFinite(numeric) ? numeric : fallback
+}
+
 function resolveEndpointUrl(baseUrl: string, path: string) {
   const normalizedBase = baseUrl.trim().replace(/\/+$/, '')
   const normalizedPath = path.trim()
@@ -80,6 +85,15 @@ export const appConfig = {
   ttsVoice: (import.meta.env.VITE_AIR3_TTS_VOICE || 'alloy').trim(),
   ttsApiKey: (import.meta.env.VITE_AIR3_TTS_API_KEY || '').trim(),
   ttsResponseFormat: (import.meta.env.VITE_AIR3_TTS_RESPONSE_FORMAT || 'mp3').trim(),
+  stageBrightness: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_BRIGHTNESS, 1),
+  stageContrast: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_CONTRAST, 1),
+  stageSaturation: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_SATURATION, 1),
+  stageExposure: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_EXPOSURE, 1),
+  stageAmbientIntensity: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_AMBIENT_INTENSITY, 0.78),
+  stageHemisphereIntensity: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_HEMISPHERE_INTENSITY, 1.2),
+  stageKeyIntensity: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_KEY_INTENSITY, 1.58),
+  stageRimIntensity: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_RIM_INTENSITY, 0.38),
+  stageFillIntensity: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_FILL_INTENSITY, 0.22),
   brandLogoUrl: '/brand/AIRewardrop_orizzontal.png',
   brandIconUrl: '/brand/airtrading_icon.png',
   brandSiteUrl: 'https://airewrdrop.xyz',

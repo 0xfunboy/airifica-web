@@ -26,6 +26,15 @@ interface ImportMetaEnv {
   readonly VITE_AIR3_TTS_VOICE?: string
   readonly VITE_AIR3_TTS_API_KEY?: string
   readonly VITE_AIR3_TTS_RESPONSE_FORMAT?: string
+  readonly VITE_AIR3_STAGE_BRIGHTNESS?: string
+  readonly VITE_AIR3_STAGE_CONTRAST?: string
+  readonly VITE_AIR3_STAGE_SATURATION?: string
+  readonly VITE_AIR3_STAGE_EXPOSURE?: string
+  readonly VITE_AIR3_STAGE_AMBIENT_INTENSITY?: string
+  readonly VITE_AIR3_STAGE_HEMISPHERE_INTENSITY?: string
+  readonly VITE_AIR3_STAGE_KEY_INTENSITY?: string
+  readonly VITE_AIR3_STAGE_RIM_INTENSITY?: string
+  readonly VITE_AIR3_STAGE_FILL_INTENSITY?: string
 }
 
 interface ImportMeta {

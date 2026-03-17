@@ -4,10 +4,12 @@ import { ref } from 'vue'
 import HeaderLink from '@/components/layout/HeaderLink.vue'
 import PacificaTradeButton from '@/components/layout/PacificaTradeButton.vue'
 import WalletConnectButton from '@/components/layout/WalletConnectButton.vue'
+import { useAvatarLighting } from '@/modules/avatar/lighting'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useMarketContext } from '@/modules/market/context'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
 
+const lighting = useAvatarLighting()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const marketContext = useMarketContext()
@@ -50,6 +52,52 @@ const settingsOpen = ref(false)
           <a class="stage-header__utility" :href="marketContext.pacificaPortfolioUrl.value" target="_blank" rel="noopener noreferrer">
             <span>Open portfolio</span>
           </a>
+
+          <div class="stage-header__lighting-panel">
+            <div class="stage-header__lighting-head">
+              <span>Avatar lighting</span>
+              <button class="stage-header__utility stage-header__utility--ghost" type="button" @click="lighting.reset()">
+                Reset
+              </button>
+            </div>
+
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Brightness</span><strong>{{ lighting.brightness.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0.6" max="1.6" step="0.02" :value="lighting.brightness.value" @input="lighting.setValue('brightness', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Contrast</span><strong>{{ lighting.contrast.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0.75" max="1.45" step="0.02" :value="lighting.contrast.value" @input="lighting.setValue('contrast', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Saturation</span><strong>{{ lighting.saturation.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0.5" max="1.5" step="0.02" :value="lighting.saturation.value" @input="lighting.setValue('saturation', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Exposure</span><strong>{{ lighting.exposure.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0.5" max="1.7" step="0.02" :value="lighting.exposure.value" @input="lighting.setValue('exposure', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Ambient</span><strong>{{ lighting.ambientIntensity.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0" max="1.6" step="0.02" :value="lighting.ambientIntensity.value" @input="lighting.setValue('ambientIntensity', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Hemisphere</span><strong>{{ lighting.hemisphereIntensity.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0" max="2.2" step="0.02" :value="lighting.hemisphereIntensity.value" @input="lighting.setValue('hemisphereIntensity', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Key</span><strong>{{ lighting.keyIntensity.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0" max="2.8" step="0.02" :value="lighting.keyIntensity.value" @input="lighting.setValue('keyIntensity', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Rim</span><strong>{{ lighting.rimIntensity.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0" max="1.4" step="0.02" :value="lighting.rimIntensity.value" @input="lighting.setValue('rimIntensity', Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="stage-header__slider-row">
+              <div class="stage-header__slider-head"><span>Fill</span><strong>{{ lighting.fillIntensity.value.toFixed(2) }}</strong></div>
+              <input class="stage-header__slider" type="range" min="0" max="1.2" step="0.02" :value="lighting.fillIntensity.value" @input="lighting.setValue('fillIntensity', Number(($event.target as HTMLInputElement).value))">
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -114,7 +162,9 @@ const settingsOpen = ref(false)
   isolation: isolate;
   display: grid;
   gap: 6px;
-  width: 180px;
+  width: 300px;
+  max-height: min(72vh, 640px);
+  overflow: auto;
   padding: 8px;
   border-radius: 18px;
   border: 1px solid rgba(138, 218, 255, 0.14);
@@ -136,8 +186,55 @@ const settingsOpen = ref(false)
   text-decoration: none;
 }
 
+.stage-header__utility--ghost {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(138, 218, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .stage-header__utility:disabled {
   opacity: 0.5;
+}
+
+.stage-header__lighting-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(138, 218, 255, 0.1);
+}
+
+.stage-header__lighting-head,
+.stage-header__slider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stage-header__lighting-head span,
+.stage-header__slider-head span {
+  color: rgba(186, 230, 253, 0.72);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.stage-header__slider-head strong {
+  color: rgba(240, 249, 255, 0.92);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.stage-header__slider-row {
+  display: grid;
+  gap: 6px;
+}
+
+.stage-header__slider {
+  width: 100%;
+  accent-color: #67e8f9;
 }
 
 @media (max-width: 1080px) {

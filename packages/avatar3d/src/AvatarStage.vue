@@ -51,12 +51,30 @@ const props = withDefaults(defineProps<{
   manualMouthOpen?: number
   expression?: AvatarExpression
   ambientAnimation?: string
+  brightness?: number
+  contrast?: number
+  saturation?: number
+  exposure?: number
+  ambientIntensity?: number
+  hemisphereIntensity?: number
+  keyIntensity?: number
+  rimIntensity?: number
+  fillIntensity?: number
 }>(), {
   modelUrl: null,
   speaking: false,
   manualMouthOpen: 0,
   expression: 'neutral',
   ambientAnimation: BREATH_URL,
+  brightness: 1,
+  contrast: 1,
+  saturation: 1,
+  exposure: 1,
+  ambientIntensity: 0.78,
+  hemisphereIntensity: 1.2,
+  keyIntensity: 1.58,
+  rimIntensity: 0.38,
+  fillIntensity: 0.22,
 })
 
 const emit = defineEmits<{
@@ -153,6 +171,11 @@ const sceneRef = shallowRef<Scene>()
 const avatarGroupRef = shallowRef<Group>()
 const vrmRef = shallowRef<VRM | null>(null)
 const animationMixerRef = shallowRef<AnimationMixer>()
+const ambientLightRef = shallowRef<AmbientLight>()
+const hemisphereLightRef = shallowRef<HemisphereLight>()
+const keyLightRef = shallowRef<DirectionalLight>()
+const rimLightRef = shallowRef<DirectionalLight>()
+const fillLightRef = shallowRef<DirectionalLight>()
 const status = ref<'empty' | 'loading' | 'ready' | 'error'>('empty')
 const errorMessage = ref('')
 const loadProgress = ref(0)
@@ -286,6 +309,23 @@ function resetPointerActivity() {
     clearTimeout(pointerIdleTimer)
 }
 
+function applyLightingControls() {
+  if (rendererRef.value)
+    rendererRef.value.domElement.style.filter = `brightness(${props.brightness}) contrast(${props.contrast}) saturate(${props.saturation})`
+
+  const exposure = Math.max(0.1, props.exposure)
+  if (ambientLightRef.value)
+    ambientLightRef.value.intensity = props.ambientIntensity * exposure
+  if (hemisphereLightRef.value)
+    hemisphereLightRef.value.intensity = props.hemisphereIntensity * exposure
+  if (keyLightRef.value)
+    keyLightRef.value.intensity = props.keyIntensity * exposure
+  if (rimLightRef.value)
+    rimLightRef.value.intensity = props.rimIntensity * exposure
+  if (fillLightRef.value)
+    fillLightRef.value.intensity = props.fillIntensity * exposure
+}
+
 function setupStage() {
   if (!hostRef.value || rendererRef.value)
     return
@@ -333,6 +373,12 @@ function setupStage() {
   sceneRef.value = scene
   cameraRef.value = camera
   rendererRef.value = renderer
+  ambientLightRef.value = ambient
+  hemisphereLightRef.value = hemi
+  keyLightRef.value = key
+  rimLightRef.value = rim
+  fillLightRef.value = fill
+  applyLightingControls()
 
   resizeObserver = new ResizeObserver(() => syncSize())
   resizeObserver.observe(hostRef.value)
@@ -822,12 +868,13 @@ function applyEmotionExpressions(vrm: VRM, delta: number) {
   if (!manager || !bindings)
     return
 
+  const speechBlend = props.speaking ? 0.72 : 1
   const targets = {
-    happy: props.expression === 'happy' ? 1 : 0,
-    sad: props.expression === 'sad' ? 1 : 0,
-    angry: props.expression === 'angry' ? 1 : 0,
-    surprised: props.expression === 'surprised' ? 1 : 0,
-    relaxed: props.expression === 'think' ? 0.84 : props.expression === 'neutral' ? 0.42 : 0.1,
+    happy: props.expression === 'happy' ? 1 * speechBlend : 0,
+    sad: props.expression === 'sad' ? 1 * speechBlend : 0,
+    angry: props.expression === 'angry' ? 1 * speechBlend : 0,
+    surprised: props.expression === 'surprised' ? 1 * speechBlend : 0,
+    relaxed: props.expression === 'think' ? 0.84 * (props.speaking ? 0.82 : 1) : props.expression === 'neutral' ? 0.42 : 0.1,
   }
 
   emotionState.happy = MathUtils.lerp(emotionState.happy, targets.happy, Math.min(1, delta * 2.15))
@@ -968,6 +1015,19 @@ function animate() {
 watch(() => props.modelUrl, value => loadAvatar(value))
 watch(() => props.ambientAnimation, value => {
   void applyAmbientAnimation(value)
+})
+watch(() => [
+  props.brightness,
+  props.contrast,
+  props.saturation,
+  props.exposure,
+  props.ambientIntensity,
+  props.hemisphereIntensity,
+  props.keyIntensity,
+  props.rimIntensity,
+  props.fillIntensity,
+], () => {
+  applyLightingControls()
 })
 
 onMounted(() => {
