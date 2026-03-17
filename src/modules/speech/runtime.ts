@@ -12,7 +12,7 @@ import {
   createSpeechVisemeTimeline,
   createSpeechVisemeTimelineFromPhonemes,
   maxSpeechVisemeWeight,
-  sampleSpeechVisemeTimeline,
+  sampleSpeechVisemeState,
   zeroSpeechVisemeWeights,
   type SpeechVisemeFrame,
   type SpeechVisemeWeights,
@@ -184,6 +184,18 @@ function sampleWLipSyncWeights(node: LipSyncNodeLike | null) {
   return projected
 }
 
+function scaleVisemeWeights(weights: Partial<SpeechVisemeWeights>, factor: number) {
+  const strength = Math.max(0, Math.min(1, factor))
+  const source = cloneSpeechVisemeWeights(weights)
+  return {
+    A: source.A * strength,
+    E: source.E * strength,
+    I: source.I * strength,
+    O: source.O * strength,
+    U: source.U * strength,
+  }
+}
+
 function resetVisemeState() {
   activeVisemeTimeline = null
   currentLipSyncNode = null
@@ -217,11 +229,18 @@ function startSpeechLipSync(clock: PlaybackClock, timeline: SpeechVisemeFrame[],
     const deltaSeconds = Math.max(1 / 120, (now - previousTimestamp) / 1000)
     previousTimestamp = now
     const elapsedMs = clock.currentTime() * 1000
-    const timelineWeights = activeVisemeTimeline ? sampleSpeechVisemeTimeline(activeVisemeTimeline, elapsedMs) : zeroSpeechVisemeWeights
+    const timelineState = activeVisemeTimeline
+      ? sampleSpeechVisemeState(activeVisemeTimeline, elapsedMs)
+      : { weights: zeroSpeechVisemeWeights, closure: 0 }
+    const timelineWeights = timelineState.weights
     const audioWeights = sampleWLipSyncWeights(currentLipSyncNode)
     const audioStrength = maxSpeechVisemeWeight(audioWeights)
+    const closureStrength = Math.max(0, Math.min(1, timelineState.closure))
+    const openFactor = Math.max(0, 1 - closureStrength)
+    const dampedAudioWeights = scaleVisemeWeights(audioWeights, openFactor * openFactor)
+    const audioBlend = 0.68 * openFactor * openFactor + 0.08 * openFactor
     const target = audioStrength > 0.02
-      ? blendSpeechVisemeWeights(timelineWeights, audioWeights, 0.68)
+      ? blendSpeechVisemeWeights(timelineWeights, dampedAudioWeights, audioBlend)
       : timelineWeights
 
     updateVisemeWeights(target, deltaSeconds)

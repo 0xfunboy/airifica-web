@@ -907,7 +907,7 @@ function applySpeechExpressions(vrm: VRM, delta: number) {
   for (const key of keys) {
     const current = speechVisemeState[key]
     const next = target[key]
-    const lambda = next > current ? 24 : 16
+    const lambda = next > current ? 24 : next < 0.02 ? 34 : 20
     const alpha = 1 - Math.exp(-lambda * delta)
     speechVisemeState[key] = MathUtils.lerp(current, next, alpha)
   }

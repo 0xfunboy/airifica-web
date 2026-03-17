@@ -4,11 +4,13 @@ export type SpeechVisemeFrame = {
   startMs: number
   durationMs: number
   weights: SpeechVisemeWeights
+  closure: number
 }
 
 type SpeechPhonemeFrame = {
   units: number
   weights: SpeechVisemeWeights
+  closure: number
 }
 
 const LETTERS = /[a-z]/i
@@ -26,6 +28,7 @@ const ZERO_VISEMES: SpeechVisemeWeights = {
 type VisemeSeed = {
   units: number
   weights: SpeechVisemeWeights
+  closure: number
 }
 
 const VISEME_RULES: Array<{ pattern: RegExp, units: number, weights: Partial<SpeechVisemeWeights> }> = [
@@ -66,10 +69,11 @@ function smoothstep(value: number, min: number, max: number) {
   return x * x * (3 - 2 * x)
 }
 
-function createPause(units: number): VisemeSeed {
+function createPause(units: number, closure = 1): VisemeSeed {
   return {
     units,
     weights: createWeights(),
+    closure: clamp01(closure),
   }
 }
 
@@ -92,6 +96,7 @@ function splitWordToSeeds(token: string) {
       seeds.push({
         units: rule.units,
         weights: createWeights(rule.weights),
+        closure: 0,
       })
       remaining = remaining.slice(match.length)
       continue
@@ -190,6 +195,7 @@ export function createSpeechVisemeTimeline(text: string, totalDurationMs?: numbe
       startMs: cursorMs,
       durationMs: seed.units * msPerUnit,
       weights: seed.weights,
+      closure: seed.closure,
     }
     cursorMs += frame.durationMs
     return frame
@@ -220,8 +226,10 @@ const PHONEME_RULES: Array<{ pattern: string, units: number, weights: Partial<Sp
   { pattern: 'ɒ', units: 0.9, weights: { O: 0.72, A: 0.22 } },
 ]
 
-const SILENCE_PHONEMES = new Set([
-  'p', 'b', 'm', 'f', 'v', 'ʃ', 'ʒ', 's', 'z', 'θ', 'ð', 'h',
+const FULL_CLOSURE_PHONEMES = new Set(['p', 'b', 'm'])
+const NARROW_CLOSURE_PHONEMES = new Set(['f', 'v'])
+const MID_CLOSURE_PHONEMES = new Set([
+  'ʃ', 'ʒ', 's', 'z', 'θ', 'ð', 'h',
   't', 'd', 'k', 'g', 'n', 'ŋ', 'l', 'ɹ', 'r', 'j', 'w', 'ʧ', 'ʤ',
 ])
 
@@ -259,7 +267,7 @@ function createPhonemeFrames(phonemeString: string) {
   const frames: SpeechPhonemeFrame[] = []
   for (const token of tokenizePhonemes(phonemeString)) {
     if (token === ' ') {
-      frames.push({ units: 0.42, weights: createWeights() })
+      frames.push({ units: 0.42, weights: createWeights(), closure: 1 })
       continue
     }
 
@@ -268,16 +276,27 @@ function createPhonemeFrames(phonemeString: string) {
       frames.push({
         units: rule.units,
         weights: createWeights(rule.weights),
+        closure: 0,
       })
       continue
     }
 
-    if (SILENCE_PHONEMES.has(token)) {
-      frames.push({ units: 0.3, weights: createWeights() })
+    if (FULL_CLOSURE_PHONEMES.has(token)) {
+      frames.push({ units: 0.26, weights: createWeights(), closure: 1 })
       continue
     }
 
-    frames.push({ units: 0.24, weights: createWeights() })
+    if (NARROW_CLOSURE_PHONEMES.has(token)) {
+      frames.push({ units: 0.28, weights: createWeights(), closure: 0.82 })
+      continue
+    }
+
+    if (MID_CLOSURE_PHONEMES.has(token)) {
+      frames.push({ units: 0.3, weights: createWeights(), closure: 0.56 })
+      continue
+    }
+
+    frames.push({ units: 0.24, weights: createWeights(), closure: 0.28 })
   }
   return frames
 }
@@ -296,17 +315,24 @@ export function createSpeechVisemeTimelineFromPhonemes(phonemes: string, totalDu
       startMs: cursorMs,
       durationMs: frame.units * msPerUnit,
       weights: frame.weights,
+      closure: frame.closure,
     }
     cursorMs += next.durationMs
     return next
   })
 }
 
-export function sampleSpeechVisemeTimeline(frames: SpeechVisemeFrame[], timeMs: number): SpeechVisemeWeights {
-  if (!frames.length)
-    return createWeights()
+export function sampleSpeechVisemeState(frames: SpeechVisemeFrame[], timeMs: number) {
+  if (!frames.length) {
+    return {
+      weights: createWeights(),
+      closure: 0,
+    }
+  }
 
   const weights = createWeights()
+  let closure = 0
+
   for (const frame of frames) {
     const attackMs = Math.min(68, Math.max(24, frame.durationMs * 0.32))
     const releaseMs = Math.min(92, Math.max(28, frame.durationMs * 0.4))
@@ -329,9 +355,17 @@ export function sampleSpeechVisemeTimeline(frames: SpeechVisemeFrame[], timeMs: 
     weights.I = Math.max(weights.I, frame.weights.I * envelope)
     weights.O = Math.max(weights.O, frame.weights.O * envelope)
     weights.U = Math.max(weights.U, frame.weights.U * envelope)
+    closure = Math.max(closure, (frame.closure || 0) * envelope)
   }
 
-  return weights
+  return {
+    weights,
+    closure: clamp01(closure),
+  }
+}
+
+export function sampleSpeechVisemeTimeline(frames: SpeechVisemeFrame[], timeMs: number): SpeechVisemeWeights {
+  return sampleSpeechVisemeState(frames, timeMs).weights
 }
 
 export const zeroSpeechVisemeWeights = ZERO_VISEMES
