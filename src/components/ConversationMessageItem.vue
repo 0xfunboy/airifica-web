@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import StrategySummaryCard from '@/components/StrategySummaryCard.vue'
 import TradeProposalCard from '@/components/TradeProposalCard.vue'
 import { appConfig } from '@/config/app'
+import { deriveStrategySummary } from '@/modules/trade/proposalFallback'
 
 import type { ConversationMessage } from '@/modules/conversation/types'
 
@@ -42,6 +44,13 @@ const normalizedContent = computed(() => {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+})
+
+const strategySummary = computed(() => {
+  if (props.message.proposal || props.message.proposalPending)
+    return null
+
+  return deriveStrategySummary(props.message)
 })
 
 function toggleChartExpanded() {
@@ -98,6 +107,11 @@ function toggleChartExpanded() {
         :conversation-id="message.conversationId"
         :message-id="message.id"
         :created-at="message.createdAt"
+      />
+
+      <StrategySummaryCard
+        v-else-if="strategySummary"
+        :summary="strategySummary"
       />
     </div>
 

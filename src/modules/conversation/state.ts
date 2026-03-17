@@ -7,6 +7,7 @@ import { extractMessageText, hasPendingProposal } from '@airifica/air3-client'
 import { createId } from '@/lib/ids'
 import { createAir3Client } from '@/lib/air3'
 import { readStorage, removeStorage, writeStorage } from '@/lib/storage'
+import { deriveProposalFallback } from '@/modules/trade/proposalFallback'
 import { useWalletSession } from '@/modules/wallet/session'
 
 import type { ConversationMessage } from './types'
@@ -248,12 +249,13 @@ async function deriveProposalForMessage(message: ConversationMessage) {
 
     patchMessage(message.id, {
       proposalPending: false,
-      proposal: response.proposal || undefined,
+      proposal: response.proposal || deriveProposalFallback(message),
     })
   }
   catch {
     patchMessage(message.id, {
       proposalPending: false,
+      proposal: deriveProposalFallback(message),
     })
   }
 }
