@@ -35,10 +35,10 @@ const envExample = loadDotEnvFile(resolve(cwd, '.env.example'))
 const env = { ...envExample, ...envLocal, ...process.env }
 
 const proxyPort = Number(env.AIRIFICA_TTS_PROXY_PORT || 4041)
-const targetBaseUrl = String(env.VITE_AIR3_TTS_BASE_URL || '').trim().replace(/\/+$/, '')
+const targetBaseUrl = String(env.AIRIFICA_TTS_PROXY_TARGET_URL || env.VITE_AIR3_TTS_BASE_URL || '').trim().replace(/\/+$/, '')
 
 if (!targetBaseUrl) {
-  console.error('[airifica][tts-proxy] missing VITE_AIR3_TTS_BASE_URL')
+  console.error('[airifica][tts-proxy] missing AIRIFICA_TTS_PROXY_TARGET_URL or VITE_AIR3_TTS_BASE_URL')
   process.exit(1)
 }
 
