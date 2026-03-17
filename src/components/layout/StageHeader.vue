@@ -63,6 +63,7 @@ const settingsOpen = ref(false)
                 class="stage-header__mode-option"
                 :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'browser' }"
                 :disabled="!speech.availableModes.value.browser"
+                title="Use browser speech synthesis"
                 type="button"
                 @click="speech.setPreferredMode('browser')"
               >
@@ -72,6 +73,7 @@ const settingsOpen = ref(false)
                 class="stage-header__mode-option"
                 :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'external' }"
                 :disabled="!speech.availableModes.value.external"
+                :title="speech.availableModes.value.external ? 'Use external TTS server' : 'External server unavailable in env. Restart the dev server after editing env.'"
                 type="button"
                 @click="speech.setPreferredMode('external')"
               >
@@ -290,6 +292,11 @@ const settingsOpen = ref(false)
   border: 1px solid rgba(138, 218, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-1);
+}
+
+.stage-header__mode-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .stage-header__mode-option--active {
