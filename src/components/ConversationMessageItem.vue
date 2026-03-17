@@ -221,7 +221,7 @@ function toggleChartExpanded() {
 .conversation-message__activity {
   margin: 0 14px;
   color: rgba(186, 230, 253, 0.68);
-  font-size: 11px;
+  font-size: 9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }

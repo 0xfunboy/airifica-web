@@ -253,9 +253,12 @@ function toggleStrategy() {
         <span class="proposal-card__timeframe">{{ proposal.timeframe }}</span>
       </div>
       <span :class="sideTone.className">{{ sideTone.label }}</span>
-      <span class="status-pill proposal-card__confidence" :style="confidenceStyle" title="Confidence">
-        {{ confidencePct }}%
-      </span>
+      <div class="proposal-card__confidence-wrap">
+        <span class="proposal-card__confidence-label">Confidence:</span>
+        <span class="status-pill proposal-card__confidence" :style="confidenceStyle" title="Confidence">
+          {{ confidencePct }}%
+        </span>
+      </div>
     </div>
 
     <div class="proposal-card__levels">
@@ -392,6 +395,19 @@ function toggleStrategy() {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
+}
+
+.proposal-card__confidence-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proposal-card__confidence-label {
+  color: rgba(186, 230, 253, 0.62);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .proposal-card__symbol-wrap strong {

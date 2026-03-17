@@ -3,12 +3,16 @@ import { appConfig } from '@/config/app'
 </script>
 
 <template>
-  <a class="header-link" href="/" aria-label="AIR3 home">
-    <img :src="appConfig.brandIconUrl" alt="" class="header-link__icon">
-    <span class="header-link__title">{{ appConfig.productName }} Agent</span>
-    <span class="header-link__by">by</span>
-    <img :src="appConfig.brandLogoUrl" alt="AIRewardrop" class="header-link__logo">
-  </a>
+  <div class="header-link">
+    <a class="header-link__home" href="/" aria-label="AIR3 home">
+      <img :src="appConfig.brandIconUrl" alt="" class="header-link__icon">
+      <span class="header-link__title">{{ appConfig.productName }} Agent</span>
+      <span class="header-link__by">by</span>
+    </a>
+    <a class="header-link__brand" :href="appConfig.brandSiteUrl" target="_blank" rel="noreferrer" aria-label="AIRewardrop">
+      <img :src="appConfig.brandLogoUrl" alt="AIRewardrop" class="header-link__logo">
+    </a>
+  </div>
 </template>
 
 <style scoped>
@@ -18,6 +22,13 @@ import { appConfig } from '@/config/app'
   gap: 12px;
   min-width: 0;
   padding: 0 8px;
+}
+
+.header-link__home,
+.header-link__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   text-decoration: none;
 }
 
@@ -56,6 +67,7 @@ import { appConfig } from '@/config/app'
 @media (max-width: 720px) {
   .header-link {
     padding: 0 4px;
+    gap: 8px;
   }
 
   .header-link__icon {

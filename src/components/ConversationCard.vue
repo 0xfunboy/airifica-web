@@ -481,7 +481,7 @@ onMounted(() => {
 .conversation-shell__reset-fab {
   position: absolute;
   right: 18px;
-  bottom: -18px;
+  bottom: -66px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -526,7 +526,7 @@ onMounted(() => {
   }
 
   .conversation-shell__reset-fab {
-    bottom: -14px;
+    bottom: -62px;
   }
 }
 
