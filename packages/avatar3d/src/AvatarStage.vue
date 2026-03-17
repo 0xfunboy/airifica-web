@@ -91,6 +91,8 @@ type BreathGestureRuntime = {
   nextTriggerAt: number
   endsAt: number | null
   fadeOutAt: number | null
+  activeFadeInSeconds: number
+  activeFadeOutSeconds: number
   fadeOutStarted: boolean
 }
 
@@ -525,6 +527,8 @@ function stopBreathGestureAction(runtime: BreathGestureRuntime) {
   runtime.action = null
   runtime.endsAt = null
   runtime.fadeOutAt = null
+  runtime.activeFadeInSeconds = 0
+  runtime.activeFadeOutSeconds = 0
   runtime.fadeOutStarted = false
 }
 
@@ -545,6 +549,8 @@ function initializeBreathGestureState(vrm?: VRM) {
     nextTriggerAt: spec.intervalSeconds,
     endsAt: null,
     fadeOutAt: null,
+    activeFadeInSeconds: 0,
+    activeFadeOutSeconds: 0,
     fadeOutStarted: false,
   }))
 
@@ -565,6 +571,10 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
   if (!clip || breathGestureSessionId !== sessionId || activeAnimationUrl.value !== BREATH_URL)
     return
 
+  const activeFadeInSeconds = Math.min(runtime.fadeInSeconds, Math.max(0.18, clip.duration * 0.24))
+  const activeFadeOutSeconds = runtime.key === 'dance-hip-swing'
+    ? Math.min(runtime.fadeOutSeconds, Math.max(0.14, clip.duration * 0.16))
+    : Math.min(runtime.fadeOutSeconds, Math.max(0.18, clip.duration * 0.3))
   const action = mixer.clipAction(clip)
   action.stop()
   action.enabled = true
@@ -573,14 +583,16 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
   action.setEffectiveTimeScale(1)
   action.reset()
   action.setEffectiveWeight(1)
-  action.fadeIn(runtime.fadeInSeconds)
+  action.fadeIn(activeFadeInSeconds)
   action.play()
 
   runtime.action = action
   runtime.fadeOutStarted = false
+  runtime.activeFadeInSeconds = activeFadeInSeconds
+  runtime.activeFadeOutSeconds = activeFadeOutSeconds
   runtime.nextTriggerAt += runtime.intervalSeconds
   runtime.endsAt = breathGestureElapsedSeconds + clip.duration
-  runtime.fadeOutAt = Math.max(breathGestureElapsedSeconds, runtime.endsAt - runtime.fadeOutSeconds)
+  runtime.fadeOutAt = Math.max(breathGestureElapsedSeconds, runtime.endsAt - activeFadeOutSeconds)
 }
 
 function updateBreathGestures(delta: number) {
@@ -601,7 +613,7 @@ function updateBreathGestures(delta: number) {
 
     const action = runtime.action
     if (!runtime.fadeOutStarted && runtime.fadeOutAt !== null && breathGestureElapsedSeconds >= runtime.fadeOutAt) {
-      action.fadeOut(runtime.fadeOutSeconds)
+      action.fadeOut(runtime.activeFadeOutSeconds || runtime.fadeOutSeconds)
       runtime.fadeOutStarted = true
     }
 
