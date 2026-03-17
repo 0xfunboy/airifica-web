@@ -60,7 +60,7 @@ function isModeAvailable(mode: SpeechMode) {
 }
 
 function resolvePreferredSpeechMode(): SpeechMode | null {
-  if (appConfig.ttsProvider === 'external' && canUseExternalSpeech())
+  if (appConfig.ttsProvider !== 'browser' && canUseExternalSpeech())
     return 'external'
   if (appConfig.ttsProvider === 'browser' && canUseBrowserSpeech())
     return 'browser'
@@ -282,27 +282,60 @@ async function fetchExternalSpeech(text: string) {
   if (appConfig.ttsApiKey)
     headers.Authorization = `Bearer ${appConfig.ttsApiKey}`
 
+  const externalPayload = appConfig.ttsProvider === 'fastapi'
+    ? {
+        text,
+        voice_mode: appConfig.ttsVoiceMode,
+        predefined_voice_id: appConfig.ttsPredefinedVoiceId || appConfig.ttsVoice || undefined,
+        output_format: appConfig.ttsResponseFormat,
+        split_text: appConfig.ttsSplitText,
+        chunk_size: appConfig.ttsChunkSize,
+        speed_factor: appConfig.ttsSpeedFactor,
+        seed: appConfig.ttsSeed ? Number(appConfig.ttsSeed) : undefined,
+      }
+    : {
+        model: appConfig.ttsModel,
+        voice: appConfig.ttsVoice,
+        input: text,
+        response_format: appConfig.ttsResponseFormat,
+        format: appConfig.ttsResponseFormat,
+        speed: appConfig.ttsSpeedFactor,
+        seed: appConfig.ttsSeed ? Number(appConfig.ttsSeed) : undefined,
+      }
+
   const response = await fetch(appConfig.ttsSpeechUrl, {
     method: 'POST',
     headers,
     signal: currentFetchController.signal,
-    body: JSON.stringify({
-      model: appConfig.ttsModel,
-      voice: appConfig.ttsVoice,
-      input: text,
-      response_format: appConfig.ttsResponseFormat,
-      format: appConfig.ttsResponseFormat,
-    }),
+    body: JSON.stringify(externalPayload),
   })
 
+  const contentType = response.headers.get('content-type') || ''
   if (!response.ok) {
     let details = ''
     try {
-      details = await response.text()
+      if (contentType.includes('application/json')) {
+        const payload = await response.json() as Record<string, unknown>
+        details = String(payload.detail || payload.error || payload.message || '')
+      }
+      else {
+        details = await response.text()
+      }
     }
     catch {
     }
     throw new Error(details || `External TTS failed with ${response.status} ${response.statusText}.`)
+  }
+
+  if (contentType.includes('application/json')) {
+    let details = ''
+    try {
+      const payload = await response.json() as Record<string, unknown>
+      details = String(payload.detail || payload.error || payload.message || '')
+    }
+    catch {
+    }
+    throw new Error(details || 'External TTS returned a JSON payload instead of audio.')
   }
 
   const blob = await response.blob()
@@ -382,15 +415,6 @@ async function processQueue() {
       throw new Error('Speech playback unavailable.')
   }
   catch (error) {
-    if (preferredMode === 'external' && canUseBrowserSpeech()) {
-      try {
-        await playBrowserQueueItem({ ...next, text: normalized })
-        return
-      }
-      catch {
-      }
-    }
-
     state.queue.shift()
     cleanupExternalPlayback()
     currentFetchController = null

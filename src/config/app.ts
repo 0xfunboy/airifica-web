@@ -41,6 +41,18 @@ function normalizeNumber(raw: string | undefined, fallback: number) {
   return Number.isFinite(numeric) ? numeric : fallback
 }
 
+function normalizeBoolean(raw: string | undefined, fallback: boolean) {
+  if (raw == null || raw === '')
+    return fallback
+
+  const normalized = raw.trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(normalized))
+    return true
+  if (['0', 'false', 'no', 'off'].includes(normalized))
+    return false
+  return fallback
+}
+
 function resolveEndpointUrl(baseUrl: string, path: string) {
   const normalizedBase = baseUrl.trim().replace(/\/+$/, '')
   const normalizedPath = path.trim()
@@ -58,7 +70,11 @@ function resolveEndpointUrl(baseUrl: string, path: string) {
 const ttsBaseUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_BASE_URL || '', '')
 const ttsSpeechPath = (import.meta.env.VITE_AIR3_TTS_SPEECH_PATH || '/v1/audio/speech').trim()
 const rawTtsProvider = (import.meta.env.VITE_AIR3_TTS_PROVIDER || (ttsBaseUrl ? 'external' : 'browser')).trim().toLowerCase()
-const normalizedTtsProvider = rawTtsProvider === 'openai-compatible' ? 'external' : rawTtsProvider
+const normalizedTtsProvider = rawTtsProvider === 'chatterbox'
+  ? 'fastapi'
+  : rawTtsProvider === 'external'
+    ? 'openai-compatible'
+    : rawTtsProvider
 
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
@@ -79,14 +95,24 @@ export const appConfig = {
   pacificaBuilderCode: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_CODE || 'AIRewardrop').trim(),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || 'AIRewardrop').trim(),
   embeddedAllowedOrigin: (import.meta.env.VITE_AIR3_EMBED_ALLOWED_ORIGIN || '').trim(),
-  ttsProvider: normalizedTtsProvider === 'external' ? 'external' : 'browser',
+  ttsProvider: normalizedTtsProvider === 'browser'
+    ? 'browser'
+    : normalizedTtsProvider === 'fastapi'
+      ? 'fastapi'
+      : 'openai-compatible',
   ttsBaseUrl,
   ttsSpeechPath,
   ttsSpeechUrl: resolveEndpointUrl(ttsBaseUrl, ttsSpeechPath),
   ttsModel: (import.meta.env.VITE_AIR3_TTS_MODEL || 'gpt-4o-mini-tts').trim(),
   ttsVoice: (import.meta.env.VITE_AIR3_TTS_VOICE || 'alloy').trim(),
+  ttsVoiceMode: (import.meta.env.VITE_AIR3_TTS_VOICE_MODE || 'predefined').trim(),
+  ttsPredefinedVoiceId: (import.meta.env.VITE_AIR3_TTS_PREDEFINED_VOICE_ID || '').trim(),
   ttsApiKey: (import.meta.env.VITE_AIR3_TTS_API_KEY || '').trim(),
   ttsResponseFormat: (import.meta.env.VITE_AIR3_TTS_RESPONSE_FORMAT || 'mp3').trim(),
+  ttsSplitText: normalizeBoolean(import.meta.env.VITE_AIR3_TTS_SPLIT_TEXT, true),
+  ttsChunkSize: normalizeNumber(import.meta.env.VITE_AIR3_TTS_CHUNK_SIZE, 120),
+  ttsSpeedFactor: normalizeNumber(import.meta.env.VITE_AIR3_TTS_SPEED_FACTOR, 1),
+  ttsSeed: (import.meta.env.VITE_AIR3_TTS_SEED || '').trim(),
   stageBrightness: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_BRIGHTNESS, 1),
   stageContrast: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_CONTRAST, 1),
   stageSaturation: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_SATURATION, 1),
