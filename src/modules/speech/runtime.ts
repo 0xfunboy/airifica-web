@@ -10,6 +10,7 @@ import {
   blendSpeechVisemeWeights,
   cloneSpeechVisemeWeights,
   createSpeechVisemeTimeline,
+  createSpeechVisemeTimelineFromPhonemes,
   maxSpeechVisemeWeight,
   sampleSpeechVisemeTimeline,
   zeroSpeechVisemeWeights,
@@ -31,6 +32,11 @@ type PlaybackClock = {
 type LipSyncNodeLike = {
   volume?: number
   weights?: Record<string, number>
+}
+
+type ExternalSpeechResponse = {
+  blob: Blob
+  phonemes: string | null
 }
 
 function getStorageScope() {
@@ -400,33 +406,18 @@ async function playBrowserQueueItem(next: { id: string, text: string }) {
   return true
 }
 
-async function fetchExternalSpeech(text: string) {
-  if (!appConfig.ttsSpeechUrl)
-    throw new Error('External TTS endpoint is not configured.')
-
-  currentFetchController?.abort('restart')
-  currentFetchController = new AbortController()
-  if (currentFetchTimeoutId) {
-    window.clearTimeout(currentFetchTimeoutId)
-    currentFetchTimeoutId = undefined
+function buildSpeechTimeline(text: string, totalDurationMs: number, phonemes?: string | null) {
+  if (phonemes?.trim()) {
+    const timeline = createSpeechVisemeTimelineFromPhonemes(phonemes, totalDurationMs)
+    if (timeline.length)
+      return timeline
   }
 
-  const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `tts-${Date.now()}`
-  const startedAt = performance.now()
+  return createSpeechVisemeTimeline(text, totalDurationMs)
+}
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Airifica-TTS-Request-Id': requestId,
-    'X-Airifica-TTS-Source': 'webapp',
-    'X-Airifica-TTS-Text-Chars': String(text.length),
-  }
-
-  if (appConfig.ttsApiKey)
-    headers.Authorization = `Bearer ${appConfig.ttsApiKey}`
-
-  const externalPayload = appConfig.ttsProvider === 'fastapi'
+function buildExternalSpeechPayload(text: string) {
+  return appConfig.ttsProvider === 'fastapi'
     ? {
         text,
         voice_mode: appConfig.ttsVoiceMode,
@@ -445,7 +436,88 @@ async function fetchExternalSpeech(text: string) {
         format: appConfig.ttsResponseFormat,
         speed: appConfig.ttsSpeedFactor,
         seed: appConfig.ttsSeed ? Number(appConfig.ttsSeed) : undefined,
+        lang_code: appConfig.ttsPhonemeLanguage,
       }
+}
+
+function createExternalSpeechHeaders(text: string, requestId: string) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Airifica-TTS-Request-Id': requestId,
+    'X-Airifica-TTS-Source': 'webapp',
+    'X-Airifica-TTS-Text-Chars': String(text.length),
+  }
+
+  if (appConfig.ttsApiKey)
+    headers.Authorization = `Bearer ${appConfig.ttsApiKey}`
+
+  return headers
+}
+
+async function fetchExternalPhonemes(
+  text: string,
+  requestId: string,
+  signal: AbortSignal,
+  baseHeaders: Record<string, string>,
+) {
+  if (!appConfig.ttsPhonemeUrl)
+    return null
+
+  const response = await fetch(appConfig.ttsPhonemeUrl, {
+    method: 'POST',
+    headers: {
+      ...baseHeaders,
+      'X-Airifica-TTS-Source': 'webapp-phonemes',
+    },
+    signal,
+    body: JSON.stringify({
+      text,
+      language: appConfig.ttsPhonemeLanguage,
+    }),
+  })
+
+  const contentType = response.headers.get('content-type') || ''
+  if (!response.ok) {
+    let details = ''
+    try {
+      details = contentType.includes('application/json')
+        ? String((await response.json() as Record<string, unknown>).detail || '')
+        : await response.text()
+    }
+    catch {
+    }
+    throw new Error(details || `Phoneme request failed with ${response.status} ${response.statusText}.`)
+  }
+
+  if (!contentType.includes('application/json'))
+    throw new Error('Phoneme request returned a non-JSON payload.')
+
+  const payload = await response.json() as Record<string, unknown>
+  const phonemes = typeof payload.phonemes === 'string' ? payload.phonemes.trim() : ''
+  console.info('[airifica][tts] phonemes:response', {
+    requestId,
+    phonemeChars: phonemes.length,
+  })
+  return phonemes || null
+}
+
+async function fetchExternalSpeech(text: string): Promise<ExternalSpeechResponse> {
+  if (!appConfig.ttsSpeechUrl)
+    throw new Error('External TTS endpoint is not configured.')
+
+  currentFetchController?.abort('restart')
+  currentFetchController = new AbortController()
+  if (currentFetchTimeoutId) {
+    window.clearTimeout(currentFetchTimeoutId)
+    currentFetchTimeoutId = undefined
+  }
+
+  const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `tts-${Date.now()}`
+  const startedAt = performance.now()
+  const headers = createExternalSpeechHeaders(text, requestId)
+  const externalPayload = buildExternalSpeechPayload(text)
 
   console.info('[airifica][tts] request:start', {
     requestId,
@@ -458,67 +530,82 @@ async function fetchExternalSpeech(text: string) {
     currentFetchController?.abort('tts-timeout')
   }, 120_000)
 
-  const response = await fetch(appConfig.ttsSpeechUrl, {
-    method: 'POST',
-    headers,
-    signal: currentFetchController.signal,
-    body: JSON.stringify(externalPayload),
-  })
+  try {
+    const [audioResult, phonemeResult] = await Promise.all([
+      fetch(appConfig.ttsSpeechUrl, {
+        method: 'POST',
+        headers,
+        signal: currentFetchController.signal,
+        body: JSON.stringify(externalPayload),
+      }).then(async (response) => {
+        const contentType = response.headers.get('content-type') || ''
+        if (!response.ok) {
+          let details = ''
+          try {
+            if (contentType.includes('application/json')) {
+              const payload = await response.json() as Record<string, unknown>
+              details = String(payload.detail || payload.error || payload.message || '')
+            }
+            else {
+              details = await response.text()
+            }
+          }
+          catch {
+          }
+          throw new Error(details || `External TTS failed with ${response.status} ${response.statusText}.`)
+        }
 
-  const contentType = response.headers.get('content-type') || ''
-  if (!response.ok) {
-    let details = ''
-    try {
-      if (contentType.includes('application/json')) {
-        const payload = await response.json() as Record<string, unknown>
-        details = String(payload.detail || payload.error || payload.message || '')
-      }
-      else {
-        details = await response.text()
-      }
+        if (contentType.includes('application/json')) {
+          let details = ''
+          try {
+            const payload = await response.json() as Record<string, unknown>
+            details = String(payload.detail || payload.error || payload.message || '')
+          }
+          catch {
+          }
+          throw new Error(details || 'External TTS returned a JSON payload instead of audio.')
+        }
+
+        const blob = await response.blob()
+        if (!blob.size)
+          throw new Error('External TTS returned an empty audio payload.')
+
+        console.info('[airifica][tts] request:response', {
+          requestId,
+          status: response.status,
+          contentType,
+          bytes: blob.size,
+          durationMs: Math.round(performance.now() - startedAt),
+        })
+
+        return blob
+      }),
+      fetchExternalPhonemes(text, requestId, currentFetchController.signal, headers)
+        .catch((error) => {
+          console.warn('[airifica][tts] phonemes:error', error)
+          return null
+        }),
+    ])
+
+    return {
+      blob: audioResult,
+      phonemes: phonemeResult,
     }
-    catch {
-    }
-    throw new Error(details || `External TTS failed with ${response.status} ${response.statusText}.`)
   }
-
-  if (contentType.includes('application/json')) {
-    let details = ''
-    try {
-      const payload = await response.json() as Record<string, unknown>
-      details = String(payload.detail || payload.error || payload.message || '')
+  finally {
+    if (currentFetchTimeoutId) {
+      window.clearTimeout(currentFetchTimeoutId)
+      currentFetchTimeoutId = undefined
     }
-    catch {
-    }
-    throw new Error(details || 'External TTS returned a JSON payload instead of audio.')
+    currentFetchController = null
   }
-
-  const blob = await response.blob()
-  if (!blob.size)
-    throw new Error('External TTS returned an empty audio payload.')
-
-  if (currentFetchTimeoutId) {
-    window.clearTimeout(currentFetchTimeoutId)
-    currentFetchTimeoutId = undefined
-  }
-
-  console.info('[airifica][tts] request:response', {
-    requestId,
-    status: response.status,
-    contentType,
-    bytes: blob.size,
-    durationMs: Math.round(performance.now() - startedAt),
-  })
-
-  currentFetchController = null
-  return blob
 }
 
 async function playExternalQueueItem(next: { id: string, text: string }) {
   if (!canUseExternalSpeech())
     return false
 
-  const blob = await fetchExternalSpeech(next.text)
+  const { blob, phonemes } = await fetchExternalSpeech(next.text)
   const context = await ensureOutputAudioContext()
 
   if (context?.state === 'running') {
@@ -541,7 +628,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     currentSource = source
     currentGain = gain
     const startedAt = context.currentTime
-    const timeline = createSpeechVisemeTimeline(next.text, decoded.duration * 1000)
+    const timeline = buildSpeechTimeline(next.text, decoded.duration * 1000, phonemes)
     currentPlaybackClock = {
       currentTime: () => Math.max(0, context.currentTime - startedAt),
       playing: () => currentSource === source && (context.currentTime - startedAt) < decoded.duration,
@@ -581,7 +668,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     startSpeechLipSync({
       currentTime: () => audio.currentTime,
       playing: () => !audio.paused && !audio.ended,
-    }, createSpeechVisemeTimeline(next.text, Math.max(audio.duration || 0, 0) * 1000 || undefined))
+    }, buildSpeechTimeline(next.text, Math.max(audio.duration || 0, 0) * 1000 || 0, phonemes))
   }
 
   audio.onended = () => {

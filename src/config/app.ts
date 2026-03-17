@@ -53,6 +53,11 @@ function normalizeBoolean(raw: string | undefined, fallback: boolean) {
   return fallback
 }
 
+function normalizeLanguageCode(raw: string | undefined, fallback: string) {
+  const value = (raw || fallback).trim().toLowerCase()
+  return /^[a-z]{1,3}$/i.test(value) ? value : fallback
+}
+
 function resolveEndpointUrl(baseUrl: string, path: string) {
   const normalizedBase = baseUrl.trim().replace(/\/+$/, '')
   const normalizedPath = path.trim()
@@ -70,6 +75,7 @@ function resolveEndpointUrl(baseUrl: string, path: string) {
 const ttsBaseUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_BASE_URL || '', '')
 const ttsDevProxyUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_DEV_PROXY_URL || '', 'http://127.0.0.1:4041')
 const ttsSpeechPath = (import.meta.env.VITE_AIR3_TTS_SPEECH_PATH || '/v1/audio/speech').trim()
+const ttsPhonemePath = (import.meta.env.VITE_AIR3_TTS_PHONEME_PATH || '/api/tts/phonemes').trim()
 const ttsRequestBaseUrl = import.meta.env.DEV && ttsBaseUrl
   ? ttsDevProxyUrl
   : ttsBaseUrl
@@ -108,12 +114,15 @@ export const appConfig = {
   ttsDevProxyUrl,
   ttsSpeechPath,
   ttsSpeechUrl: resolveEndpointUrl(ttsRequestBaseUrl, ttsSpeechPath),
+  ttsPhonemePath,
+  ttsPhonemeUrl: resolveEndpointUrl(ttsRequestBaseUrl, ttsPhonemePath),
   ttsModel: (import.meta.env.VITE_AIR3_TTS_MODEL || 'gpt-4o-mini-tts').trim(),
   ttsVoice: (import.meta.env.VITE_AIR3_TTS_VOICE || 'alloy').trim(),
   ttsVoiceMode: (import.meta.env.VITE_AIR3_TTS_VOICE_MODE || 'predefined').trim(),
   ttsPredefinedVoiceId: (import.meta.env.VITE_AIR3_TTS_PREDEFINED_VOICE_ID || '').trim(),
   ttsApiKey: (import.meta.env.VITE_AIR3_TTS_API_KEY || '').trim(),
   ttsResponseFormat: (import.meta.env.VITE_AIR3_TTS_RESPONSE_FORMAT || 'mp3').trim(),
+  ttsPhonemeLanguage: normalizeLanguageCode(import.meta.env.VITE_AIR3_TTS_PHONEME_LANGUAGE, (import.meta.env.VITE_AIR3_TTS_VOICE || 'alloy').trim().charAt(0) || 'a'),
   ttsSplitText: normalizeBoolean(import.meta.env.VITE_AIR3_TTS_SPLIT_TEXT, true),
   ttsChunkSize: normalizeNumber(import.meta.env.VITE_AIR3_TTS_CHUNK_SIZE, 120),
   ttsSpeedFactor: normalizeNumber(import.meta.env.VITE_AIR3_TTS_SPEED_FACTOR, 1),

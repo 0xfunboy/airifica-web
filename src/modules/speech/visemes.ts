@@ -6,6 +6,11 @@ export type SpeechVisemeFrame = {
   weights: SpeechVisemeWeights
 }
 
+type SpeechPhonemeFrame = {
+  units: number
+  weights: SpeechVisemeWeights
+}
+
 const LETTERS = /[a-z]/i
 const WORDS = /[a-z']+|[^\s\w]+|\s+/gi
 const CONSONANT_CLUSTER = /^[^aeiouy]+/i
@@ -188,6 +193,112 @@ export function createSpeechVisemeTimeline(text: string, totalDurationMs?: numbe
     }
     cursorMs += frame.durationMs
     return frame
+  })
+}
+
+const PHONEME_RULES: Array<{ pattern: string, units: number, weights: Partial<SpeechVisemeWeights> }> = [
+  { pattern: 'aɪ', units: 1.12, weights: { A: 0.82, I: 0.62 } },
+  { pattern: 'eɪ', units: 1.06, weights: { E: 0.84, I: 0.42 } },
+  { pattern: 'oʊ', units: 1.08, weights: { O: 0.82, U: 0.48 } },
+  { pattern: 'aʊ', units: 1.14, weights: { A: 0.74, U: 0.7 } },
+  { pattern: 'ɔɪ', units: 1.14, weights: { O: 0.72, I: 0.56 } },
+  { pattern: 'ju', units: 1.04, weights: { I: 0.36, U: 0.72 } },
+  { pattern: 'i', units: 0.82, weights: { I: 0.9, E: 0.26 } },
+  { pattern: 'ɪ', units: 0.78, weights: { I: 0.78, E: 0.34 } },
+  { pattern: 'e', units: 0.82, weights: { E: 0.86, I: 0.24 } },
+  { pattern: 'ɛ', units: 0.84, weights: { E: 0.78, A: 0.18 } },
+  { pattern: 'æ', units: 0.9, weights: { A: 0.84, E: 0.18 } },
+  { pattern: 'ɑ', units: 0.92, weights: { A: 0.9 } },
+  { pattern: 'ʌ', units: 0.86, weights: { A: 0.72, E: 0.22 } },
+  { pattern: 'ə', units: 0.68, weights: { A: 0.26, E: 0.24, O: 0.12 } },
+  { pattern: 'ɚ', units: 0.74, weights: { E: 0.34, A: 0.18 } },
+  { pattern: 'ɝ', units: 0.8, weights: { E: 0.42, A: 0.2 } },
+  { pattern: 'u', units: 0.88, weights: { U: 0.88, O: 0.22 } },
+  { pattern: 'ʊ', units: 0.82, weights: { U: 0.76, O: 0.28 } },
+  { pattern: 'o', units: 0.84, weights: { O: 0.84, U: 0.18 } },
+  { pattern: 'ɔ', units: 0.88, weights: { O: 0.78, A: 0.2 } },
+  { pattern: 'ɒ', units: 0.9, weights: { O: 0.72, A: 0.22 } },
+]
+
+const SILENCE_PHONEMES = new Set([
+  'p', 'b', 'm', 'f', 'v', 'ʃ', 'ʒ', 's', 'z', 'θ', 'ð', 'h',
+  't', 'd', 'k', 'g', 'n', 'ŋ', 'l', 'ɹ', 'r', 'j', 'w', 'ʧ', 'ʤ',
+])
+
+function tokenizePhonemes(phonemes: string) {
+  const cleaned = phonemes
+    .replace(/[ˈˌ]/g, '')
+    .trim()
+  const tokens: string[] = []
+  let index = 0
+
+  while (index < cleaned.length) {
+    const current = cleaned[index]
+    if (!current.trim()) {
+      tokens.push(' ')
+      index += 1
+      continue
+    }
+
+    const pair = cleaned.slice(index, index + 2)
+    const rule = PHONEME_RULES.find(entry => entry.pattern === pair)
+    if (rule) {
+      tokens.push(pair)
+      index += 2
+      continue
+    }
+
+    tokens.push(current)
+    index += 1
+  }
+
+  return tokens
+}
+
+function createPhonemeFrames(phonemeString: string) {
+  const frames: SpeechPhonemeFrame[] = []
+  for (const token of tokenizePhonemes(phonemeString)) {
+    if (token === ' ') {
+      frames.push({ units: 0.42, weights: createWeights() })
+      continue
+    }
+
+    const rule = PHONEME_RULES.find(entry => entry.pattern === token)
+    if (rule) {
+      frames.push({
+        units: rule.units,
+        weights: createWeights(rule.weights),
+      })
+      continue
+    }
+
+    if (SILENCE_PHONEMES.has(token)) {
+      frames.push({ units: 0.3, weights: createWeights() })
+      continue
+    }
+
+    frames.push({ units: 0.24, weights: createWeights() })
+  }
+  return frames
+}
+
+export function createSpeechVisemeTimelineFromPhonemes(phonemes: string, totalDurationMs: number) {
+  const frames = createPhonemeFrames(phonemes)
+  if (!frames.length)
+    return [] as SpeechVisemeFrame[]
+
+  const totalUnits = Math.max(1, frames.reduce((sum, frame) => sum + frame.units, 0))
+  const msPerUnit = Math.max(16, totalDurationMs / totalUnits)
+  let cursorMs = 0
+
+  return frames.map((frame) => {
+    const next = {
+      startMs: cursorMs,
+      durationMs: frame.units * msPerUnit,
+      weights: frame.weights,
+    }
+    cursorMs += next.durationMs
+    return next
   })
 }
 

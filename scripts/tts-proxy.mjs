@@ -37,6 +37,7 @@ const env = { ...envExample, ...envLocal, ...process.env }
 const proxyPort = Number(env.AIRIFICA_TTS_PROXY_PORT || 4041)
 const targetBaseUrl = String(env.AIRIFICA_TTS_PROXY_TARGET_URL || env.VITE_AIR3_TTS_BASE_URL || '').trim().replace(/\/+$/, '')
 const targetSpeechPath = String(env.AIRIFICA_TTS_PROXY_TARGET_PATH || '/v1/audio/speech').trim()
+const targetPhonemePath = String(env.AIRIFICA_TTS_PROXY_PHONEME_PATH || '/dev/phonemize').trim()
 
 if (!targetBaseUrl) {
   console.error('[airifica][tts-proxy] missing AIRIFICA_TTS_PROXY_TARGET_URL or VITE_AIR3_TTS_BASE_URL')
@@ -91,7 +92,9 @@ const server = createServer(async (req, res) => {
     const sourceUrl = new URL(req.url || '/', `http://127.0.0.1:${proxyPort}`)
     const rewrittenPath = sourceUrl.pathname === '/api/tts'
       ? targetSpeechPath
-      : sourceUrl.pathname
+      : sourceUrl.pathname === '/api/tts/phonemes'
+        ? targetPhonemePath
+        : sourceUrl.pathname
     const targetUrl = new URL(`${rewrittenPath}${sourceUrl.search}`, `${targetBaseUrl}/`)
 
     const requestHeaders = new Headers()

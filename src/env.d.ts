@@ -23,12 +23,14 @@ interface ImportMetaEnv {
   readonly VITE_AIR3_TTS_BASE_URL?: string
   readonly VITE_AIR3_TTS_DEV_PROXY_URL?: string
   readonly VITE_AIR3_TTS_SPEECH_PATH?: string
+  readonly VITE_AIR3_TTS_PHONEME_PATH?: string
   readonly VITE_AIR3_TTS_MODEL?: string
   readonly VITE_AIR3_TTS_VOICE?: string
   readonly VITE_AIR3_TTS_VOICE_MODE?: string
   readonly VITE_AIR3_TTS_PREDEFINED_VOICE_ID?: string
   readonly VITE_AIR3_TTS_API_KEY?: string
   readonly VITE_AIR3_TTS_RESPONSE_FORMAT?: string
+  readonly VITE_AIR3_TTS_PHONEME_LANGUAGE?: string
   readonly VITE_AIR3_TTS_SPLIT_TEXT?: string
   readonly VITE_AIR3_TTS_CHUNK_SIZE?: string
   readonly VITE_AIR3_TTS_SPEED_FACTOR?: string
