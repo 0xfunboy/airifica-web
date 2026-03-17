@@ -35,7 +35,7 @@ function detectAvatarExpression(text: string) {
   return 'neutral' as const
 }
 
-function setExpression(expression: AvatarExpression, durationMs = 3600) {
+function setExpression(expression: AvatarExpression, durationMs = 7200) {
   state.detectedExpression = expression
   if (expressionTimer)
     clearTimeout(expressionTimer)

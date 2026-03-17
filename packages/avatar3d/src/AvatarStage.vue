@@ -87,12 +87,15 @@ type BreathGestureRuntime = {
   intervalSeconds: number
   fadeInSeconds: number
   fadeOutSeconds: number
+  peakWeight?: number
   action: AnimationAction | null
   nextTriggerAt: number
   endsAt: number | null
   fadeOutAt: number | null
   activeFadeInSeconds: number
   activeFadeOutSeconds: number
+  startedAt: number | null
+  clipDuration: number
   fadeOutStarted: boolean
 }
 
@@ -137,8 +140,9 @@ const BREATH_GESTURE_SPECS = [
     label: 'DanceHipSwing',
     sourceUrl: animationUrls.DanceHipSwing,
     intervalSeconds: 543,
-    fadeInSeconds: 0.9,
-    fadeOutSeconds: 1.3,
+    fadeInSeconds: 1.1,
+    fadeOutSeconds: 1.05,
+    peakWeight: 0.82,
   },
 ] as const
 
@@ -433,8 +437,11 @@ function ensureAnimationMixer(vrm: VRM) {
 }
 
 function createBreathGestureClip(sourceClip: AnimationClip, runtime: BreathGestureRuntime) {
-  if (!runtime.excerptSeconds)
-    return sourceClip.clone()
+  if (!runtime.excerptSeconds) {
+    const clip = sourceClip.clone()
+    clip.resetDuration()
+    return clip
+  }
 
   const endFrame = Math.max(1, Math.round(runtime.excerptSeconds * 30))
   const clip = AnimationUtils.subclip(
@@ -529,6 +536,8 @@ function stopBreathGestureAction(runtime: BreathGestureRuntime) {
   runtime.fadeOutAt = null
   runtime.activeFadeInSeconds = 0
   runtime.activeFadeOutSeconds = 0
+  runtime.startedAt = null
+  runtime.clipDuration = 0
   runtime.fadeOutStarted = false
 }
 
@@ -551,6 +560,8 @@ function initializeBreathGestureState(vrm?: VRM) {
     fadeOutAt: null,
     activeFadeInSeconds: 0,
     activeFadeOutSeconds: 0,
+    startedAt: null,
+    clipDuration: 0,
     fadeOutStarted: false,
   }))
 
@@ -573,8 +584,9 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
 
   const activeFadeInSeconds = Math.min(runtime.fadeInSeconds, Math.max(0.18, clip.duration * 0.24))
   const activeFadeOutSeconds = runtime.key === 'dance-hip-swing'
-    ? Math.min(runtime.fadeOutSeconds, Math.max(0.14, clip.duration * 0.16))
+    ? Math.min(runtime.fadeOutSeconds, Math.max(0.2, clip.duration * 0.22))
     : Math.min(runtime.fadeOutSeconds, Math.max(0.18, clip.duration * 0.3))
+  const peakWeight = runtime.peakWeight ?? 1
   const action = mixer.clipAction(clip)
   action.stop()
   action.enabled = true
@@ -582,17 +594,19 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
   action.setLoop(LoopOnce, 1)
   action.setEffectiveTimeScale(1)
   action.reset()
-  action.setEffectiveWeight(1)
-  action.fadeIn(activeFadeInSeconds)
+  action.setEffectiveWeight(0)
   action.play()
 
   runtime.action = action
   runtime.fadeOutStarted = false
   runtime.activeFadeInSeconds = activeFadeInSeconds
   runtime.activeFadeOutSeconds = activeFadeOutSeconds
+  runtime.startedAt = breathGestureElapsedSeconds
+  runtime.clipDuration = clip.duration
   runtime.nextTriggerAt += runtime.intervalSeconds
   runtime.endsAt = breathGestureElapsedSeconds + clip.duration
   runtime.fadeOutAt = Math.max(breathGestureElapsedSeconds, runtime.endsAt - activeFadeOutSeconds)
+  action.setEffectiveWeight(Math.max(peakWeight * 0.02, 0.001))
 }
 
 function updateBreathGestures(delta: number) {
@@ -612,10 +626,26 @@ function updateBreathGestures(delta: number) {
       continue
 
     const action = runtime.action
-    if (!runtime.fadeOutStarted && runtime.fadeOutAt !== null && breathGestureElapsedSeconds >= runtime.fadeOutAt) {
-      action.fadeOut(runtime.activeFadeOutSeconds || runtime.fadeOutSeconds)
+    const peakWeight = runtime.peakWeight ?? 1
+    const age = runtime.startedAt === null ? 0 : breathGestureElapsedSeconds - runtime.startedAt
+    const fadeInDuration = Math.max(0.001, runtime.activeFadeInSeconds || runtime.fadeInSeconds)
+    const fadeOutDuration = Math.max(0.001, runtime.activeFadeOutSeconds || runtime.fadeOutSeconds)
+    const clipDuration = Math.max(0.001, runtime.clipDuration || (runtime.endsAt !== null ? runtime.endsAt - (runtime.startedAt ?? breathGestureElapsedSeconds) : 0.001))
+    const releaseAt = Math.max(fadeInDuration, clipDuration - fadeOutDuration)
+
+    let envelope = peakWeight
+    if (age < fadeInDuration)
+      envelope = peakWeight * MathUtils.smootherstep(age, 0, fadeInDuration)
+    else if (age >= releaseAt) {
+      const remaining = Math.max(0, clipDuration - age)
+      envelope = peakWeight * MathUtils.smootherstep(remaining, 0, fadeOutDuration)
       runtime.fadeOutStarted = true
     }
+    else {
+      runtime.fadeOutStarted = false
+    }
+
+    action.setEffectiveWeight(envelope)
 
     if (runtime.endsAt !== null && breathGestureElapsedSeconds >= runtime.endsAt + 0.05)
       stopBreathGestureAction(runtime)
@@ -800,11 +830,11 @@ function applyEmotionExpressions(vrm: VRM, delta: number) {
     relaxed: props.expression === 'think' ? 0.84 : props.expression === 'neutral' ? 0.42 : 0.1,
   }
 
-  emotionState.happy = MathUtils.lerp(emotionState.happy, targets.happy, Math.min(1, delta * 4.2))
-  emotionState.sad = MathUtils.lerp(emotionState.sad, targets.sad, Math.min(1, delta * 4.2))
-  emotionState.angry = MathUtils.lerp(emotionState.angry, targets.angry, Math.min(1, delta * 4.2))
-  emotionState.surprised = MathUtils.lerp(emotionState.surprised, targets.surprised, Math.min(1, delta * 5.4))
-  emotionState.relaxed = MathUtils.lerp(emotionState.relaxed, targets.relaxed, Math.min(1, delta * 3.4))
+  emotionState.happy = MathUtils.lerp(emotionState.happy, targets.happy, Math.min(1, delta * 2.15))
+  emotionState.sad = MathUtils.lerp(emotionState.sad, targets.sad, Math.min(1, delta * 2.15))
+  emotionState.angry = MathUtils.lerp(emotionState.angry, targets.angry, Math.min(1, delta * 2.15))
+  emotionState.surprised = MathUtils.lerp(emotionState.surprised, targets.surprised, Math.min(1, delta * 2.7))
+  emotionState.relaxed = MathUtils.lerp(emotionState.relaxed, targets.relaxed, Math.min(1, delta * 1.8))
 
   if (bindings.happy)
     manager.setValue(bindings.happy, emotionState.happy)
