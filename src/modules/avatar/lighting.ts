@@ -29,6 +29,13 @@ const DEFAULTS: LightingState = {
   fillIntensity: appConfig.stageFillIntensity,
 }
 
+const PRESET_KEY = JSON.stringify(DEFAULTS)
+
+type LightingStoragePayload = {
+  presetKey: string
+  values: Partial<LightingState>
+}
+
 function getStorageScope() {
   return typeof window === 'undefined' ? null : window.localStorage
 }
@@ -50,7 +57,12 @@ function clampValue(key: keyof LightingState, value: number) {
   return Math.min(range.max, Math.max(range.min, value))
 }
 
-const stored = readStorage<Partial<LightingState> | null>(getStorageScope(), STORAGE_KEY, null)
+const storedPayload = readStorage<LightingStoragePayload | Partial<LightingState> | null>(getStorageScope(), STORAGE_KEY, null)
+const stored = storedPayload && 'presetKey' in storedPayload
+  ? storedPayload.presetKey === PRESET_KEY
+    ? storedPayload.values
+    : null
+  : storedPayload
 const state = reactive<LightingState>({
   brightness: clampValue('brightness', stored?.brightness ?? DEFAULTS.brightness),
   contrast: clampValue('contrast', stored?.contrast ?? DEFAULTS.contrast),
@@ -64,7 +76,10 @@ const state = reactive<LightingState>({
 })
 
 function persist() {
-  writeStorage(getStorageScope(), STORAGE_KEY, { ...state })
+  writeStorage(getStorageScope(), STORAGE_KEY, {
+    presetKey: PRESET_KEY,
+    values: { ...state },
+  })
 }
 
 function setValue(key: keyof LightingState, value: number) {
