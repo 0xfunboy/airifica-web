@@ -102,6 +102,7 @@ let currentUtterance: SpeechSynthesisUtterance | null = null
 let currentAudio: HTMLAudioElement | null = null
 let currentAudioUrl: string | null = null
 let currentFetchController: AbortController | null = null
+let currentFetchTimeoutId: number | undefined
 let currentSource: AudioBufferSourceNode | null = null
 let currentGain: GainNode | null = null
 let currentPlaybackClock: PlaybackClock | null = null
@@ -340,9 +341,21 @@ async function fetchExternalSpeech(text: string) {
 
   currentFetchController?.abort('restart')
   currentFetchController = new AbortController()
+  if (currentFetchTimeoutId) {
+    window.clearTimeout(currentFetchTimeoutId)
+    currentFetchTimeoutId = undefined
+  }
+
+  const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `tts-${Date.now()}`
+  const startedAt = performance.now()
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Airifica-TTS-Request-Id': requestId,
+    'X-Airifica-TTS-Source': 'webapp',
+    'X-Airifica-TTS-Text-Chars': String(text.length),
   }
 
   if (appConfig.ttsApiKey)
@@ -368,6 +381,17 @@ async function fetchExternalSpeech(text: string) {
         speed: appConfig.ttsSpeedFactor,
         seed: appConfig.ttsSeed ? Number(appConfig.ttsSeed) : undefined,
       }
+
+  console.info('[airifica][tts] request:start', {
+    requestId,
+    provider: appConfig.ttsProvider,
+    url: appConfig.ttsSpeechUrl,
+    chars: text.length,
+  })
+
+  currentFetchTimeoutId = window.setTimeout(() => {
+    currentFetchController?.abort('tts-timeout')
+  }, 120_000)
 
   const response = await fetch(appConfig.ttsSpeechUrl, {
     method: 'POST',
@@ -408,6 +432,19 @@ async function fetchExternalSpeech(text: string) {
   if (!blob.size)
     throw new Error('External TTS returned an empty audio payload.')
 
+  if (currentFetchTimeoutId) {
+    window.clearTimeout(currentFetchTimeoutId)
+    currentFetchTimeoutId = undefined
+  }
+
+  console.info('[airifica][tts] request:response', {
+    requestId,
+    status: response.status,
+    contentType,
+    bytes: blob.size,
+    durationMs: Math.round(performance.now() - startedAt),
+  })
+
   currentFetchController = null
   return blob
 }
@@ -420,6 +457,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
   const context = await ensureOutputAudioContext()
 
   if (context?.state === 'running') {
+    const decodeStartedAt = performance.now()
     const decoded = await context.decodeAudioData(await blob.arrayBuffer())
     const source = context.createBufferSource()
     const gain = context.createGain()
@@ -446,6 +484,10 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     }
 
     state.activeMode = 'external'
+    console.info('[airifica][tts] playback:web-audio', {
+      durationSec: Number(decoded.duration.toFixed(2)),
+      decodeMs: Math.round(performance.now() - decodeStartedAt),
+    })
     startExternalAudioLipSync(currentPlaybackClock)
     source.start()
     return true
@@ -461,6 +503,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
 
   audio.onplay = () => {
     state.activeMode = 'external'
+    console.info('[airifica][tts] playback:html-audio')
     startExternalAudioLipSync({
       currentTime: () => audio.currentTime,
       playing: () => !audio.paused && !audio.ended,
@@ -520,9 +563,14 @@ async function processQueue() {
   catch (error) {
     state.queue.shift()
     cleanupExternalPlayback()
+    if (currentFetchTimeoutId) {
+      window.clearTimeout(currentFetchTimeoutId)
+      currentFetchTimeoutId = undefined
+    }
     currentFetchController = null
     currentUtterance = null
     state.error = error instanceof Error ? error.message : 'Speech playback failed.'
+    console.error('[airifica][tts] request:error', state.error)
     stopLipSync()
     void processQueue()
   }
