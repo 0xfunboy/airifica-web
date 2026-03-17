@@ -684,7 +684,7 @@ function applyEyeTracking(vrm: VRM, delta: number) {
   const lookTarget = ensureLookAtTarget(vrm)
   if (lookTarget) {
     lookAtBuffer.set(target.x, target.y, target.z)
-    lookTarget.position.lerp(lookAtBuffer, Math.min(1, delta * (pointerActive.value ? 16 : 8)))
+    lookTarget.position.lerp(lookAtBuffer, Math.min(1, delta * (pointerActive.value ? 16 : 4.2)))
     lookTarget.updateMatrixWorld(true)
   }
 
