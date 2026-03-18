@@ -325,6 +325,7 @@ let breathGestureElapsedSeconds = 0
 let breathGestureRuntimes: BreathGestureRuntime[] = []
 let runtimeElapsedSeconds = 0
 let activeManualGesture: ManualGestureRuntime | null = null
+let manualGestureBodyBlend = 0
 let loadFieldSpawnAccumulator = 0
 let loadFieldElapsed = 0
 const loadFieldParticles: LoadParticle[] = []
@@ -926,6 +927,9 @@ async function resolveManualGestureClip(vrm: VRM, spec: ManualGestureSpec) {
 function stopManualGesture() {
   activeManualGesture?.action?.stop()
   activeManualGesture = null
+  manualGestureBodyBlend = 0
+  if (activeAnimationAction.value)
+    activeAnimationAction.value.setEffectiveWeight(1)
 }
 
 async function triggerManualGesture(key: string | null | undefined) {
@@ -939,6 +943,8 @@ async function triggerManualGesture(key: string | null | undefined) {
   if (!clip)
     return
 
+  for (const runtime of breathGestureRuntimes)
+    stopBreathGestureAction(runtime)
   stopManualGesture()
 
   const action = mixer.clipAction(clip)
@@ -1142,13 +1148,16 @@ function updateBreathGestures(delta: number) {
       runtime.fadeOutStarted = false
     }
 
-    action.setEffectiveWeight(envelope)
+    action.setEffectiveWeight(envelope * (1 - manualGestureBodyBlend))
 
     if (runtime.endsAt !== null && breathGestureElapsedSeconds >= runtime.endsAt + 0.05)
       stopBreathGestureAction(runtime)
   }
 
   if (breathGestureRuntimes.some(runtime => runtime.action))
+    return
+
+  if (manualGestureBodyBlend > 0.08)
     return
 
   const nextDueGesture = [...breathGestureRuntimes]
@@ -1162,8 +1171,12 @@ function updateBreathGestures(delta: number) {
 }
 
 function updateManualGesture() {
-  if (!activeManualGesture?.action)
+  if (!activeManualGesture?.action) {
+    manualGestureBodyBlend = 0
+    if (activeAnimationAction.value)
+      activeAnimationAction.value.setEffectiveWeight(1)
     return
+  }
 
   const age = Math.max(0, runtimeElapsedSeconds - activeManualGesture.startedAt)
   const clipDuration = Math.max(0.001, activeManualGesture.endsAt - activeManualGesture.startedAt)
@@ -1178,6 +1191,9 @@ function updateManualGesture() {
     envelope = activeManualGesture.peakWeight * MathUtils.smootherstep(remaining, 0, activeManualGesture.fadeOutSeconds)
   }
 
+  manualGestureBodyBlend = Math.max(0, Math.min(1, envelope / Math.max(0.001, activeManualGesture.peakWeight)))
+  if (activeAnimationAction.value)
+    activeAnimationAction.value.setEffectiveWeight(1 - manualGestureBodyBlend)
   activeManualGesture.action.setEffectiveWeight(envelope)
 
   if (runtimeElapsedSeconds >= activeManualGesture.endsAt + 0.05)
@@ -1276,8 +1292,9 @@ function applyHeadTracking(vrm: VRM, delta: number) {
   const rightShoulder = humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightShoulder)
   const neck = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Neck)
   const head = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head)
-  const sourceYaw = tracking.x * tracking.influence
-  const sourcePitch = -tracking.y * tracking.influence
+  const trackingBlend = 1 - (manualGestureBodyBlend * 0.95)
+  const sourceYaw = tracking.x * tracking.influence * trackingBlend
+  const sourcePitch = -tracking.y * tracking.influence * trackingBlend
   const bodyLambda = pointerActive.value ? 8 : 1.35
   const neckLambda = pointerActive.value ? 9.4 : 1.2
   const headLambda = pointerActive.value ? 10.4 : 1.15
