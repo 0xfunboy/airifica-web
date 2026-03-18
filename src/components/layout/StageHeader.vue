@@ -8,16 +8,12 @@ import WalletConnectButton from '@/components/layout/WalletConnectButton.vue'
 import { useAvatarLighting } from '@/modules/avatar/lighting'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useMarketContext } from '@/modules/market/context'
-import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
-import { useWalletSession } from '@/modules/wallet/session'
 
 const lighting = useAvatarLighting()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const marketContext = useMarketContext()
-const pacifica = usePacificaAccount()
-const wallet = useWalletSession()
 
 const settingsOpen = ref(false)
 const guideOpen = ref(false)
@@ -29,14 +25,6 @@ function toggleAutoSpeak() {
 function previewSpeech() {
   speech.preview('Airifica external speech test.')
 }
-
-async function handleCompleteOnboarding() {
-  try {
-    await pacifica.setupBuilderAccess()
-  }
-  catch {
-  }
-}
 </script>
 
 <template>
@@ -45,16 +33,6 @@ async function handleCompleteOnboarding() {
 
       <div class="stage-header__controls">
         <PacificaTradeButton />
-
-        <button
-          v-if="wallet.isAuthenticated.value && !pacifica.readyToExecute.value"
-          class="stage-header__utility-chip stage-header__utility-chip--primary"
-          :disabled="pacifica.setupLoading.value"
-          type="button"
-          @click="handleCompleteOnboarding"
-        >
-          {{ pacifica.setupLoading.value ? 'Preparing onboarding…' : 'Complete Pacifica onboarding' }}
-        </button>
 
         <WalletConnectButton />
 

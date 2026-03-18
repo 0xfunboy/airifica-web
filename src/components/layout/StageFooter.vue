@@ -139,72 +139,75 @@ onBeforeUnmount(() => {
 
 <template>
   <footer class="stage-footer" @mouseenter="handleMouseEnter" @mouseleave="handleMouseLeave">
-    <div class="stage-footer__drawer" :class="{ 'stage-footer__drawer--open': isExpanded }">
-      <div class="stage-footer__main">
-        <div class="stage-footer__brand">
-          <a href="https://airewardrop.xyz" class="stage-footer__brand-link" target="_blank" rel="noopener noreferrer">
-            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="stage-footer__brand-icon" aria-hidden="true">
-              <path d="M20 4L6 36H14L20 22L26 36H34L20 4Z" fill="currentColor" />
-              <path d="M20 12V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-            <span>AIRewardrop</span>
-          </a>
-          <p class="stage-footer__brand-copy">
-            Autonomous agent infrastructure for crypto.
-          </p>
-          <a href="https://airewardrop.xyz/blog" target="_blank" rel="noopener noreferrer" class="stage-footer__brand-blog">
-            Our Blog →
-          </a>
-        </div>
+    <div class="stage-footer__shell" :class="{ 'stage-footer__shell--open': isExpanded }">
+      <div class="stage-footer__drawer" :class="{ 'stage-footer__drawer--open': isExpanded }">
+        <div class="stage-footer__main">
+          <div class="stage-footer__brand">
+            <a href="https://airewardrop.xyz" class="stage-footer__brand-link" target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="stage-footer__brand-icon" aria-hidden="true">
+                <path d="M20 4L6 36H14L20 22L26 36H34L20 4Z" fill="currentColor" />
+                <path d="M20 12V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              <span>AIRewardrop</span>
+            </a>
+            <p class="stage-footer__brand-copy">
+              Autonomous agent infrastructure for crypto.
+            </p>
+            <a href="https://airewardrop.xyz/blog" target="_blank" rel="noopener noreferrer" class="stage-footer__brand-blog">
+              Our Blog →
+            </a>
+          </div>
 
-        <div class="stage-footer__grid">
-          <div v-for="section in sections" :key="section.title" class="stage-footer__column">
-            <h3>{{ section.title }}</h3>
-            <ul>
-              <li v-for="link in section.links" :key="link.label">
-                <a :href="link.href" :target="link.external ? '_blank' : undefined" :rel="link.external ? 'noopener noreferrer' : undefined">
-                  {{ link.label }}
-                </a>
-              </li>
-            </ul>
+          <div class="stage-footer__grid">
+            <div v-for="section in sections" :key="section.title" class="stage-footer__column">
+              <h3>{{ section.title }}</h3>
+              <ul>
+                <li v-for="link in section.links" :key="link.label">
+                  <a :href="link.href" :target="link.external ? '_blank' : undefined" :rel="link.external ? 'noopener noreferrer' : undefined">
+                    {{ link.label }}
+                  </a>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="stage-footer__bar">
-      <button
-        type="button"
-        class="stage-footer__toggle"
-        :class="{ 'stage-footer__toggle--open': isExpanded }"
-        :aria-expanded="isExpanded"
-        @click="toggleDrawer"
-      >
-        <span class="stage-footer__toggle-glyph" aria-hidden="true">
-          <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4.25 10.5 9 5.75l4.75 4.75" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </span>
-        <span>{{ isExpanded ? 'Hide footer' : 'Show footer' }}</span>
-      </button>
-
-      <p class="stage-footer__disclaimer">
-        © 2025 AIRewardrop. All rights reserved. Not financial advice.
-      </p>
-
-      <div class="stage-footer__socials">
-        <a
-          v-for="social in socials"
-          :key="social.label"
-          :href="social.href"
-          target="_blank"
-          rel="noopener noreferrer"
-          :aria-label="social.label"
+      <div class="stage-footer__bar" :class="{ 'stage-footer__bar--open': isExpanded }">
+        <button
+          type="button"
+          class="stage-footer__toggle"
+          :class="{ 'stage-footer__toggle--open': isExpanded }"
+          :aria-expanded="isExpanded"
+          @click="toggleDrawer"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path :d="social.path" />
-          </svg>
-        </a>
+          <span class="stage-footer__toggle-glyph" aria-hidden="true">
+            <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4.25 10.5 9 5.75l4.75 4.75" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+        </button>
+
+        <div class="stage-footer__bar-content" :class="{ 'stage-footer__bar-content--open': isExpanded }">
+          <p class="stage-footer__disclaimer">
+            © 2025 AIRewardrop. All rights reserved. Not financial advice.
+          </p>
+
+          <div class="stage-footer__socials">
+            <a
+              v-for="social in socials"
+              :key="social.label"
+              :href="social.href"
+              target="_blank"
+              rel="noopener noreferrer"
+              :aria-label="social.label"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path :d="social.path" />
+              </svg>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </footer>
@@ -213,14 +216,27 @@ onBeforeUnmount(() => {
 <style scoped>
 .stage-footer {
   position: relative;
+  display: flex;
+  justify-content: center;
   width: 100%;
   padding: 0 16px 12px;
   pointer-events: none;
 }
 
+.stage-footer__shell,
 .stage-footer__drawer,
 .stage-footer__bar {
   pointer-events: auto;
+}
+
+.stage-footer__shell {
+  width: 46px;
+  max-width: min(384px, calc(100vw - 24px));
+  transition: width 300ms ease;
+}
+
+.stage-footer__shell--open {
+  width: min(384px, calc(100vw - 24px));
 }
 
 .stage-footer__drawer {
@@ -242,16 +258,16 @@ onBeforeUnmount(() => {
 
 .stage-footer__main {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  grid-template-columns: 1fr;
   gap: 12px;
   align-items: start;
-  margin: 0 auto 10px;
+  margin: 0 0 10px;
   padding: 16px 18px 14px;
   border: 1px solid rgba(103, 232, 249, 0.16);
   border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(8, 30, 44, 0.92), rgba(5, 20, 31, 0.88)),
-    rgba(6, 25, 39, 0.82);
+    linear-gradient(180deg, rgba(8, 30, 44, 0.72), rgba(5, 20, 31, 0.66)),
+    rgba(6, 25, 39, 0.58);
   box-shadow: 0 -16px 48px rgba(5, 23, 36, 0.36);
   backdrop-filter: blur(20px);
 }
@@ -294,10 +310,10 @@ onBeforeUnmount(() => {
 
 .stage-footer__grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  justify-items: end;
-  text-align: right;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  justify-items: start;
+  text-align: left;
 }
 
 .stage-footer__column h3 {
@@ -340,34 +356,44 @@ onBeforeUnmount(() => {
 .stage-footer__bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  justify-content: flex-start;
+  gap: 12px;
   min-height: 58px;
-  padding: 10px 14px;
+  padding: 8px;
   border: 1px solid rgba(103, 232, 249, 0.14);
-  border-radius: 18px;
+  border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(7, 28, 42, 0.92), rgba(4, 17, 27, 0.9)),
-    rgba(6, 25, 39, 0.78);
+    linear-gradient(180deg, rgba(7, 28, 42, 0.62), rgba(4, 17, 27, 0.58)),
+    rgba(6, 25, 39, 0.48);
   box-shadow: 0 -10px 34px rgba(5, 23, 36, 0.28);
   backdrop-filter: blur(18px);
+  transition:
+    padding 240ms ease,
+    border-radius 240ms ease,
+    background 240ms ease;
+}
+
+.stage-footer__bar--open {
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(7, 28, 42, 0.76), rgba(4, 17, 27, 0.72)),
+    rgba(6, 25, 39, 0.6);
 }
 
 .stage-footer__toggle {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   flex: 0 0 auto;
-  min-height: 38px;
-  padding: 0 14px 0 10px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
   border: 1px solid rgba(103, 232, 249, 0.16);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.03);
   color: rgba(240, 249, 255, 0.9);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   cursor: pointer;
   transition:
     color 160ms ease,
@@ -387,8 +413,8 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   color: #67e8f9;
   transition:
     transform 220ms ease,
@@ -404,23 +430,45 @@ onBeforeUnmount(() => {
 }
 
 .stage-footer__toggle-glyph svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
+}
+
+.stage-footer__bar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex: 1 1 auto;
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(10px);
+  transition:
+    max-width 280ms ease,
+    opacity 160ms ease,
+    transform 200ms ease;
+}
+
+.stage-footer__bar-content--open {
+  max-width: 100%;
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .stage-footer__disclaimer {
   flex: 1 1 auto;
   margin: 0;
   color: rgba(224, 242, 254, 0.66);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   line-height: 1.45;
-  text-align: center;
+  text-align: left;
 }
 
 .stage-footer__socials {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   flex: 0 0 auto;
 }
 
@@ -447,10 +495,6 @@ onBeforeUnmount(() => {
   .stage-footer {
     padding-inline: 12px;
   }
-
-  .stage-footer__grid {
-    gap: 8px;
-  }
 }
 
 @media (max-width: 980px) {
@@ -462,10 +506,6 @@ onBeforeUnmount(() => {
     max-height: 440px;
   }
 
-  .stage-footer__main {
-    grid-template-columns: 1fr;
-  }
-
   .stage-footer__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-items: start;
@@ -474,11 +514,15 @@ onBeforeUnmount(() => {
 
   .stage-footer__bar {
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-start;
+  }
+
+  .stage-footer__bar-content {
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .stage-footer__disclaimer {
-    order: 3;
     width: 100%;
   }
 }

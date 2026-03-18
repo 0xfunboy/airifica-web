@@ -71,8 +71,8 @@ onUnmounted(() => {
 
 <style scoped>
 .stage-page {
-  --stage-footer-bar-height: 70px;
-  --stage-side-panel-height: min(85dvh, calc(100dvh - 152px));
+  --stage-footer-bar-height: 58px;
+  --stage-side-panel-height: min(82dvh, calc(100dvh - 184px));
   position: relative;
   width: 100vw;
   height: 100dvh;
@@ -117,10 +117,10 @@ onUnmounted(() => {
 :deep(.stage-page__interactive) {
   position: absolute;
   top: 0;
-  bottom: 20px;
   right: 16px;
   z-index: 10;
-  height: auto;
+  height: var(--stage-side-panel-height);
+  bottom: auto;
   pointer-events: auto;
 }
 
