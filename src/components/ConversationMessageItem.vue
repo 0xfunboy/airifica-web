@@ -121,20 +121,22 @@ function toggleChartExpanded() {
     </p>
 
     <Teleport to="body">
-      <button
-        v-if="chartExpanded && chartImageUrl"
-        class="conversation-message__chart-overlay"
-        type="button"
-        aria-label="Close chart preview"
-        @click="toggleChartExpanded"
-      >
-        <img
-          :src="chartImageUrl"
-          alt="AIR3 chart enlarged"
-          class="conversation-message__chart-overlay-image"
-          @click.stop="toggleChartExpanded"
+      <Transition name="surface-overlay">
+        <button
+          v-if="chartExpanded && chartImageUrl"
+          class="conversation-message__chart-overlay"
+          type="button"
+          aria-label="Close chart preview"
+          @click="toggleChartExpanded"
         >
-      </button>
+          <img
+            :src="chartImageUrl"
+            alt="AIR3 chart enlarged"
+            class="conversation-message__chart-overlay-image"
+            @click.stop="toggleChartExpanded"
+          >
+        </button>
+      </Transition>
     </Teleport>
   </article>
 </template>
@@ -270,6 +272,35 @@ function toggleChartExpanded() {
   background: rgba(2, 10, 17, 0.82);
   backdrop-filter: blur(10px);
   cursor: zoom-out;
+}
+
+.surface-overlay-enter-active,
+.surface-overlay-leave-active {
+  transition: opacity 280ms ease, backdrop-filter 280ms ease, background-color 280ms ease;
+}
+
+.surface-overlay-enter-active .conversation-message__chart-overlay-image,
+.surface-overlay-leave-active .conversation-message__chart-overlay-image {
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.surface-overlay-enter-from,
+.surface-overlay-leave-to {
+  opacity: 0;
+  background: rgba(2, 10, 17, 0);
+  backdrop-filter: blur(0px);
+}
+
+.surface-overlay-enter-from .conversation-message__chart-overlay-image,
+.surface-overlay-leave-to .conversation-message__chart-overlay-image {
+  opacity: 0;
+  transform: translateY(22px) scale(0.9);
+  filter: blur(1.2px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
 }
 
 .conversation-message__chart-overlay-image {

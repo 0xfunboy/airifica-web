@@ -37,45 +37,47 @@ function handlePromptClick(prompt: string) {
 </script>
 
 <template>
-  <div v-if="props.open" class="command-guide" @click.self="emit('close')">
-    <div class="command-guide__panel">
-      <div class="command-guide__header">
-        <div>
-          <p class="command-guide__eyebrow">
-            Agent guide
-          </p>
-          <h2>Example use cases</h2>
-          <p class="command-guide__copy">
-            Here are sample prompts you can use with the agent.
-          </p>
+  <Transition name="surface-overlay">
+    <div v-if="props.open" class="command-guide" @click.self="emit('close')">
+      <div class="command-guide__panel">
+        <div class="command-guide__header">
+          <div>
+            <p class="command-guide__eyebrow">
+              Agent guide
+            </p>
+            <h2>Example use cases</h2>
+            <p class="command-guide__copy">
+              Here are sample prompts you can use with the agent.
+            </p>
+          </div>
+
+          <button class="command-guide__close" type="button" aria-label="Close guide" @click="emit('close')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12" />
+              <path d="M18 6L6 18" />
+            </svg>
+          </button>
         </div>
 
-        <button class="command-guide__close" type="button" aria-label="Close guide" @click="emit('close')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12" />
-            <path d="M18 6L6 18" />
-          </svg>
-        </button>
-      </div>
+        <div v-if="props.showMentionNote !== false" class="command-guide__note">
+          Replace <code>@tag_agent</code> with the active mention tag when your channel requires one.
+        </div>
 
-      <div v-if="props.showMentionNote !== false" class="command-guide__note">
-        Replace <code>@tag_agent</code> with the active mention tag when your channel requires one.
-      </div>
-
-      <div class="command-guide__list">
-        <button
-          v-for="prompt in prompts"
-          :key="prompt"
-          class="command-guide__item"
-          type="button"
-          @click="handlePromptClick(prompt)"
-        >
-          <span>{{ prompt }}</span>
-          <span class="command-guide__hint">Use</span>
-        </button>
+        <div class="command-guide__list">
+          <button
+            v-for="prompt in prompts"
+            :key="prompt"
+            class="command-guide__item"
+            type="button"
+            @click="handlePromptClick(prompt)"
+          >
+            <span>{{ prompt }}</span>
+            <span class="command-guide__hint">Use</span>
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -88,6 +90,35 @@ function handlePromptClick(prompt: string) {
   padding: 24px;
   background: rgba(2, 12, 20, 0.72);
   backdrop-filter: blur(16px);
+}
+
+.surface-overlay-enter-active,
+.surface-overlay-leave-active {
+  transition: opacity 280ms ease, backdrop-filter 280ms ease, background-color 280ms ease;
+}
+
+.surface-overlay-enter-active .command-guide__panel,
+.surface-overlay-leave-active .command-guide__panel {
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.surface-overlay-enter-from,
+.surface-overlay-leave-to {
+  opacity: 0;
+  background: rgba(2, 12, 20, 0);
+  backdrop-filter: blur(0px);
+}
+
+.surface-overlay-enter-from .command-guide__panel,
+.surface-overlay-leave-to .command-guide__panel {
+  opacity: 0;
+  transform: translateY(28px) scale(0.92);
+  filter: blur(1.4px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
 }
 
 .command-guide__panel {

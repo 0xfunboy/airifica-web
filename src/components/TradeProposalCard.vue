@@ -378,18 +378,20 @@ function toggleStrategy() {
     </p>
 
     <Teleport to="body">
-      <button
-        v-if="strategyOpen && hasStrategy"
-        class="proposal-card__strategy-overlay"
-        type="button"
-        aria-label="Close action strategy"
-        @click="toggleStrategy"
-      >
-        <div class="proposal-card__strategy-panel" @click.stop>
-          <div class="proposal-card__strategy-title">Action strategy</div>
-          <p>{{ proposal.thesis }}</p>
-        </div>
-      </button>
+      <Transition name="surface-overlay">
+        <button
+          v-if="strategyOpen && hasStrategy"
+          class="proposal-card__strategy-overlay"
+          type="button"
+          aria-label="Close action strategy"
+          @click="toggleStrategy"
+        >
+          <div class="proposal-card__strategy-panel" @click.stop>
+            <div class="proposal-card__strategy-title">Action strategy</div>
+            <p>{{ proposal.thesis }}</p>
+          </div>
+        </button>
+      </Transition>
     </Teleport>
   </div>
 </template>
@@ -606,6 +608,35 @@ function toggleStrategy() {
   border: 0;
   background: rgba(2, 10, 17, 0.52);
   backdrop-filter: blur(8px);
+}
+
+.surface-overlay-enter-active,
+.surface-overlay-leave-active {
+  transition: opacity 280ms ease, backdrop-filter 280ms ease, background-color 280ms ease;
+}
+
+.surface-overlay-enter-active .proposal-card__strategy-panel,
+.surface-overlay-leave-active .proposal-card__strategy-panel {
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.surface-overlay-enter-from,
+.surface-overlay-leave-to {
+  opacity: 0;
+  background: rgba(2, 10, 17, 0);
+  backdrop-filter: blur(0px);
+}
+
+.surface-overlay-enter-from .proposal-card__strategy-panel,
+.surface-overlay-leave-to .proposal-card__strategy-panel {
+  opacity: 0;
+  transform: translateY(24px) scale(0.92);
+  filter: blur(1.2px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
 }
 
 .proposal-card__strategy-panel {
