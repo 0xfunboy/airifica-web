@@ -232,7 +232,7 @@ onBeforeUnmount(() => {
 }
 
 .stage-footer__shell {
-  width: 34px;
+  width: min(384px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
   overflow: visible;
   transition: width 340ms ease;
@@ -360,17 +360,18 @@ onBeforeUnmount(() => {
 .stage-footer__bar {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 12px;
   min-height: 34px;
-  padding: 0;
+  width: 100%;
+  padding: 0 10px 0 0;
   border: 1px solid rgba(103, 232, 249, 0.08);
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(7, 28, 42, 0.16), rgba(4, 17, 27, 0.12)),
-    rgba(6, 25, 39, 0.08);
-  box-shadow: none;
-  backdrop-filter: blur(8px);
+    linear-gradient(180deg, rgba(7, 28, 42, 0.28), rgba(4, 17, 27, 0.22)),
+    rgba(6, 25, 39, 0.14);
+  box-shadow: 0 -8px 26px rgba(5, 23, 36, 0.08);
+  backdrop-filter: blur(12px);
   transition:
     min-height 260ms ease,
     padding 240ms ease,
@@ -441,13 +442,13 @@ onBeforeUnmount(() => {
 .stage-footer__bar-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 14px;
   flex: 1 1 auto;
   overflow: hidden;
-  max-width: 0;
-  opacity: 0;
-  transform: translateX(10px);
+  max-width: calc(100% - 50px);
+  opacity: 1;
+  transform: translateX(0);
   transition:
     max-width 280ms ease,
     opacity 160ms ease,
@@ -467,6 +468,18 @@ onBeforeUnmount(() => {
   font-size: 0.7rem;
   line-height: 1.45;
   text-align: left;
+  white-space: nowrap;
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition:
+    max-width 260ms ease,
+    opacity 140ms ease;
+}
+
+.stage-footer__bar-content--open .stage-footer__disclaimer {
+  max-width: 340px;
+  opacity: 1;
 }
 
 .stage-footer__socials {
@@ -544,6 +557,7 @@ onBeforeUnmount(() => {
 
   .stage-footer__disclaimer {
     width: 100%;
+    white-space: normal;
   }
 }
 </style>
