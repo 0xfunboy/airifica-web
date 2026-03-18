@@ -36,6 +36,11 @@ type LipSyncNodeLike = {
   weights?: Record<string, number>
 }
 
+type SampledLipSyncState = {
+  weights: SpeechVisemeWeights
+  closure: number
+}
+
 type ExternalSpeechResponse = {
   blob: Blob
   phonemes: string | null
@@ -169,9 +174,13 @@ function updateVisemeWeights(target: Partial<SpeechVisemeWeights>, deltaSeconds:
   state.mouthOpenSize = maxSpeechVisemeWeight(current) * 100
 }
 
-function sampleWLipSyncWeights(node: LipSyncNodeLike | null) {
-  if (!node)
-    return cloneSpeechVisemeWeights(zeroSpeechVisemeWeights)
+function sampleWLipSyncState(node: LipSyncNodeLike | null): SampledLipSyncState {
+  if (!node) {
+    return {
+      weights: cloneSpeechVisemeWeights(zeroSpeechVisemeWeights),
+      closure: 0,
+    }
+  }
 
   const rawWeights = node.weights || {}
   const volume = Math.min(Math.max(node.volume || 0, 0), 1)
@@ -183,7 +192,6 @@ function sampleWLipSyncWeights(node: LipSyncNodeLike | null) {
     I: 'I',
     O: 'O',
     U: 'U',
-    S: 'I',
   } as const
 
   for (const [rawKey, lipKey] of Object.entries(rawToLip) as Array<[keyof typeof rawToLip, keyof SpeechVisemeWeights]>) {
@@ -191,7 +199,22 @@ function sampleWLipSyncWeights(node: LipSyncNodeLike | null) {
     projected[lipKey] = Math.max(projected[lipKey], value)
   }
 
-  return projected
+  const vowelPeak = maxSpeechVisemeWeight(projected)
+  const silenceClosure = volume <= 0.035
+    ? Math.max(0, Math.min(1, (0.035 - volume) / 0.035))
+    : 0
+  const stopClosure = Math.max(0, Math.min(1, Number(rawWeights.S || 0))) * Math.max(0.4, 0.25 + amplitude * 0.9)
+  const lowVowelClosure = Math.max(0, Math.min(1, (0.16 - vowelPeak) / 0.16)) * Math.max(0.18, volume * 1.8)
+  const closure = Math.max(
+    silenceClosure,
+    stopClosure,
+    lowVowelClosure * 0.72,
+  )
+
+  return {
+    weights: projected,
+    closure: Math.max(0, Math.min(1, closure)),
+  }
 }
 
 function scaleVisemeWeights(weights: Partial<SpeechVisemeWeights>, factor: number) {
@@ -243,9 +266,10 @@ function startSpeechLipSync(clock: PlaybackClock, timeline: SpeechVisemeFrame[],
       ? sampleSpeechVisemeState(activeVisemeTimeline, elapsedMs)
       : { weights: zeroSpeechVisemeWeights, closure: 0 }
     const timelineWeights = timelineState.weights
-    const audioWeights = sampleWLipSyncWeights(currentLipSyncNode)
+    const audioState = sampleWLipSyncState(currentLipSyncNode)
+    const audioWeights = audioState.weights
     const audioStrength = maxSpeechVisemeWeight(audioWeights)
-    const closureStrength = Math.max(0, Math.min(1, timelineState.closure))
+    const closureStrength = Math.max(0, Math.min(1, Math.max(timelineState.closure, audioState.closure)))
     const openFactor = Math.max(0, 1 - closureStrength)
     const dampedAudioWeights = scaleVisemeWeights(audioWeights, openFactor * openFactor)
     const audioBlend = 0.68 * openFactor * openFactor + 0.08 * openFactor
