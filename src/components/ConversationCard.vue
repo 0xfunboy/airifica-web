@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ConversationMessageItem from '@/components/ConversationMessageItem.vue'
 import CommandGuideOverlay from '@/components/layout/CommandGuideOverlay.vue'
 import { useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
+import { useAvatarPresence } from '@/modules/avatar/presence'
 import { useConversationComposer } from '@/modules/conversation/composer'
 import { EXAMPLE_PROMPTS } from '@/modules/conversation/examples'
 import { useConversationState } from '@/modules/conversation/state'
@@ -23,6 +24,7 @@ const EMOTE_INDICATOR_COLORS: Record<string, string> = {
 const conversation = useConversationState()
 const composerState = useConversationComposer()
 const emoteDebugStore = useEmoteDebugStore()
+const avatar = useAvatarPresence()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const wallet = useWalletSession()
@@ -69,6 +71,7 @@ async function handleSubmit() {
   if (!text)
     return
 
+  avatar.triggerInteractionGesture('prompt-send')
   composerState.clearDraft()
   syncComposerHeight()
   await conversation.sendMessage(text)
@@ -76,8 +79,18 @@ async function handleSubmit() {
 }
 
 async function handleSendTranscript() {
+  avatar.triggerInteractionGesture('prompt-send')
   await hearing.flushTranscript(true)
   scrollToBottom()
+}
+
+function handleResetConversation() {
+  avatar.triggerInteractionGesture('reset')
+  conversation.resetConversation()
+}
+
+function handleStopSpeech() {
+  speech.stop()
 }
 
 async function handleComposerKeydown(event: KeyboardEvent) {
@@ -196,7 +209,7 @@ onMounted(() => {
               v-if="speech.speaking.value"
               class="conversation-shell__control conversation-shell__control--stop"
               type="button"
-              @click="speech.stop()"
+              @click="handleStopSpeech"
             >
               Stop speech
             </button>
@@ -242,7 +255,7 @@ onMounted(() => {
       type="button"
       title="Reset conversation"
       aria-label="Reset conversation"
-      @click="conversation.resetConversation()"
+      @click="handleResetConversation"
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 7h16" />

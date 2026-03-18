@@ -132,6 +132,8 @@ const state = reactive({
   queue: [] as Array<{ id: string, text: string }>,
   preferredMode: resolveInitialMode() as SpeechMode | null,
   activeMode: resolveInitialMode() as SpeechMode | null,
+  lastStopReason: '' as string,
+  stopRevision: 0,
 })
 
 const conversation = useConversationState()
@@ -253,6 +255,11 @@ function stopLipSync() {
 
   state.speaking = false
   resetVisemeState()
+}
+
+function recordStopEvent(reason: string) {
+  state.lastStopReason = reason
+  state.stopRevision += 1
 }
 
 function startSpeechLipSync(clock: PlaybackClock, timeline: SpeechVisemeFrame[], lipSyncNode?: LipSyncNodeLike | null) {
@@ -414,6 +421,7 @@ function stop(reason = 'manual-stop') {
   cleanupExternalPlayback()
   state.error = reason === 'manual-stop' || reason === 'new-message' || reason === 'disabled' ? null : reason
   stopLipSync()
+  recordStopEvent(reason)
 }
 
 function splitLongSpeechChunk(text: string, maxChars: number) {
@@ -522,19 +530,27 @@ async function playBrowserQueueItem(next: { id: string, text: string }) {
   }
 
   utterance.onend = () => {
+    if (currentUtterance !== utterance)
+      return
+
     currentUtterance = null
     currentQueueItemId = null
     state.queue.shift()
     stopLipSync()
+    recordStopEvent('completed')
     void processQueue()
   }
 
   utterance.onerror = (event) => {
+    if (currentUtterance !== utterance)
+      return
+
     currentUtterance = null
     currentQueueItemId = null
     state.queue.shift()
     state.error = event.error || 'Speech playback failed.'
     stopLipSync()
+    recordStopEvent('error')
     void processQueue()
   }
 
@@ -1031,12 +1047,14 @@ async function playExternalStreamQueueItem(next: { id: string, text: string }) {
       state.queue.shift()
       state.error = error instanceof Error ? error.message : 'External TTS stream failed.'
       stopLipSync()
+      recordStopEvent('error')
       void processQueue()
       return
     }
 
     state.queue.shift()
     stopLipSync()
+    recordStopEvent('completed')
     void processQueue()
   }
 
@@ -1155,6 +1173,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
       cleanupExternalPlayback()
       state.queue.shift()
       stopLipSync()
+      recordStopEvent('completed')
       void processQueue()
     }
 
@@ -1190,6 +1209,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     cleanupExternalPlayback()
     state.queue.shift()
     stopLipSync()
+    recordStopEvent('completed')
     void processQueue()
   }
 
@@ -1199,6 +1219,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     state.queue.shift()
     state.error = 'External TTS playback failed.'
     stopLipSync()
+    recordStopEvent('error')
     void processQueue()
   }
 
@@ -1373,6 +1394,8 @@ export function useSpeechRuntime() {
     queueSize: computed(() => state.queue.length),
     activeMode: computed(() => state.activeMode),
     externalEndpoint: computed(() => appConfig.ttsSpeechUrl),
+    lastStopReason: computed(() => state.lastStopReason),
+    stopRevision: computed(() => state.stopRevision),
     enqueue,
     preview,
     stop,

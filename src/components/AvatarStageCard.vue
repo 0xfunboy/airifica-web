@@ -19,6 +19,8 @@ const lighting = useAvatarLighting()
       :speech-closure="avatar.mouthClosure.value"
       :viseme-weights="avatar.visemeWeights.value"
       :ambient-animation="avatar.ambientAnimation.value"
+      :gesture-key="avatar.gestureKey.value"
+      :gesture-token="avatar.gestureToken.value"
       :brightness="lighting.brightness.value"
       :contrast="lighting.contrast.value"
       :saturation="lighting.saturation.value"
@@ -32,6 +34,7 @@ const lighting = useAvatarLighting()
       @load-progress="avatar.handleLoadProgress"
       @load-finish="avatar.handleLoadFinish"
       @error="avatar.handleLoadError"
+      @click="avatar.triggerInteractionGesture('avatar-click')"
     />
   </div>
 </template>
@@ -47,5 +50,7 @@ const lighting = useAvatarLighting()
 .avatar-stage-layer__stage {
   width: 100%;
   height: 100%;
+  pointer-events: auto;
+  cursor: pointer;
 }
 </style>

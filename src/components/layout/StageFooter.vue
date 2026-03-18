@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
 
+import { useAvatarPresence } from '@/modules/avatar/presence'
+
 type FooterLink = {
   label: string
   href: string
@@ -88,6 +90,7 @@ const socials = [
 ] as const
 
 const isExpanded = ref(false)
+const avatar = useAvatarPresence()
 let hideTimer: number | null = null
 
 function clearHideTimer() {
@@ -116,10 +119,12 @@ function closeDrawer() {
 
 function toggleDrawer() {
   if (isExpanded.value) {
+    avatar.triggerInteractionGesture('footer-toggle')
     closeDrawer()
     return
   }
 
+  avatar.triggerInteractionGesture('footer-toggle')
   openDrawer()
 }
 

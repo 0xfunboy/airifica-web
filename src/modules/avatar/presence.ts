@@ -8,22 +8,33 @@ import { useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
 import { useVRMAStore } from '@/modules/avatar/vrma'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
 import { computeRiskReward } from '@/modules/trade/proposalMetrics'
+import { useWalletSession } from '@/modules/wallet/session'
 
 import type { ConversationMessage } from '@/modules/conversation/types'
+
+type AvatarGestureKey = 'wave' | 'wave-mirror' | 'hip' | 'hip-mirror'
 
 const state = reactive({
   detectedExpression: 'neutral' as AvatarExpression,
   loadingState: appConfig.avatarModelUrl ? 'idle' as 'idle' | 'loading' | 'ready' | 'error' : 'empty' as 'idle' | 'loading' | 'ready' | 'error' | 'empty',
   loadProgress: 0,
   error: null as string | null,
+  gestureKey: null as AvatarGestureKey | null,
+  gestureToken: 0,
 })
 
 const conversation = useConversationState()
 const speech = useSpeechRuntime()
 const vrmaStore = useVRMAStore()
 const emoteDebugStore = useEmoteDebugStore()
+const wallet = useWalletSession()
 let initialized = false
 let expressionTimer: ReturnType<typeof setTimeout> | undefined
+let loadGreetingPlayed = false
+const gestureAlternates = reactive({
+  waveMirror: false,
+  hipMirror: false,
+})
 
 function accumulateSignalScore(source: string, entries: Array<{ pattern: RegExp, weight: number }>) {
   return entries.reduce((score, entry) => score + (entry.pattern.test(source) ? entry.weight : 0), 0)
@@ -104,6 +115,45 @@ function setExpression(expression: AvatarExpression, durationMs = 7200) {
   }, durationMs)
 }
 
+function triggerGesture(key: AvatarGestureKey) {
+  state.gestureKey = key
+  state.gestureToken += 1
+}
+
+function triggerGestureFamily(family: 'wave' | 'hip', force?: 'base' | 'mirror') {
+  if (force === 'base') {
+    triggerGesture(family)
+    return
+  }
+
+  if (force === 'mirror') {
+    triggerGesture(`${family}-mirror` as AvatarGestureKey)
+    return
+  }
+
+  if (family === 'wave') {
+    gestureAlternates.waveMirror = !gestureAlternates.waveMirror
+    triggerGesture(gestureAlternates.waveMirror ? 'wave-mirror' : 'wave')
+    return
+  }
+
+  gestureAlternates.hipMirror = !gestureAlternates.hipMirror
+  triggerGesture(gestureAlternates.hipMirror ? 'hip-mirror' : 'hip')
+}
+
+function triggerInteractionGesture(reason: 'stage-ready' | 'login' | 'prompt-send' | 'avatar-click' | 'footer-toggle' | 'reset' | 'speech-end' | 'speech-stop') {
+  if (reason === 'stage-ready')
+    return triggerGestureFamily('wave', 'base')
+  if (reason === 'login')
+    return triggerGestureFamily('wave', 'base')
+  if (reason === 'prompt-send')
+    return triggerGestureFamily('wave')
+  if (reason === 'speech-end' || reason === 'speech-stop')
+    return triggerGestureFamily('hip')
+
+  triggerGestureFamily('hip')
+}
+
 function initializeConversationSync() {
   if (initialized)
     return
@@ -127,6 +177,19 @@ function initializeConversationSync() {
       emoteDebugStore.notifyReceived(nextExpression)
     setExpression(nextExpression)
   }, { immediate: true })
+
+  watch(() => wallet.isAuthenticated.value, (authenticated, previousValue) => {
+    if (authenticated && !previousValue)
+      triggerInteractionGesture('login')
+  }, { immediate: true })
+
+  watch(() => speech.stopRevision.value, () => {
+    const reason = speech.lastStopReason.value
+    if (reason === 'completed')
+      triggerInteractionGesture('speech-end')
+    else if (reason === 'manual-stop')
+      triggerInteractionGesture('speech-stop')
+  })
 }
 
 function handleLoadStart() {
@@ -144,6 +207,10 @@ function handleLoadFinish() {
   state.loadingState = 'ready'
   state.loadProgress = 100
   state.error = null
+  if (!loadGreetingPlayed) {
+    loadGreetingPlayed = true
+    triggerInteractionGesture('stage-ready')
+  }
 }
 
 function handleLoadError(error: unknown) {
@@ -170,9 +237,12 @@ export function useAvatarPresence() {
     mouthOpenSize: computed(() => speech.mouthOpenSize.value),
     mouthClosure: computed(() => speech.mouthClosure.value),
     visemeWeights: computed(() => speech.visemeWeights.value),
+    gestureKey: computed(() => state.gestureKey),
+    gestureToken: computed(() => state.gestureToken),
     loadingState: computed(() => state.loadingState),
     loadProgress: computed(() => state.loadProgress),
     error: computed(() => state.error),
+    triggerInteractionGesture,
     handleLoadStart,
     handleLoadProgress,
     handleLoadFinish,

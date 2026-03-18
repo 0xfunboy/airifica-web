@@ -442,25 +442,25 @@ export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organi
   addMotion('leftHand', [{ axis: 'x', amplitudeDeg: 0.15, periodSeconds: 9, phase: Math.PI / 3 }])
   addMotion('rightHand', [{ axis: 'x', amplitudeDeg: 0.15, periodSeconds: 9, phase: Math.PI * 0.9 }])
   addMotion('leftUpperLeg', [
-    { axis: 'x', amplitudeDeg: 0.28, periodSeconds: 5.4, phase: Math.PI / 9 },
-    { axis: 'z', amplitudeDeg: 0.18, periodSeconds: 16, phase: Math.PI / 5 },
+    { axis: 'x', amplitudeDeg: 0.17, periodSeconds: 6.2, phase: Math.PI / 10 },
+    { axis: 'z', amplitudeDeg: 0.08, periodSeconds: 15.7, phase: Math.PI / 6 },
   ])
   addMotion('rightUpperLeg', [
-    { axis: 'x', amplitudeDeg: 0.28, periodSeconds: 5.4, phase: Math.PI + Math.PI / 9 },
-    { axis: 'z', amplitudeDeg: 0.18, periodSeconds: 16, phase: Math.PI + Math.PI / 5 },
+    { axis: 'x', amplitudeDeg: 0.17, periodSeconds: 6.45, phase: Math.PI * 1.08 },
+    { axis: 'z', amplitudeDeg: 0.08, periodSeconds: 15.2, phase: Math.PI * 1.16 },
   ])
-  addMotion('leftLowerLeg', [{ axis: 'x', amplitudeDeg: 0.16, periodSeconds: 5.4, phase: Math.PI / 4 }])
-  addMotion('rightLowerLeg', [{ axis: 'x', amplitudeDeg: 0.16, periodSeconds: 5.4, phase: Math.PI + Math.PI / 4 }])
+  addMotion('leftLowerLeg', [{ axis: 'x', amplitudeDeg: 0.08, periodSeconds: 6.4, phase: Math.PI / 3 }])
+  addMotion('rightLowerLeg', [{ axis: 'x', amplitudeDeg: 0.08, periodSeconds: 6.8, phase: Math.PI * 1.28 }])
   addMotion('leftFoot', [
-    { axis: 'x', amplitudeDeg: 0.12, periodSeconds: 6.2, phase: Math.PI / 3 },
-    { axis: 'z', amplitudeDeg: 0.08, periodSeconds: 18, phase: Math.PI * 0.8 },
+    { axis: 'x', amplitudeDeg: 0.05, periodSeconds: 7.1, phase: Math.PI / 2.8 },
+    { axis: 'z', amplitudeDeg: 0.04, periodSeconds: 18.4, phase: Math.PI * 0.82 },
   ])
   addMotion('rightFoot', [
-    { axis: 'x', amplitudeDeg: 0.12, periodSeconds: 6.2, phase: Math.PI + Math.PI / 3 },
-    { axis: 'z', amplitudeDeg: 0.08, periodSeconds: 18, phase: Math.PI * 1.8 },
+    { axis: 'x', amplitudeDeg: 0.05, periodSeconds: 7.35, phase: Math.PI * 1.36 },
+    { axis: 'z', amplitudeDeg: 0.04, periodSeconds: 18.1, phase: Math.PI * 1.86 },
   ])
-  addMotion('leftToes', [{ axis: 'x', amplitudeDeg: 0.08, periodSeconds: 6.4, phase: Math.PI / 2 }])
-  addMotion('rightToes', [{ axis: 'x', amplitudeDeg: 0.08, periodSeconds: 6.4, phase: Math.PI * 1.5 }])
+  addMotion('leftToes', [{ axis: 'x', amplitudeDeg: 0.03, periodSeconds: 7.4, phase: Math.PI / 2 }])
+  addMotion('rightToes', [{ axis: 'x', amplitudeDeg: 0.03, periodSeconds: 7.65, phase: Math.PI * 1.44 }])
 
   addOrganicInfluence('hips', 0.08)
   addOrganicInfluence('spine', 0.16)
@@ -476,10 +476,10 @@ export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organi
   addOrganicInfluence('rightLowerArm', 0.12)
   addOrganicInfluence('leftHand', 0.05)
   addOrganicInfluence('rightHand', 0.05)
-  addOrganicInfluence('leftUpperLeg', 0.06)
-  addOrganicInfluence('rightUpperLeg', 0.06)
-  addOrganicInfluence('leftLowerLeg', 0.04)
-  addOrganicInfluence('rightLowerLeg', 0.04)
+  addOrganicInfluence('leftUpperLeg', 0.05)
+  addOrganicInfluence('rightUpperLeg', 0.05)
+  addOrganicInfluence('leftLowerLeg', 0.03)
+  addOrganicInfluence('rightLowerLeg', 0.03)
 
   const tracks = Array.from(pose.entries()).flatMap(([nodeName, sample]) => {
     const nextTracks = []

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AvatarExpression, SpeechVisemeWeights } from './types'
 
-import type { AnimationAction, AnimationClip, Object3D } from 'three'
+import type { AnimationAction, Object3D } from 'three'
 
 import {
   AmbientLight,
@@ -29,7 +29,9 @@ import {
   Scene,
   Vector2,
   Vector3,
+  VectorKeyframeTrack,
   WebGLRenderer,
+  AnimationClip,
 } from 'three'
 import {
   VRMHumanBoneName,
@@ -53,6 +55,8 @@ const props = withDefaults(defineProps<{
   visemeWeights?: Partial<SpeechVisemeWeights> | null
   expression?: AvatarExpression
   ambientAnimation?: string
+  gestureKey?: string | null
+  gestureToken?: number
   brightness?: number
   contrast?: number
   saturation?: number
@@ -70,6 +74,8 @@ const props = withDefaults(defineProps<{
   visemeWeights: null,
   expression: 'neutral',
   ambientAnimation: BREATH_URL,
+  gestureKey: null,
+  gestureToken: 0,
   brightness: 1,
   contrast: 1,
   saturation: 1,
@@ -139,6 +145,75 @@ type LoadParticle = {
   radius: number
 }
 
+type ManualGestureSpec = {
+  key: string
+  label: string
+  sourceUrl: string
+  mirrored?: boolean
+  fadeInSeconds: number
+  fadeOutSeconds: number
+  peakWeight: number
+}
+
+type ManualGestureRuntime = {
+  key: string
+  action: AnimationAction | null
+  peakWeight: number
+  startedAt: number
+  endsAt: number
+  fadeOutAt: number
+  fadeInSeconds: number
+  fadeOutSeconds: number
+}
+
+const MIRRORED_BONE_PAIRS: Array<[VRMHumanBoneName, VRMHumanBoneName]> = [
+  ['leftShoulder', 'rightShoulder'],
+  ['leftUpperArm', 'rightUpperArm'],
+  ['leftLowerArm', 'rightLowerArm'],
+  ['leftHand', 'rightHand'],
+  ['leftUpperLeg', 'rightUpperLeg'],
+  ['leftLowerLeg', 'rightLowerLeg'],
+  ['leftFoot', 'rightFoot'],
+  ['leftToes', 'rightToes'],
+]
+
+const MANUAL_GESTURE_SPECS: Record<string, ManualGestureSpec> = {
+  wave: {
+    key: 'wave',
+    label: 'DanceArmWave',
+    sourceUrl: animationUrls.DanceArmWave,
+    fadeInSeconds: 0.32,
+    fadeOutSeconds: 0.64,
+    peakWeight: 0.96,
+  },
+  'wave-mirror': {
+    key: 'wave-mirror',
+    label: 'DanceArmWave Mirror',
+    sourceUrl: animationUrls.DanceArmWave,
+    mirrored: true,
+    fadeInSeconds: 0.32,
+    fadeOutSeconds: 0.64,
+    peakWeight: 0.96,
+  },
+  hip: {
+    key: 'hip',
+    label: 'DanceHipSwing',
+    sourceUrl: animationUrls.DanceHipSwing,
+    fadeInSeconds: 0.44,
+    fadeOutSeconds: 0.82,
+    peakWeight: 0.78,
+  },
+  'hip-mirror': {
+    key: 'hip-mirror',
+    label: 'DanceHipSwing Mirror',
+    sourceUrl: animationUrls.DanceHipSwing,
+    mirrored: true,
+    fadeInSeconds: 0.44,
+    fadeOutSeconds: 0.82,
+    peakWeight: 0.78,
+  },
+}
+
 const BREATH_GESTURE_SPECS = [
   {
     key: 'bling-bang-bang-born',
@@ -169,15 +244,6 @@ const BREATH_GESTURE_SPECS = [
     intervalMaxSeconds: 34,
     fadeInSeconds: 0.55,
     fadeOutSeconds: 0.85,
-  },
-  {
-    key: 'dance-arm-wave',
-    label: 'DanceArmWave',
-    sourceUrl: animationUrls.DanceArmWave,
-    intervalMinSeconds: 38,
-    intervalMaxSeconds: 58,
-    fadeInSeconds: 0.8,
-    fadeOutSeconds: 1.2,
   },
 ] as const
 
@@ -215,6 +281,7 @@ const frameHandle = ref<number>()
 const animationCache = new Map<string, AnimationClip>()
 const gestureClipCache = new Map<string, AnimationClip>()
 const gestureClipPromises = new Map<string, Promise<AnimationClip | null>>()
+const manualGestureClipCache = new Map<string, AnimationClip>()
 const activeAnimationUrl = ref<string | null>(null)
 const activeAnimationAction = shallowRef<AnimationAction | null>(null)
 const resolvedExpressions = ref<ResolvedExpressions | null>(null)
@@ -256,6 +323,8 @@ let ambientRequestId = 0
 let breathGestureSessionId = 0
 let breathGestureElapsedSeconds = 0
 let breathGestureRuntimes: BreathGestureRuntime[] = []
+let runtimeElapsedSeconds = 0
+let activeManualGesture: ManualGestureRuntime | null = null
 let loadFieldSpawnAccumulator = 0
 let loadFieldElapsed = 0
 const loadFieldParticles: LoadParticle[] = []
@@ -364,6 +433,69 @@ function stripFacialAnimationTracks(clip: AnimationClip) {
   sanitized.tracks = sanitizedTracks.map(track => track.clone())
   sanitized.resetDuration()
   return sanitized
+}
+
+function gestureTrackNodeName(trackName: string) {
+  return trackName.replace(/\.(position|quaternion)$/, '')
+}
+
+function buildMirroredGestureNodeMap(vrm: VRM) {
+  const nodeMap = new Map<string, string>()
+
+  for (const [leftBone, rightBone] of MIRRORED_BONE_PAIRS) {
+    const leftNode = vrm.humanoid?.getNormalizedBoneNode(leftBone)
+    const rightNode = vrm.humanoid?.getNormalizedBoneNode(rightBone)
+    if (!leftNode || !rightNode)
+      continue
+
+    nodeMap.set(leftNode.name, rightNode.name)
+    nodeMap.set(rightNode.name, leftNode.name)
+  }
+
+  return nodeMap
+}
+
+function createMirroredGestureClip(vrm: VRM, clip: AnimationClip) {
+  const nodeMap = buildMirroredGestureNodeMap(vrm)
+  const tracks = clip.tracks.map((track) => {
+    const nodeName = gestureTrackNodeName(track.name)
+    const suffix = track.name.endsWith('.quaternion')
+      ? '.quaternion'
+      : track.name.endsWith('.position')
+        ? '.position'
+        : ''
+    const nextNodeName = nodeMap.get(nodeName) ?? nodeName
+    const nextTrackName = suffix ? `${nextNodeName}${suffix}` : track.name
+
+    if (track instanceof QuaternionKeyframeTrack) {
+      const values = new Float32Array(track.values.length)
+      for (let offset = 0; offset < track.values.length; offset += 4) {
+        values[offset] = track.values[offset] ?? 0
+        values[offset + 1] = -(track.values[offset + 1] ?? 0)
+        values[offset + 2] = -(track.values[offset + 2] ?? 0)
+        values[offset + 3] = track.values[offset + 3] ?? 1
+      }
+      return new QuaternionKeyframeTrack(nextTrackName, Float32Array.from(track.times), values)
+    }
+
+    if (track instanceof VectorKeyframeTrack) {
+      const values = new Float32Array(track.values.length)
+      for (let offset = 0; offset < track.values.length; offset += 3) {
+        values[offset] = -(track.values[offset] ?? 0)
+        values[offset + 1] = track.values[offset + 1] ?? 0
+        values[offset + 2] = track.values[offset + 2] ?? 0
+      }
+      return new VectorKeyframeTrack(nextTrackName, Float32Array.from(track.times), values)
+    }
+
+    const clonedTrack = track.clone()
+    clonedTrack.name = nextTrackName
+    return clonedTrack
+  })
+
+  const mirrored = new AnimationClip(`${clip.name || 'gesture'}-mirror`, clip.duration, tracks)
+  mirrored.resetDuration()
+  return mirrored
 }
 
 function setupStage() {
@@ -645,6 +777,7 @@ function disposeAvatar() {
   animationMixerRef.value?.stopAllAction()
   animationMixerRef.value = undefined
   resetBreathGestureState()
+  stopManualGesture()
 
   const vrm = vrmRef.value
   if (vrm?.lookAt?.target)
@@ -662,6 +795,7 @@ function disposeAvatar() {
   animationCache.clear()
   gestureClipCache.clear()
   gestureClipPromises.clear()
+  manualGestureClipCache.clear()
 }
 
 function disposeStage() {
@@ -769,6 +903,66 @@ async function resolveBreathGestureClip(vrm: VRM, runtime: BreathGestureRuntime)
 
   gestureClipPromises.set(cacheKey, clipPromise)
   return clipPromise
+}
+
+async function resolveManualGestureClip(vrm: VRM, spec: ManualGestureSpec) {
+  const cacheKey = spec.mirrored ? `${spec.key}:mirror` : spec.key
+  const cached = manualGestureClipCache.get(cacheKey)
+  if (cached)
+    return cached
+
+  const sourceClip = await resolveAnimationClip(vrm, spec.sourceUrl)
+  if (!sourceClip)
+    return null
+
+  const clip = spec.mirrored
+    ? createMirroredGestureClip(vrm, sourceClip)
+    : sourceClip.clone()
+  clip.resetDuration()
+  manualGestureClipCache.set(cacheKey, clip)
+  return clip
+}
+
+function stopManualGesture() {
+  activeManualGesture?.action?.stop()
+  activeManualGesture = null
+}
+
+async function triggerManualGesture(key: string | null | undefined) {
+  const spec = key ? MANUAL_GESTURE_SPECS[key] : null
+  const vrm = vrmRef.value
+  const mixer = animationMixerRef.value
+  if (!spec || !vrm || !mixer)
+    return
+
+  const clip = await resolveManualGestureClip(vrm, spec)
+  if (!clip)
+    return
+
+  stopManualGesture()
+
+  const action = mixer.clipAction(clip)
+  action.stop()
+  action.enabled = true
+  action.clampWhenFinished = false
+  action.setLoop(LoopOnce, 1)
+  action.setEffectiveTimeScale(1)
+  action.reset()
+  action.setEffectiveWeight(Math.max(spec.peakWeight * 0.02, 0.001))
+  action.play()
+
+  const fadeInSeconds = Math.min(spec.fadeInSeconds, Math.max(0.18, clip.duration * 0.24))
+  const fadeOutSeconds = Math.min(spec.fadeOutSeconds, Math.max(0.22, clip.duration * 0.34))
+  activeManualGesture = {
+    key: spec.key,
+    action,
+    peakWeight: spec.peakWeight,
+    startedAt: runtimeElapsedSeconds,
+    endsAt: runtimeElapsedSeconds + clip.duration,
+    fadeOutAt: Math.max(runtimeElapsedSeconds, runtimeElapsedSeconds + clip.duration - fadeOutSeconds),
+    fadeInSeconds,
+    fadeOutSeconds,
+  }
 }
 
 async function applyAmbientAnimation(url: string | null | undefined) {
@@ -965,6 +1159,29 @@ function updateBreathGestures(delta: number) {
     return
 
   void triggerBreathGesture(nextDueGesture)
+}
+
+function updateManualGesture() {
+  if (!activeManualGesture?.action)
+    return
+
+  const age = Math.max(0, runtimeElapsedSeconds - activeManualGesture.startedAt)
+  const clipDuration = Math.max(0.001, activeManualGesture.endsAt - activeManualGesture.startedAt)
+  const releaseAt = Math.max(activeManualGesture.fadeInSeconds, clipDuration - activeManualGesture.fadeOutSeconds)
+
+  let envelope = activeManualGesture.peakWeight
+  if (age < activeManualGesture.fadeInSeconds) {
+    envelope = activeManualGesture.peakWeight * MathUtils.smootherstep(age, 0, activeManualGesture.fadeInSeconds)
+  }
+  else if (age >= releaseAt) {
+    const remaining = Math.max(0, clipDuration - age)
+    envelope = activeManualGesture.peakWeight * MathUtils.smootherstep(remaining, 0, activeManualGesture.fadeOutSeconds)
+  }
+
+  activeManualGesture.action.setEffectiveWeight(envelope)
+
+  if (runtimeElapsedSeconds >= activeManualGesture.endsAt + 0.05)
+    stopManualGesture()
 }
 
 function computeLookAtMouse() {
@@ -1329,11 +1546,13 @@ function animate() {
     return
 
   const delta = clock.getDelta()
+  runtimeElapsedSeconds += delta
   const vrm = vrmRef.value
 
   if (vrm) {
     animationMixerRef.value?.update(delta)
     updateBreathGestures(delta)
+    updateManualGesture()
     applyEyeTracking(vrm, delta)
     applyHeadTracking(vrm, delta)
     blink.update(vrm, delta)
@@ -1351,6 +1570,11 @@ function animate() {
 watch(() => props.modelUrl, value => loadAvatar(value))
 watch(() => props.ambientAnimation, value => {
   void applyAmbientAnimation(value)
+})
+watch(() => props.gestureToken, () => {
+  if (!props.gestureKey)
+    return
+  void triggerManualGesture(props.gestureKey)
 })
 watch(() => [
   props.brightness,
