@@ -1,20 +1,26 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+import CommandGuideOverlay from '@/components/layout/CommandGuideOverlay.vue'
 import HeaderLink from '@/components/layout/HeaderLink.vue'
 import PacificaTradeButton from '@/components/layout/PacificaTradeButton.vue'
 import WalletConnectButton from '@/components/layout/WalletConnectButton.vue'
 import { useAvatarLighting } from '@/modules/avatar/lighting'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useMarketContext } from '@/modules/market/context'
+import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
+import { useWalletSession } from '@/modules/wallet/session'
 
 const lighting = useAvatarLighting()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const marketContext = useMarketContext()
+const pacifica = usePacificaAccount()
+const wallet = useWalletSession()
 
 const settingsOpen = ref(false)
+const guideOpen = ref(false)
 
 function toggleAutoSpeak() {
   speech.setAutoSpeakEnabled(!speech.autoSpeakEnabled.value)
@@ -23,140 +29,175 @@ function toggleAutoSpeak() {
 function previewSpeech() {
   speech.preview('Airifica external speech test.')
 }
+
+async function handleCompleteOnboarding() {
+  try {
+    await pacifica.setupBuilderAccess()
+  }
+  catch {
+  }
+}
 </script>
 
 <template>
   <header class="stage-header">
-    <HeaderLink />
+      <HeaderLink />
 
-    <div class="stage-header__controls">
-      <PacificaTradeButton />
-      <WalletConnectButton />
+      <div class="stage-header__controls">
+        <PacificaTradeButton />
 
-      <div class="stage-header__settings">
         <button
-          class="stage-header__settings-button"
+          v-if="wallet.isAuthenticated.value && !pacifica.readyToExecute.value"
+          class="stage-header__utility-chip stage-header__utility-chip--primary"
+          :disabled="pacifica.setupLoading.value"
           type="button"
-          title="Settings"
-          aria-label="Settings"
-          @click="settingsOpen = !settingsOpen"
+          @click="handleCompleteOnboarding"
+        >
+          {{ pacifica.setupLoading.value ? 'Preparing onboarding…' : 'Complete Pacifica onboarding' }}
+        </button>
+
+        <WalletConnectButton />
+
+        <button
+          class="stage-header__settings-button stage-header__settings-button--help"
+          type="button"
+          title="Prompt guide"
+          aria-label="Prompt guide"
+          @click="guideOpen = true"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-            <path d="m19.4 15-.8 1.4 1 1.8-1.6 1.6-1.8-1-.1.1-1.4.8-.5 2.1h-2.2l-.5-2.1-1.4-.8-.1-.1-1.8 1-1.6-1.6 1-1.8L4.6 15 2.5 14.5v-2.2l2.1-.5.8-1.4-1-1.8 1.6-1.6 1.8 1 .1-.1 1.4-.8.5-2.1h2.2l.5 2.1 1.4.8.1.1 1.8-1 1.6 1.6-1 1.8.8 1.4 2.1.5v2.2z" />
+            <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.1 2.4-2.8 3.8" />
+            <path d="M12 17h.01" />
+            <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" />
           </svg>
         </button>
 
-        <div v-if="settingsOpen" class="stage-header__settings-popover">
-          <button class="stage-header__utility" type="button" @click="marketContext.refreshMarketContext()">
-            <span>Refresh market</span>
+        <div class="stage-header__settings">
+          <button
+            class="stage-header__settings-button"
+            type="button"
+            title="Settings"
+            aria-label="Settings"
+            @click="settingsOpen = !settingsOpen"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+              <path d="m19.4 15-.8 1.4 1 1.8-1.6 1.6-1.8-1-.1.1-1.4.8-.5 2.1h-2.2l-.5-2.1-1.4-.8-.1-.1-1.8 1-1.6-1.6 1-1.8L4.6 15 2.5 14.5v-2.2l2.1-.5.8-1.4-1-1.8 1.6-1.6 1.8 1 .1-.1 1.4-.8.5-2.1h2.2l.5 2.1 1.4.8.1.1 1.8-1 1.6 1.6-1 1.8.8 1.4 2.1.5v2.2z" />
+            </svg>
           </button>
-          <button class="stage-header__utility" type="button" @click="hearing.toggleListening()">
-            <span>{{ hearing.listening.value ? 'Stop mic' : 'Start mic' }}</span>
-          </button>
-          <button class="stage-header__utility" :disabled="!speech.speaking.value" type="button" @click="speech.stop()">
-            <span>Stop speech</span>
-          </button>
-          <button class="stage-header__utility" type="button" @click="toggleAutoSpeak">
-            <span>{{ speech.autoSpeakEnabled.value ? 'Auto speak on' : 'Auto speak off' }}</span>
-          </button>
-          <button class="stage-header__utility" :disabled="!speech.supported.value" type="button" @click="previewSpeech">
-            <span>Test voice</span>
-          </button>
-          <a class="stage-header__utility" :href="marketContext.pacificaPortfolioUrl.value" target="_blank" rel="noopener noreferrer">
-            <span>Open portfolio</span>
-          </a>
 
-          <div class="stage-header__tts-panel">
-            <div class="stage-header__lighting-head">
-              <span>TTS Mode</span>
-              <strong>{{ speech.activeMode.value || 'off' }}</strong>
-            </div>
-            <div class="stage-header__mode-toggle">
-              <button
-                class="stage-header__mode-option"
-                :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'browser' }"
-                :disabled="!speech.availableModes.value.browser"
-                title="Use browser speech synthesis"
-                type="button"
-                @click="speech.setPreferredMode('browser')"
-              >
-                Browser
-              </button>
-              <button
-                class="stage-header__mode-option"
-                :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'external' }"
-                :disabled="!speech.availableModes.value.external"
-                :title="speech.availableModes.value.external ? 'Use external TTS server' : 'External server unavailable in env. Restart the dev server after editing env.'"
-                type="button"
-                @click="speech.setPreferredMode('external')"
-              >
-                External
-              </button>
-            </div>
-            <p v-if="speech.availableModes.value.external && speech.externalEndpoint.value" class="stage-header__mode-hint">
-              {{ speech.externalEndpoint.value }}
-            </p>
-            <p v-else class="stage-header__mode-hint">
-              External server unavailable in env.
-            </p>
-            <p class="stage-header__mode-hint">
-              Auto speak: {{ speech.autoSpeakEnabled.value ? 'on' : 'off' }} · Queue: {{ speech.queueSize.value }}
-            </p>
-            <p v-if="speech.error.value" class="stage-header__mode-hint stage-header__mode-hint--error">
-              {{ speech.error.value }}
-            </p>
-          </div>
+          <div v-if="settingsOpen" class="stage-header__settings-popover">
+            <button class="stage-header__utility" type="button" @click="marketContext.refreshMarketContext()">
+              <span>Refresh market</span>
+            </button>
+            <button class="stage-header__utility" type="button" @click="hearing.toggleListening()">
+              <span>{{ hearing.listening.value ? 'Stop mic' : 'Start mic' }}</span>
+            </button>
+            <button class="stage-header__utility" :disabled="!speech.speaking.value" type="button" @click="speech.stop()">
+              <span>Stop speech</span>
+            </button>
+            <button class="stage-header__utility" type="button" @click="toggleAutoSpeak">
+              <span>{{ speech.autoSpeakEnabled.value ? 'Auto speak on' : 'Auto speak off' }}</span>
+            </button>
+            <button class="stage-header__utility" :disabled="!speech.supported.value" type="button" @click="previewSpeech">
+              <span>Test voice</span>
+            </button>
+            <a class="stage-header__utility" :href="marketContext.pacificaPortfolioUrl.value" target="_blank" rel="noopener noreferrer">
+              <span>Open portfolio</span>
+            </a>
 
-          <div class="stage-header__lighting-panel">
-            <div class="stage-header__lighting-head">
-              <span>Avatar lighting</span>
-              <button class="stage-header__utility stage-header__utility--ghost" type="button" @click="lighting.reset()">
-                Reset
-              </button>
+            <div class="stage-header__tts-panel">
+              <div class="stage-header__lighting-head">
+                <span>TTS Mode</span>
+                <strong>{{ speech.activeMode.value || 'off' }}</strong>
+              </div>
+              <div class="stage-header__mode-toggle">
+                <button
+                  class="stage-header__mode-option"
+                  :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'browser' }"
+                  :disabled="!speech.availableModes.value.browser"
+                  title="Use browser speech synthesis"
+                  type="button"
+                  @click="speech.setPreferredMode('browser')"
+                >
+                  Browser
+                </button>
+                <button
+                  class="stage-header__mode-option"
+                  :class="{ 'stage-header__mode-option--active': speech.preferredMode.value === 'external' }"
+                  :disabled="!speech.availableModes.value.external"
+                  :title="speech.availableModes.value.external ? 'Use external TTS server' : 'External server unavailable in env. Restart the dev server after editing env.'"
+                  type="button"
+                  @click="speech.setPreferredMode('external')"
+                >
+                  External
+                </button>
+              </div>
+              <p v-if="speech.availableModes.value.external && speech.externalEndpoint.value" class="stage-header__mode-hint">
+                {{ speech.externalEndpoint.value }}
+              </p>
+              <p v-else class="stage-header__mode-hint">
+                External server unavailable in env.
+              </p>
+              <p class="stage-header__mode-hint">
+                Auto speak: {{ speech.autoSpeakEnabled.value ? 'on' : 'off' }} · Queue: {{ speech.queueSize.value }}
+              </p>
+              <p v-if="speech.error.value" class="stage-header__mode-hint stage-header__mode-hint--error">
+                {{ speech.error.value }}
+              </p>
             </div>
 
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Brightness</span><strong>{{ lighting.brightness.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0.6" max="1.6" step="0.02" :value="lighting.brightness.value" @input="lighting.setValue('brightness', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Contrast</span><strong>{{ lighting.contrast.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0.75" max="1.45" step="0.02" :value="lighting.contrast.value" @input="lighting.setValue('contrast', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Saturation</span><strong>{{ lighting.saturation.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0.5" max="1.5" step="0.02" :value="lighting.saturation.value" @input="lighting.setValue('saturation', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Exposure</span><strong>{{ lighting.exposure.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0.5" max="1.7" step="0.02" :value="lighting.exposure.value" @input="lighting.setValue('exposure', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Ambient</span><strong>{{ lighting.ambientIntensity.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0" max="1.6" step="0.02" :value="lighting.ambientIntensity.value" @input="lighting.setValue('ambientIntensity', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Hemisphere</span><strong>{{ lighting.hemisphereIntensity.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0" max="2.2" step="0.02" :value="lighting.hemisphereIntensity.value" @input="lighting.setValue('hemisphereIntensity', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Key</span><strong>{{ lighting.keyIntensity.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0" max="2.8" step="0.02" :value="lighting.keyIntensity.value" @input="lighting.setValue('keyIntensity', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Rim</span><strong>{{ lighting.rimIntensity.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0" max="1.4" step="0.02" :value="lighting.rimIntensity.value" @input="lighting.setValue('rimIntensity', Number(($event.target as HTMLInputElement).value))">
-            </label>
-            <label class="stage-header__slider-row">
-              <div class="stage-header__slider-head"><span>Fill</span><strong>{{ lighting.fillIntensity.value.toFixed(2) }}</strong></div>
-              <input class="stage-header__slider" type="range" min="0" max="1.2" step="0.02" :value="lighting.fillIntensity.value" @input="lighting.setValue('fillIntensity', Number(($event.target as HTMLInputElement).value))">
-            </label>
+            <div class="stage-header__lighting-panel">
+              <div class="stage-header__lighting-head">
+                <span>Avatar lighting</span>
+                <button class="stage-header__utility stage-header__utility--ghost" type="button" @click="lighting.reset()">
+                  Reset
+                </button>
+              </div>
+
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Brightness</span><strong>{{ lighting.brightness.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0.6" max="1.6" step="0.02" :value="lighting.brightness.value" @input="lighting.setValue('brightness', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Contrast</span><strong>{{ lighting.contrast.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0.75" max="1.45" step="0.02" :value="lighting.contrast.value" @input="lighting.setValue('contrast', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Saturation</span><strong>{{ lighting.saturation.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0.5" max="1.5" step="0.02" :value="lighting.saturation.value" @input="lighting.setValue('saturation', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Exposure</span><strong>{{ lighting.exposure.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0.5" max="1.7" step="0.02" :value="lighting.exposure.value" @input="lighting.setValue('exposure', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Ambient</span><strong>{{ lighting.ambientIntensity.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0" max="1.6" step="0.02" :value="lighting.ambientIntensity.value" @input="lighting.setValue('ambientIntensity', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Hemisphere</span><strong>{{ lighting.hemisphereIntensity.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0" max="2.2" step="0.02" :value="lighting.hemisphereIntensity.value" @input="lighting.setValue('hemisphereIntensity', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Key</span><strong>{{ lighting.keyIntensity.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0" max="2.8" step="0.02" :value="lighting.keyIntensity.value" @input="lighting.setValue('keyIntensity', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Rim</span><strong>{{ lighting.rimIntensity.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0" max="1.4" step="0.02" :value="lighting.rimIntensity.value" @input="lighting.setValue('rimIntensity', Number(($event.target as HTMLInputElement).value))">
+              </label>
+              <label class="stage-header__slider-row">
+                <div class="stage-header__slider-head"><span>Fill</span><strong>{{ lighting.fillIntensity.value.toFixed(2) }}</strong></div>
+                <input class="stage-header__slider" type="range" min="0" max="1.2" step="0.02" :value="lighting.fillIntensity.value" @input="lighting.setValue('fillIntensity', Number(($event.target as HTMLInputElement).value))">
+              </label>
+            </div>
           </div>
         </div>
       </div>
-    </div>
   </header>
+
+  <CommandGuideOverlay :open="guideOpen" @close="guideOpen = false" />
 </template>
 
 <style scoped>
@@ -186,6 +227,25 @@ function previewSpeech() {
   z-index: 40;
 }
 
+.stage-header__utility-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(103, 232, 249, 0.2);
+  border-radius: 16px;
+  background: rgba(6, 25, 39, 0.78);
+  color: rgba(234, 248, 255, 0.92);
+  backdrop-filter: blur(16px);
+}
+
+.stage-header__utility-chip--primary {
+  background: rgba(103, 232, 249, 0.18);
+  border-color: rgba(103, 232, 249, 0.24);
+  color: #c8fbff;
+}
+
 .stage-header__settings-button {
   display: inline-flex;
   align-items: center;
@@ -197,6 +257,11 @@ function previewSpeech() {
   background: rgba(248, 251, 255, 0.74);
   color: #122232;
   backdrop-filter: blur(16px);
+}
+
+.stage-header__settings-button--help {
+  background: rgba(8, 23, 35, 0.74);
+  color: #dff4fb;
 }
 
 .stage-header__settings-button svg {
