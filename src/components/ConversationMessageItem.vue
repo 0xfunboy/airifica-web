@@ -67,6 +67,7 @@ function toggleChartExpanded() {
       'conversation-message',
       `conversation-message--${message.role}`,
     ]"
+    :data-message-id="message.id"
   >
     <div class="conversation-message__bubble">
       <header class="conversation-message__header">

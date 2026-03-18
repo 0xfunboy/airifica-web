@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import ConversationMessageItem from '@/components/ConversationMessageItem.vue'
 import CommandGuideOverlay from '@/components/layout/CommandGuideOverlay.vue'
@@ -34,6 +34,8 @@ const composerRef = ref<HTMLTextAreaElement | null>(null)
 const exampleGuideOpen = ref(false)
 const COMPOSER_MIN_HEIGHT = 56
 const COMPOSER_MAX_HEIGHT = 112
+let scrollAnimationFrame = 0
+let pendingBottomSettle = false
 
 const emoteIndicatorColor = computed(() =>
   EMOTE_INDICATOR_COLORS[emoteDebugStore.lastReceived.value?.name ?? 'neutral'] ?? '#94a3b8',
@@ -66,6 +68,105 @@ function scrollToBottom() {
   })
 }
 
+function stopScrollAnimation() {
+  if (!scrollAnimationFrame)
+    return
+
+  window.cancelAnimationFrame(scrollAnimationFrame)
+  scrollAnimationFrame = 0
+}
+
+function resolveMessageElement(messageId: string) {
+  const host = messagesRef.value
+  if (!host)
+    return null
+
+  const escapedId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+    ? CSS.escape(messageId)
+    : messageId.replace(/"/g, '\\"')
+  return host.querySelector<HTMLElement>(`[data-message-id="${escapedId}"]`)
+}
+
+function animateHistoryScroll(targetTop: number, durationMs: number, onComplete?: () => void) {
+  nextTick(() => {
+    const host = messagesRef.value
+    if (!host)
+      return
+
+    stopScrollAnimation()
+    const maxScrollTop = Math.max(0, host.scrollHeight - host.clientHeight)
+    const clampedTarget = Math.max(0, Math.min(targetTop, maxScrollTop))
+    const startTop = host.scrollTop
+    const travel = clampedTarget - startTop
+    if (Math.abs(travel) < 2) {
+      host.scrollTop = clampedTarget
+      onComplete?.()
+      return
+    }
+
+    const startedAt = performance.now()
+    const step = (now: number) => {
+      const elapsed = now - startedAt
+      const progress = Math.min(1, elapsed / durationMs)
+      const eased = 1 - (1 - progress) ** 3
+      host.scrollTop = startTop + travel * eased
+
+      if (progress >= 1) {
+        scrollAnimationFrame = 0
+        onComplete?.()
+        return
+      }
+
+      scrollAnimationFrame = window.requestAnimationFrame(step)
+    }
+
+    scrollAnimationFrame = window.requestAnimationFrame(step)
+  })
+}
+
+function settleProposalReveal() {
+  animateHistoryScroll(Number.MAX_SAFE_INTEGER, 680)
+}
+
+function queueProposalSettle() {
+  if (scrollAnimationFrame) {
+    pendingBottomSettle = true
+    return
+  }
+
+  settleProposalReveal()
+}
+
+function revealAssistantMessage(messageId: string) {
+  nextTick(() => {
+    const host = messagesRef.value
+    const messageElement = resolveMessageElement(messageId)
+    if (!host || !messageElement)
+      return
+
+    const hostRect = host.getBoundingClientRect()
+    const messageRect = messageElement.getBoundingClientRect()
+    const messageTop = messageRect.top - hostRect.top + host.scrollTop
+    const messageBottom = messageRect.bottom - hostRect.top + host.scrollTop
+    const topTarget = Math.max(0, messageTop - 10)
+    const bottomTarget = Math.max(topTarget, messageBottom - host.clientHeight + 14)
+
+    if (bottomTarget - topTarget < Math.max(48, host.clientHeight * 0.18)) {
+      host.scrollTop = Math.max(0, host.scrollHeight - host.clientHeight)
+      return
+    }
+
+    host.scrollTop = topTarget
+    animateHistoryScroll(bottomTarget, 3000, () => {
+      if (!pendingBottomSettle)
+        return
+
+      pendingBottomSettle = false
+      settleProposalReveal()
+    })
+  })
+}
+
 async function handleSubmit() {
   const text = composer.value.trim()
   if (!text)
@@ -75,13 +176,11 @@ async function handleSubmit() {
   composerState.clearDraft()
   syncComposerHeight()
   await conversation.sendMessage(text)
-  scrollToBottom()
 }
 
 async function handleSendTranscript() {
   avatar.triggerInteractionGesture('prompt-send')
   await hearing.flushTranscript(true)
-  scrollToBottom()
 }
 
 function handleResetConversation() {
@@ -104,16 +203,60 @@ async function handleComposerKeydown(event: KeyboardEvent) {
 
 watch(() => wallet.sessionIdentity.value, (identity) => {
   conversation.hydrateForIdentity(identity)
+  stopScrollAnimation()
   scrollToBottom()
 }, { immediate: true })
 
-watch(() => conversation.messages.value.length, () => {
+watch(() => conversation.messages.value.at(-1)?.id, (messageId, previousMessageId) => {
+  if (!messageId || messageId === previousMessageId) {
+    scrollToBottom()
+    return
+  }
+
+  if (!previousMessageId) {
+    scrollToBottom()
+    return
+  }
+
+  const latestMessage = conversation.messages.value.at(-1)
+  if (latestMessage?.role === 'assistant') {
+    pendingBottomSettle = false
+    revealAssistantMessage(messageId)
+    return
+  }
+
+  stopScrollAnimation()
   scrollToBottom()
+}, { immediate: true })
+
+watch(() => conversation.pendingMessage.value?.statusNote, (statusNote) => {
+  if (statusNote)
+    scrollToBottom()
 })
 
-watch(() => conversation.pendingMessage.value?.statusNote, () => {
-  scrollToBottom()
-})
+watch(
+  () => {
+    const message = conversation.latestAssistantMessage.value
+    if (!message)
+      return ''
+
+    return `${message.id}:${Number(Boolean(message.proposalPending))}:${Number(Boolean(message.proposal))}`
+  },
+  (signature, previousSignature) => {
+    if (!signature || !previousSignature || signature === previousSignature)
+      return
+
+    const [messageId, pendingFlag, proposalFlag] = signature.split(':')
+    const [previousMessageId, previousPendingFlag, previousProposalFlag] = previousSignature.split(':')
+    if (messageId !== previousMessageId)
+      return
+
+    const proposalAttached = previousProposalFlag === '0' && proposalFlag === '1'
+    const proposalResolved = previousPendingFlag === '1' && pendingFlag === '0'
+    if (proposalAttached || proposalResolved)
+      queueProposalSettle()
+  },
+)
 
 watch(composer, () => {
   syncComposerHeight()
@@ -130,6 +273,10 @@ watch(() => composerState.focusToken.value, () => {
 onMounted(() => {
   scrollToBottom()
   syncComposerHeight()
+})
+
+onBeforeUnmount(() => {
+  stopScrollAnimation()
 })
 </script>
 
