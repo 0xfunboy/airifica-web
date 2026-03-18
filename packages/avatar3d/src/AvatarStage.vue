@@ -128,6 +128,11 @@ type LoadParticle = {
   previousY: number
   velocityX: number
   velocityY: number
+  targetX: number
+  targetY: number
+  driftX: number
+  driftY: number
+  shimmerOffset: number
   age: number
   duration: number
   radius: number
@@ -256,6 +261,7 @@ let breathGestureSessionId = 0
 let breathGestureElapsedSeconds = 0
 let breathGestureRuntimes: BreathGestureRuntime[] = []
 let loadFieldSpawnAccumulator = 0
+let loadFieldElapsed = 0
 const loadFieldParticles: LoadParticle[] = []
 const FACIAL_TRACK_PATTERN = /(expression|blendshape|morph|viseme|mouth|lip|jaw|tongue|teeth|cheek|brow|blink|eyelid)/i
 
@@ -462,6 +468,7 @@ function syncLoadFieldSize(width?: number, height?: number) {
 
 function resetLoadField() {
   loadFieldSpawnAccumulator = 0
+  loadFieldElapsed = 0
   loadFieldParticles.length = 0
 
   const canvas = loadFieldRef.value
@@ -471,8 +478,12 @@ function resetLoadField() {
 }
 
 function spawnLoadParticle(width: number, height: number) {
-  const bandX = width * 0.5 + (Math.random() - 0.5) * width * 0.065
-  const bandY = height * (0.16 + Math.random() * 0.68)
+  const centerX = width * 0.5
+  const centerY = height * 0.53
+  const attractorWidth = width * 0.04
+  const attractorHeight = height * 0.29
+  const bandX = centerX + (Math.random() - 0.5) * attractorWidth
+  const bandY = centerY + (Math.random() - 0.5) * attractorHeight
   const edge = Math.floor(Math.random() * 4)
   let x = bandX
   let y = bandY
@@ -494,17 +505,22 @@ function spawnLoadParticle(width: number, height: number) {
     y = height + 20
   }
 
-  const duration = 0.85 + Math.random() * 1.45
+  const duration = 1.05 + Math.random() * 1.8
   loadFieldParticles.push({
     x,
     y,
     previousX: x,
     previousY: y,
-    velocityX: (bandX - x) / duration,
-    velocityY: (bandY - y) / duration,
+    velocityX: (bandX - x) / duration * (0.34 + Math.random() * 0.28),
+    velocityY: (bandY - y) / duration * (0.34 + Math.random() * 0.28),
+    targetX: bandX,
+    targetY: bandY,
+    driftX: (Math.random() - 0.5) * width * 0.018,
+    driftY: (Math.random() - 0.5) * height * 0.02,
+    shimmerOffset: Math.random() * Math.PI * 2,
     age: 0,
     duration,
-    radius: 0.9 + Math.random() * 2.3,
+    radius: 1.05 + Math.random() * 3.1,
   })
 }
 
@@ -521,10 +537,12 @@ function renderLoadField(delta: number) {
 
   const width = canvas.width
   const height = canvas.height
+  loadFieldElapsed += delta
   const progress = status.value === 'loading'
     ? Math.max(0.12, Math.min(1, loadProgress.value / 100 || 0.12))
     : 0.12
-  const spawnRate = 18 + progress * 42
+  const pulse = 0.5 + 0.5 * Math.sin(loadFieldElapsed * Math.PI * 4)
+  const spawnRate = 34 + progress * 72
   loadFieldSpawnAccumulator += delta * spawnRate
 
   while (loadFieldSpawnAccumulator >= 1) {
@@ -537,25 +555,40 @@ function renderLoadField(delta: number) {
   context.globalCompositeOperation = 'lighter'
 
   const bandX = width * 0.5
-  const bandTop = height * 0.16
-  const bandBottom = height * 0.84
-  const bandGradient = context.createLinearGradient(bandX, bandTop, bandX, bandBottom)
-  bandGradient.addColorStop(0, 'rgba(103, 232, 249, 0)')
-  bandGradient.addColorStop(0.2, `rgba(103, 232, 249, ${0.12 + progress * 0.18})`)
-  bandGradient.addColorStop(0.5, `rgba(255, 244, 199, ${0.1 + progress * 0.16})`)
-  bandGradient.addColorStop(0.8, `rgba(103, 232, 249, ${0.12 + progress * 0.18})`)
-  bandGradient.addColorStop(1, 'rgba(103, 232, 249, 0)')
-  context.fillStyle = bandGradient
-  context.fillRect(bandX - (2 + progress * 6), bandTop, 4 + progress * 12, bandBottom - bandTop)
+  const bandCenterY = height * 0.53
+  const bandOuterRadius = width * (0.12 + progress * 0.065)
+  const bandInnerRadius = bandOuterRadius * (0.09 + pulse * 0.03)
 
-  const glowRadius = width * (0.08 + progress * 0.06)
-  const glowGradient = context.createRadialGradient(bandX, height * 0.52, glowRadius * 0.12, bandX, height * 0.52, glowRadius)
-  glowGradient.addColorStop(0, `rgba(255, 244, 199, ${0.08 + progress * 0.26})`)
-  glowGradient.addColorStop(0.45, `rgba(103, 232, 249, ${0.06 + progress * 0.16})`)
-  glowGradient.addColorStop(1, 'rgba(103, 232, 249, 0)')
-  context.fillStyle = glowGradient
+  context.save()
+  context.translate(bandX, bandCenterY)
+  context.scale(0.24 + progress * 0.04 + pulse * 0.025, 1)
+  const outerGlow = context.createRadialGradient(0, 0, bandInnerRadius * 0.35, 0, 0, bandOuterRadius)
+  outerGlow.addColorStop(0, `rgba(255, 246, 204, ${0.14 + progress * 0.22 + pulse * 0.08})`)
+  outerGlow.addColorStop(0.32, `rgba(103, 232, 249, ${0.12 + progress * 0.2})`)
+  outerGlow.addColorStop(0.72, `rgba(73, 212, 255, ${0.05 + progress * 0.08})`)
+  outerGlow.addColorStop(1, 'rgba(103, 232, 249, 0)')
+  context.fillStyle = outerGlow
   context.beginPath()
-  context.arc(bandX, height * 0.52, glowRadius, 0, Math.PI * 2)
+  context.arc(0, 0, bandOuterRadius, 0, Math.PI * 2)
+  context.fill()
+  context.restore()
+
+  const slitHalfWidth = width * (0.016 + progress * 0.012 + pulse * 0.008)
+  const slitHalfHeight = height * (0.26 + progress * 0.035 + pulse * 0.02)
+  const slitGradient = context.createLinearGradient(bandX, bandCenterY - slitHalfHeight, bandX, bandCenterY + slitHalfHeight)
+  slitGradient.addColorStop(0, 'rgba(103, 232, 249, 0)')
+  slitGradient.addColorStop(0.18, `rgba(103, 232, 249, ${0.16 + progress * 0.22})`)
+  slitGradient.addColorStop(0.5, `rgba(255, 247, 213, ${0.22 + progress * 0.3 + pulse * 0.12})`)
+  slitGradient.addColorStop(0.82, `rgba(103, 232, 249, ${0.16 + progress * 0.22})`)
+  slitGradient.addColorStop(1, 'rgba(103, 232, 249, 0)')
+  context.fillStyle = slitGradient
+  context.beginPath()
+  context.ellipse(bandX, bandCenterY, slitHalfWidth, slitHalfHeight, 0, 0, Math.PI * 2)
+  context.fill()
+
+  context.fillStyle = `rgba(255, 250, 231, ${0.12 + progress * 0.2 + pulse * 0.08})`
+  context.beginPath()
+  context.ellipse(bandX, bandCenterY, slitHalfWidth * 0.44, slitHalfHeight * 0.8, 0, 0, Math.PI * 2)
   context.fill()
 
   for (let index = loadFieldParticles.length - 1; index >= 0; index -= 1) {
@@ -569,28 +602,46 @@ function renderLoadField(delta: number) {
       continue
     }
 
-    particle.x += particle.velocityX * delta
-    particle.y += particle.velocityY * delta
+    const dx = particle.targetX - particle.x
+    const dy = particle.targetY - particle.y
+    const attraction = delta * (2.4 + progress * 3.2)
+    const sway = (1 - Math.min(1, particle.age / particle.duration)) * (0.8 + progress * 0.45)
+    particle.velocityX += dx * attraction * 0.18
+    particle.velocityY += dy * attraction * 0.18
+    particle.velocityX *= 0.94
+    particle.velocityY *= 0.94
+    particle.x += particle.velocityX * delta + Math.sin(loadFieldElapsed * 5.4 + particle.shimmerOffset) * particle.driftX * delta * sway
+    particle.y += particle.velocityY * delta + Math.cos(loadFieldElapsed * 4.6 + particle.shimmerOffset) * particle.driftY * delta * sway
 
     const t = Math.max(0, Math.min(1, particle.age / particle.duration))
-    const intensity = MathUtils.smootherstep(t, 0.08, 0.96)
-    const alpha = (0.03 + progress * 0.16) * intensity
-    const streak = 6 + intensity * 22
+    const distanceToTarget = Math.hypot(dx, dy)
+    const proximity = 1 - Math.min(1, distanceToTarget / (width * 0.24))
+    const intensity = MathUtils.smootherstep(t, 0.04, 0.94) * (0.44 + proximity * 1.2)
+    const shimmer = 0.78 + 0.22 * Math.sin(loadFieldElapsed * 10 + particle.shimmerOffset)
+    const alpha = (0.045 + progress * 0.2) * intensity * shimmer
+    const streak = 10 + intensity * 28
 
-    context.strokeStyle = `rgba(161, 243, 255, ${alpha})`
-    context.lineWidth = Math.max(1, particle.radius * (0.8 + intensity))
+    context.strokeStyle = `rgba(174, 244, 255, ${alpha})`
+    context.lineWidth = Math.max(1.2, particle.radius * (0.92 + intensity * 0.95))
     context.beginPath()
     context.moveTo(particle.previousX, particle.previousY)
     context.lineTo(
-      particle.x + (particle.x - particle.previousX) * streak * 0.045,
-      particle.y + (particle.y - particle.previousY) * streak * 0.045,
+      particle.x + (particle.x - particle.previousX) * streak * 0.038,
+      particle.y + (particle.y - particle.previousY) * streak * 0.038,
     )
     context.stroke()
 
-    context.fillStyle = `rgba(255, 248, 215, ${alpha * 1.75})`
+    context.fillStyle = `rgba(255, 250, 224, ${alpha * (2.1 + proximity * 0.6)})`
     context.beginPath()
-    context.arc(particle.x, particle.y, particle.radius * (0.78 + intensity * 0.9), 0, Math.PI * 2)
+    context.arc(particle.x, particle.y, particle.radius * (0.82 + intensity * 1.08), 0, Math.PI * 2)
     context.fill()
+
+    if (proximity > 0.82 && t > 0.38) {
+      context.fillStyle = `rgba(103, 232, 249, ${alpha * 1.6})`
+      context.beginPath()
+      context.arc(particle.x, particle.y, particle.radius * (1.8 + proximity * 0.9), 0, Math.PI * 2)
+      context.fill()
+    }
   }
 
   context.restore()
