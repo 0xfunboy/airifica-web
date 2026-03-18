@@ -150,6 +150,10 @@ type ManualGestureSpec = {
   label: string
   sourceUrl: string
   mirrored?: boolean
+  excerptStartSeconds?: number
+  excerptSeconds?: number
+  armLiftDeg?: number
+  forearmForwardDeg?: number
   fadeInSeconds: number
   fadeOutSeconds: number
   peakWeight: number
@@ -182,6 +186,8 @@ const MANUAL_GESTURE_SPECS: Record<string, ManualGestureSpec> = {
     key: 'wave',
     label: 'DanceArmWave',
     sourceUrl: animationUrls.DanceArmWave,
+    armLiftDeg: 5,
+    forearmForwardDeg: 6,
     fadeInSeconds: 0.32,
     fadeOutSeconds: 0.64,
     peakWeight: 0.96,
@@ -191,6 +197,8 @@ const MANUAL_GESTURE_SPECS: Record<string, ManualGestureSpec> = {
     label: 'DanceArmWave Mirror',
     sourceUrl: animationUrls.DanceArmWave,
     mirrored: true,
+    armLiftDeg: 5,
+    forearmForwardDeg: 6,
     fadeInSeconds: 0.32,
     fadeOutSeconds: 0.64,
     peakWeight: 0.96,
@@ -497,6 +505,69 @@ function createMirroredGestureClip(vrm: VRM, clip: AnimationClip) {
   const mirrored = new AnimationClip(`${clip.name || 'gesture'}-mirror`, clip.duration, tracks)
   mirrored.resetDuration()
   return mirrored
+}
+
+function applyTrackQuaternionOffset(track: QuaternionKeyframeTrack, offset: Quaternion) {
+  const original = new Quaternion()
+  const adjusted = new Quaternion()
+
+  for (let index = 0; index < track.values.length; index += 4) {
+    original.set(
+      track.values[index] ?? 0,
+      track.values[index + 1] ?? 0,
+      track.values[index + 2] ?? 0,
+      track.values[index + 3] ?? 1,
+    )
+    adjusted.copy(offset).multiply(original)
+    track.values[index] = adjusted.x
+    track.values[index + 1] = adjusted.y
+    track.values[index + 2] = adjusted.z
+    track.values[index + 3] = adjusted.w
+  }
+}
+
+function applyBoneTrackOffset(
+  vrm: VRM,
+  clip: AnimationClip,
+  bone: VRMHumanBoneName,
+  eulerOffset: { x?: number, y?: number, z?: number },
+) {
+  const boneName = vrm.humanoid?.getNormalizedBoneNode(bone)?.name
+  if (!boneName)
+    return
+
+  const track = clip.tracks.find(track =>
+    track instanceof QuaternionKeyframeTrack && track.name === `${boneName}.quaternion`,
+  )
+  if (!(track instanceof QuaternionKeyframeTrack))
+    return
+
+  const offset = new Quaternion().setFromEuler(new Euler(
+    MathUtils.degToRad(eulerOffset.x ?? 0),
+    MathUtils.degToRad(eulerOffset.y ?? 0),
+    MathUtils.degToRad(eulerOffset.z ?? 0),
+    'XYZ',
+  ))
+  applyTrackQuaternionOffset(track, offset)
+}
+
+function createManualGestureClip(sourceClip: AnimationClip, spec: ManualGestureSpec) {
+  const excerptDuration = spec.excerptSeconds ?? null
+  if (!excerptDuration)
+    return sourceClip.clone()
+
+  const excerptStartSeconds = spec.excerptStartSeconds ?? 0
+  const startFrame = Math.max(0, Math.round(excerptStartSeconds * 30))
+  const endFrame = Math.max(startFrame + 1, Math.round((excerptStartSeconds + excerptDuration) * 30))
+  const clip = AnimationUtils.subclip(
+    sourceClip,
+    `${sourceClip.name || spec.label}-${startFrame}-${endFrame}`,
+    startFrame,
+    endFrame,
+    30,
+  )
+  clip.resetDuration()
+  return clip
 }
 
 function setupStage() {
@@ -916,9 +987,23 @@ async function resolveManualGestureClip(vrm: VRM, spec: ManualGestureSpec) {
   if (!sourceClip)
     return null
 
+  const baseClip = createManualGestureClip(sourceClip, spec)
   const clip = spec.mirrored
-    ? createMirroredGestureClip(vrm, sourceClip)
-    : sourceClip.clone()
+    ? createMirroredGestureClip(vrm, baseClip)
+    : baseClip
+
+  if (spec.armLiftDeg) {
+    applyBoneTrackOffset(vrm, clip, VRMHumanBoneName.LeftUpperArm, { z: -spec.armLiftDeg })
+    applyBoneTrackOffset(vrm, clip, VRMHumanBoneName.RightUpperArm, { z: spec.armLiftDeg })
+  }
+
+  if (spec.forearmForwardDeg) {
+    applyBoneTrackOffset(vrm, clip, VRMHumanBoneName.LeftLowerArm, { x: spec.forearmForwardDeg })
+    applyBoneTrackOffset(vrm, clip, VRMHumanBoneName.RightLowerArm, { x: spec.forearmForwardDeg })
+    applyBoneTrackOffset(vrm, clip, VRMHumanBoneName.LeftHand, { x: spec.forearmForwardDeg * 0.35 })
+    applyBoneTrackOffset(vrm, clip, VRMHumanBoneName.RightHand, { x: spec.forearmForwardDeg * 0.35 })
+  }
+
   clip.resetDuration()
   manualGestureClipCache.set(cacheKey, clip)
   return clip
@@ -946,6 +1031,17 @@ async function triggerManualGesture(key: string | null | undefined) {
   for (const runtime of breathGestureRuntimes)
     stopBreathGestureAction(runtime)
   stopManualGesture()
+  secondaryTrackingState.chestYaw = 0
+  secondaryTrackingState.chestPitch = 0
+  secondaryTrackingState.upperChestYaw = 0
+  secondaryTrackingState.upperChestPitch = 0
+  secondaryTrackingState.neckYaw = 0
+  secondaryTrackingState.neckPitch = 0
+  secondaryTrackingState.headYaw = 0
+  secondaryTrackingState.headPitch = 0
+  secondaryTrackingState.headRoll = 0
+  secondaryTrackingState.shoulderYaw = 0
+  secondaryTrackingState.shoulderRoll = 0
 
   const action = mixer.clipAction(clip)
   action.stop()
@@ -1292,12 +1388,13 @@ function applyHeadTracking(vrm: VRM, delta: number) {
   const rightShoulder = humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightShoulder)
   const neck = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Neck)
   const head = humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head)
-  const trackingBlend = 1 - (manualGestureBodyBlend * 0.95)
+  const trackingBlend = 1 - manualGestureBodyBlend
   const sourceYaw = tracking.x * tracking.influence * trackingBlend
   const sourcePitch = -tracking.y * tracking.influence * trackingBlend
-  const bodyLambda = pointerActive.value ? 8 : 1.35
-  const neckLambda = pointerActive.value ? 9.4 : 1.2
-  const headLambda = pointerActive.value ? 10.4 : 1.15
+  const manualGestureSuppressed = manualGestureBodyBlend > 0.08
+  const bodyLambda = manualGestureSuppressed ? 18 : pointerActive.value ? 8 : 1.35
+  const neckLambda = manualGestureSuppressed ? 18 : pointerActive.value ? 9.4 : 1.2
+  const headLambda = manualGestureSuppressed ? 18 : pointerActive.value ? 10.4 : 1.15
 
   secondaryTrackingState.chestYaw = MathUtils.damp(secondaryTrackingState.chestYaw, sourceYaw * 0.038, bodyLambda, delta)
   secondaryTrackingState.chestPitch = MathUtils.damp(secondaryTrackingState.chestPitch, sourcePitch * 0.024, bodyLambda, delta)
