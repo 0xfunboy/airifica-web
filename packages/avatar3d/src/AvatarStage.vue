@@ -479,48 +479,39 @@ function resetLoadField() {
 
 function spawnLoadParticle(width: number, height: number) {
   const centerX = width * 0.5
-  const centerY = height * 0.53
-  const attractorWidth = width * 0.04
-  const attractorHeight = height * 0.29
+  const centerY = height * 0.46
+  const attractorWidth = width * 0.055
+  const attractorHeight = height * 0.38
   const bandX = centerX + (Math.random() - 0.5) * attractorWidth
   const bandY = centerY + (Math.random() - 0.5) * attractorHeight
-  const edge = Math.floor(Math.random() * 4)
-  let x = bandX
-  let y = bandY
+  const exclusionRadius = Math.min(width, height) * 0.26
+  let x = 0
+  let y = 0
+  let distance = 0
 
-  if (edge === 0) {
-    x = -24
-    y = Math.random() * height
-  }
-  else if (edge === 1) {
-    x = width + 24
-    y = Math.random() * height
-  }
-  else if (edge === 2) {
+  do {
     x = Math.random() * width
-    y = -20
-  }
-  else {
-    x = Math.random() * width
-    y = height + 20
-  }
+    y = Math.random() * height
+    distance = Math.hypot(x - centerX, y - centerY)
+  } while (distance < exclusionRadius)
 
-  const duration = 1.05 + Math.random() * 1.8
+  const duration = 0.48 + Math.random() * 0.95
+  const speedBoost = 0.95 + Math.random() * 0.75
   loadFieldParticles.push({
     x,
     y,
     previousX: x,
     previousY: y,
-    velocityX: (bandX - x) / duration * (0.34 + Math.random() * 0.28),
-    velocityY: (bandY - y) / duration * (0.34 + Math.random() * 0.28),
+    velocityX: (bandX - x) / duration * speedBoost,
+    velocityY: (bandY - y) / duration * speedBoost,
     targetX: bandX,
     targetY: bandY,
-    driftX: (Math.random() - 0.5) * width * 0.018,
-    driftY: (Math.random() - 0.5) * height * 0.02,
+    driftX: (Math.random() - 0.5) * width * 0.032,
+    driftY: (Math.random() - 0.5) * height * 0.038,
     shimmerOffset: Math.random() * Math.PI * 2,
     age: 0,
     duration,
-    radius: 1.05 + Math.random() * 3.1,
+    radius: 0.95 + Math.random() * 2.8,
   })
 }
 
@@ -541,8 +532,9 @@ function renderLoadField(delta: number) {
   const progress = status.value === 'loading'
     ? Math.max(0.12, Math.min(1, loadProgress.value / 100 || 0.12))
     : 0.12
-  const pulse = 0.5 + 0.5 * Math.sin(loadFieldElapsed * Math.PI * 4)
-  const spawnRate = 34 + progress * 72
+  const pulse = 0.5 + 0.5 * Math.sin(loadFieldElapsed * Math.PI)
+  const pulseStrength = MathUtils.smootherstep(pulse, 0, 1)
+  const spawnRate = 42 + progress * 88 + pulseStrength * 58
   loadFieldSpawnAccumulator += delta * spawnRate
 
   while (loadFieldSpawnAccumulator >= 1) {
@@ -555,17 +547,18 @@ function renderLoadField(delta: number) {
   context.globalCompositeOperation = 'lighter'
 
   const bandX = width * 0.5
-  const bandCenterY = height * 0.53
-  const bandOuterRadius = width * (0.12 + progress * 0.065)
-  const bandInnerRadius = bandOuterRadius * (0.09 + pulse * 0.03)
+  const bandCenterY = height * 0.46
+  const bandOuterRadius = width * (0.15 + progress * 0.08 + pulseStrength * 0.03)
+  const bandInnerRadius = bandOuterRadius * (0.06 + pulseStrength * 0.035)
 
   context.save()
   context.translate(bandX, bandCenterY)
-  context.scale(0.24 + progress * 0.04 + pulse * 0.025, 1)
+  context.scale(0.31 + progress * 0.05 + pulseStrength * 0.05, 1)
   const outerGlow = context.createRadialGradient(0, 0, bandInnerRadius * 0.35, 0, 0, bandOuterRadius)
-  outerGlow.addColorStop(0, `rgba(255, 246, 204, ${0.14 + progress * 0.22 + pulse * 0.08})`)
-  outerGlow.addColorStop(0.32, `rgba(103, 232, 249, ${0.12 + progress * 0.2})`)
-  outerGlow.addColorStop(0.72, `rgba(73, 212, 255, ${0.05 + progress * 0.08})`)
+  outerGlow.addColorStop(0, `rgba(255, 246, 204, ${0.08 + progress * 0.16 + pulseStrength * 0.06})`)
+  outerGlow.addColorStop(0.18, `rgba(170, 242, 255, ${0.1 + progress * 0.16 + pulseStrength * 0.05})`)
+  outerGlow.addColorStop(0.42, `rgba(103, 232, 249, ${0.08 + progress * 0.14})`)
+  outerGlow.addColorStop(0.72, `rgba(73, 212, 255, ${0.03 + progress * 0.06})`)
   outerGlow.addColorStop(1, 'rgba(103, 232, 249, 0)')
   context.fillStyle = outerGlow
   context.beginPath()
@@ -573,22 +566,24 @@ function renderLoadField(delta: number) {
   context.fill()
   context.restore()
 
-  const slitHalfWidth = width * (0.016 + progress * 0.012 + pulse * 0.008)
-  const slitHalfHeight = height * (0.26 + progress * 0.035 + pulse * 0.02)
+  const slitHalfWidth = width * (0.012 + progress * 0.012 + pulseStrength * 0.01)
+  const slitHalfHeight = height * (0.34 + progress * 0.05 + pulseStrength * 0.035)
   const slitGradient = context.createLinearGradient(bandX, bandCenterY - slitHalfHeight, bandX, bandCenterY + slitHalfHeight)
   slitGradient.addColorStop(0, 'rgba(103, 232, 249, 0)')
-  slitGradient.addColorStop(0.18, `rgba(103, 232, 249, ${0.16 + progress * 0.22})`)
-  slitGradient.addColorStop(0.5, `rgba(255, 247, 213, ${0.22 + progress * 0.3 + pulse * 0.12})`)
-  slitGradient.addColorStop(0.82, `rgba(103, 232, 249, ${0.16 + progress * 0.22})`)
+  slitGradient.addColorStop(0.12, `rgba(103, 232, 249, ${0.06 + progress * 0.08})`)
+  slitGradient.addColorStop(0.3, `rgba(103, 232, 249, ${0.14 + progress * 0.16})`)
+  slitGradient.addColorStop(0.5, `rgba(255, 247, 213, ${0.18 + progress * 0.22 + pulseStrength * 0.1})`)
+  slitGradient.addColorStop(0.7, `rgba(103, 232, 249, ${0.14 + progress * 0.16})`)
+  slitGradient.addColorStop(0.88, `rgba(103, 232, 249, ${0.06 + progress * 0.08})`)
   slitGradient.addColorStop(1, 'rgba(103, 232, 249, 0)')
   context.fillStyle = slitGradient
   context.beginPath()
   context.ellipse(bandX, bandCenterY, slitHalfWidth, slitHalfHeight, 0, 0, Math.PI * 2)
   context.fill()
 
-  context.fillStyle = `rgba(255, 250, 231, ${0.12 + progress * 0.2 + pulse * 0.08})`
+  context.fillStyle = `rgba(255, 250, 231, ${0.08 + progress * 0.14 + pulseStrength * 0.08})`
   context.beginPath()
-  context.ellipse(bandX, bandCenterY, slitHalfWidth * 0.44, slitHalfHeight * 0.8, 0, 0, Math.PI * 2)
+  context.ellipse(bandX, bandCenterY, slitHalfWidth * 0.28, slitHalfHeight * 0.92, 0, 0, Math.PI * 2)
   context.fill()
 
   for (let index = loadFieldParticles.length - 1; index >= 0; index -= 1) {
@@ -604,30 +599,30 @@ function renderLoadField(delta: number) {
 
     const dx = particle.targetX - particle.x
     const dy = particle.targetY - particle.y
-    const attraction = delta * (2.4 + progress * 3.2)
+    const attraction = delta * (5.4 + progress * 6.4 + pulseStrength * 5.2)
     const sway = (1 - Math.min(1, particle.age / particle.duration)) * (0.8 + progress * 0.45)
-    particle.velocityX += dx * attraction * 0.18
-    particle.velocityY += dy * attraction * 0.18
-    particle.velocityX *= 0.94
-    particle.velocityY *= 0.94
-    particle.x += particle.velocityX * delta + Math.sin(loadFieldElapsed * 5.4 + particle.shimmerOffset) * particle.driftX * delta * sway
-    particle.y += particle.velocityY * delta + Math.cos(loadFieldElapsed * 4.6 + particle.shimmerOffset) * particle.driftY * delta * sway
+    particle.velocityX += dx * attraction * 0.24
+    particle.velocityY += dy * attraction * 0.24
+    particle.velocityX *= 0.955
+    particle.velocityY *= 0.955
+    particle.x += particle.velocityX * delta + Math.sin(loadFieldElapsed * 3.8 + particle.shimmerOffset) * particle.driftX * delta * sway
+    particle.y += particle.velocityY * delta + Math.cos(loadFieldElapsed * 3.2 + particle.shimmerOffset) * particle.driftY * delta * sway
 
     const t = Math.max(0, Math.min(1, particle.age / particle.duration))
     const distanceToTarget = Math.hypot(dx, dy)
-    const proximity = 1 - Math.min(1, distanceToTarget / (width * 0.24))
-    const intensity = MathUtils.smootherstep(t, 0.04, 0.94) * (0.44 + proximity * 1.2)
-    const shimmer = 0.78 + 0.22 * Math.sin(loadFieldElapsed * 10 + particle.shimmerOffset)
-    const alpha = (0.045 + progress * 0.2) * intensity * shimmer
-    const streak = 10 + intensity * 28
+    const proximity = 1 - Math.min(1, distanceToTarget / (width * 0.34))
+    const intensity = MathUtils.smootherstep(t, 0.02, 0.96) * (0.38 + proximity * 1.45)
+    const shimmer = 0.82 + 0.18 * Math.sin(loadFieldElapsed * 7.4 + particle.shimmerOffset)
+    const alpha = (0.06 + progress * 0.24 + pulseStrength * 0.08) * intensity * shimmer
+    const streak = 16 + intensity * 42 + pulseStrength * 12
 
     context.strokeStyle = `rgba(174, 244, 255, ${alpha})`
-    context.lineWidth = Math.max(1.2, particle.radius * (0.92 + intensity * 0.95))
+    context.lineWidth = Math.max(1, particle.radius * (0.74 + intensity * 0.82))
     context.beginPath()
     context.moveTo(particle.previousX, particle.previousY)
     context.lineTo(
-      particle.x + (particle.x - particle.previousX) * streak * 0.038,
-      particle.y + (particle.y - particle.previousY) * streak * 0.038,
+      particle.x + (particle.x - particle.previousX) * streak * 0.028,
+      particle.y + (particle.y - particle.previousY) * streak * 0.028,
     )
     context.stroke()
 
