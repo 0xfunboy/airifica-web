@@ -126,6 +126,7 @@ const state = reactive({
   supported: resolveInitialMode() !== null,
   speaking: false,
   mouthOpenSize: 0,
+  mouthClosure: 0,
   visemeWeights: cloneSpeechVisemeWeights(zeroSpeechVisemeWeights),
   error: null as string | null,
   queue: [] as Array<{ id: string, text: string }>,
@@ -172,6 +173,14 @@ function updateVisemeWeights(target: Partial<SpeechVisemeWeights>, deltaSeconds:
     current[key] = from + (to - from) * alpha
   }
   state.mouthOpenSize = maxSpeechVisemeWeight(current) * 100
+}
+
+function updateMouthClosure(target: number, deltaSeconds: number) {
+  const next = Math.max(0, Math.min(1, target))
+  const current = state.mouthClosure
+  const lambda = next > current ? 30 : 18
+  const alpha = 1 - Math.exp(-lambda * deltaSeconds)
+  state.mouthClosure = current + (next - current) * alpha
 }
 
 function sampleWLipSyncState(node: LipSyncNodeLike | null): SampledLipSyncState {
@@ -233,6 +242,7 @@ function resetVisemeState() {
   activeVisemeTimeline = null
   currentLipSyncNode = null
   updateVisemeWeights(zeroSpeechVisemeWeights, 1)
+  updateMouthClosure(0, 1)
 }
 
 function stopLipSync() {
@@ -278,6 +288,7 @@ function startSpeechLipSync(clock: PlaybackClock, timeline: SpeechVisemeFrame[],
       : timelineWeights
 
     updateVisemeWeights(target, deltaSeconds)
+    updateMouthClosure(closureStrength, deltaSeconds)
     mouthFrameId = window.requestAnimationFrame(tick)
   }
 
@@ -1356,6 +1367,7 @@ export function useSpeechRuntime() {
     preferredMode: computed(() => state.preferredMode),
     speaking: computed(() => state.speaking),
     mouthOpenSize: computed(() => state.mouthOpenSize),
+    mouthClosure: computed(() => state.mouthClosure),
     visemeWeights: computed(() => state.visemeWeights),
     error: computed(() => state.error),
     queueSize: computed(() => state.queue.length),

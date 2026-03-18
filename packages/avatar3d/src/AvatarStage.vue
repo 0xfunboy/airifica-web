@@ -49,6 +49,7 @@ const props = withDefaults(defineProps<{
   modelUrl?: string | null
   speaking?: boolean
   manualMouthOpen?: number
+  speechClosure?: number
   visemeWeights?: Partial<SpeechVisemeWeights> | null
   expression?: AvatarExpression
   ambientAnimation?: string
@@ -65,6 +66,7 @@ const props = withDefaults(defineProps<{
   modelUrl: null,
   speaking: false,
   manualMouthOpen: 0,
+  speechClosure: 0,
   visemeWeights: null,
   expression: 'neutral',
   ambientAnimation: BREATH_URL,
@@ -869,12 +871,20 @@ function normalizeVisemeWeights(input: Partial<SpeechVisemeWeights> | null | und
   }
 }
 
+function normalizeSpeechClosure(value: number | undefined) {
+  const numeric = Number(value || 0)
+  if (!Number.isFinite(numeric) || numeric <= 0)
+    return 0
+  return Math.max(0, Math.min(1, numeric))
+}
+
 function resolveSpeechDominance() {
   const incoming = normalizeVisemeWeights(props.visemeWeights)
   const manualStrength = normalizeManualMouthOpen(props.manualMouthOpen)
+  const closureStrength = normalizeSpeechClosure(props.speechClosure)
   const incomingPeak = Math.max(incoming.A, incoming.E, incoming.I, incoming.O, incoming.U)
   const currentPeak = Math.max(speechVisemeState.A, speechVisemeState.E, speechVisemeState.I, speechVisemeState.O, speechVisemeState.U)
-  const peak = Math.max(incomingPeak, currentPeak, manualStrength * 0.72)
+  const peak = Math.max(incomingPeak, currentPeak, manualStrength * 0.72, closureStrength * 0.92)
   const activeSpeechDominance = props.speaking
     ? Math.max(0.88, MathUtils.smootherstep(peak, 0.015, 0.18))
     : MathUtils.smootherstep(peak, 0.05, 0.24)
@@ -889,7 +899,9 @@ function applySpeechExpressions(vrm: VRM, delta: number) {
     return
 
   const manualStrength = normalizeManualMouthOpen(props.manualMouthOpen)
+  const closureStrength = normalizeSpeechClosure(props.speechClosure)
   const incoming = normalizeVisemeWeights(props.visemeWeights)
+  const openFactor = Math.max(0, 1 - closureStrength)
   const keys: Array<keyof SpeechVisemeWeights> = ['A', 'E', 'I', 'O', 'U']
   let winner: keyof SpeechVisemeWeights = 'I'
   let runner: keyof SpeechVisemeWeights = 'E'
@@ -919,15 +931,16 @@ function applySpeechExpressions(vrm: VRM, delta: number) {
   }
 
   if (winnerValue > 0.015) {
-    target[winner] = Math.min(0.76, winnerValue)
+    target[winner] = Math.min(0.76, winnerValue) * openFactor
     if (runnerValue > 0.05)
-      target[runner] = Math.min(0.42, runnerValue * 0.62)
+      target[runner] = Math.min(0.42, runnerValue * 0.62) * openFactor
   }
 
   if (manualStrength > 0.02) {
-    target.A = Math.max(target.A, Math.min(0.78, 0.24 + manualStrength * 0.54))
-    target.O = Math.max(target.O, Math.min(0.56, 0.12 + manualStrength * 0.3))
-    target.I = Math.max(target.I, Math.min(0.28, manualStrength * 0.18))
+    const manualEnvelope = openFactor * openFactor * openFactor
+    target.A = Math.max(target.A, Math.min(0.78, 0.24 + manualStrength * 0.54) * manualEnvelope)
+    target.O = Math.max(target.O, Math.min(0.56, 0.12 + manualStrength * 0.3) * manualEnvelope)
+    target.I = Math.max(target.I, Math.min(0.28, manualStrength * 0.18) * manualEnvelope)
   }
 
   for (const key of keys) {
@@ -958,12 +971,13 @@ function applyEmotionExpressions(vrm: VRM, delta: number) {
 
   const speechDominance = resolveSpeechDominance()
   const speechBlend = MathUtils.lerp(1, 0.08, speechDominance)
+  const relaxedSpeechBlend = MathUtils.lerp(1, 0.03, speechDominance)
   const targets = {
     happy: props.expression === 'happy' ? 1 * speechBlend : 0,
     sad: props.expression === 'sad' ? 1 * speechBlend : 0,
     angry: props.expression === 'angry' ? 1 * speechBlend : 0,
     surprised: props.expression === 'surprised' ? 1 * speechBlend : 0,
-    relaxed: props.expression === 'think' ? 0.84 * (props.speaking ? 0.82 : 1) : props.expression === 'neutral' ? 0.42 : 0.1,
+    relaxed: (props.expression === 'think' ? 0.84 * (props.speaking ? 0.82 : 1) : props.expression === 'neutral' ? 0.42 : 0.1) * relaxedSpeechBlend,
   }
 
   emotionState.happy = MathUtils.lerp(emotionState.happy, targets.happy, Math.min(1, delta * 2.15))

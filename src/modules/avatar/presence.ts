@@ -168,6 +168,7 @@ export function useAvatarPresence() {
     expression,
     speaking: computed(() => speech.speaking.value),
     mouthOpenSize: computed(() => speech.mouthOpenSize.value),
+    mouthClosure: computed(() => speech.mouthClosure.value),
     visemeWeights: computed(() => speech.visemeWeights.value),
     loadingState: computed(() => state.loadingState),
     loadProgress: computed(() => state.loadProgress),
