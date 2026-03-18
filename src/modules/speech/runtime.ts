@@ -134,6 +134,7 @@ const state = reactive({
   activeMode: resolveInitialMode() as SpeechMode | null,
   lastStopReason: '' as string,
   stopRevision: 0,
+  responseCompleteRevision: 0,
 })
 
 const conversation = useConversationState()
@@ -260,6 +261,26 @@ function stopLipSync() {
 function recordStopEvent(reason: string) {
   state.lastStopReason = reason
   state.stopRevision += 1
+}
+
+function recordResponseComplete() {
+  state.lastStopReason = 'completed'
+  state.stopRevision += 1
+  state.responseCompleteRevision += 1
+}
+
+function maybeRecordResponseComplete() {
+  if (
+    state.queue.length === 0
+    && !currentQueueItemId
+    && !currentUtterance
+    && !currentAudio
+    && !currentFetchController
+    && !currentSource
+    && currentStreamSources.size === 0
+  ) {
+    recordResponseComplete()
+  }
 }
 
 function startSpeechLipSync(clock: PlaybackClock, timeline: SpeechVisemeFrame[], lipSyncNode?: LipSyncNodeLike | null) {
@@ -537,7 +558,7 @@ async function playBrowserQueueItem(next: { id: string, text: string }) {
     currentQueueItemId = null
     state.queue.shift()
     stopLipSync()
-    recordStopEvent('completed')
+    maybeRecordResponseComplete()
     void processQueue()
   }
 
@@ -1054,7 +1075,7 @@ async function playExternalStreamQueueItem(next: { id: string, text: string }) {
 
     state.queue.shift()
     stopLipSync()
-    recordStopEvent('completed')
+    maybeRecordResponseComplete()
     void processQueue()
   }
 
@@ -1173,7 +1194,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
       cleanupExternalPlayback()
       state.queue.shift()
       stopLipSync()
-      recordStopEvent('completed')
+      maybeRecordResponseComplete()
       void processQueue()
     }
 
@@ -1209,7 +1230,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     cleanupExternalPlayback()
     state.queue.shift()
     stopLipSync()
-    recordStopEvent('completed')
+    maybeRecordResponseComplete()
     void processQueue()
   }
 
@@ -1396,6 +1417,7 @@ export function useSpeechRuntime() {
     externalEndpoint: computed(() => appConfig.ttsSpeechUrl),
     lastStopReason: computed(() => state.lastStopReason),
     stopRevision: computed(() => state.stopRevision),
+    responseCompleteRevision: computed(() => state.responseCompleteRevision),
     enqueue,
     preview,
     stop,

@@ -183,11 +183,12 @@ function initializeConversationSync() {
       triggerInteractionGesture('login')
   }, { immediate: true })
 
+  watch(() => speech.responseCompleteRevision.value, () => {
+    triggerInteractionGesture('speech-end')
+  })
+
   watch(() => speech.stopRevision.value, () => {
-    const reason = speech.lastStopReason.value
-    if (reason === 'completed')
-      triggerInteractionGesture('speech-end')
-    else if (reason === 'manual-stop')
+    if (speech.lastStopReason.value === 'manual-stop')
       triggerInteractionGesture('speech-stop')
   })
 }
