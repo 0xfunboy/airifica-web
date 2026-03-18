@@ -5,6 +5,7 @@ import AvatarStageCard from '@/components/AvatarStageCard.vue'
 import ConversationCard from '@/components/ConversationCard.vue'
 import StageBackdrop from '@/components/StageBackdrop.vue'
 import InteractiveArea from '@/components/layout/InteractiveArea.vue'
+import StageFooter from '@/components/layout/StageFooter.vue'
 import StageHeader from '@/components/layout/StageHeader.vue'
 import { appConfig } from '@/config/app'
 import { useWalletSession } from '@/modules/wallet/session'
@@ -60,6 +61,10 @@ onUnmounted(() => {
           <ConversationCard />
         </InteractiveArea>
       </div>
+
+      <div class="stage-page__footer">
+        <StageFooter />
+      </div>
     </div>
   </div>
 </template>
@@ -94,6 +99,7 @@ onUnmounted(() => {
   display: flex;
   flex: 1;
   gap: 8px;
+  padding-bottom: 136px;
 }
 
 .stage-page__scene {
@@ -106,8 +112,18 @@ onUnmounted(() => {
 :deep(.stage-page__interactive) {
   position: absolute;
   top: 0;
+  bottom: 20px;
   right: 16px;
   z-index: 10;
+  height: auto;
+}
+
+.stage-page__footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 18;
 }
 
 @media (min-width: 768px) {
@@ -134,7 +150,12 @@ onUnmounted(() => {
   :deep(.stage-page__interactive) {
     position: relative;
     top: auto;
+    bottom: auto;
     right: auto;
+  }
+
+  .stage-page__footer {
+    position: relative;
   }
 }
 </style>
