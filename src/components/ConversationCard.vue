@@ -67,6 +67,17 @@ function syncComposerHeight() {
   })
 }
 
+function handleSelectExample(prompt: string) {
+  composer.value = prompt
+  exampleGuideOpen.value = false
+  syncComposerHeight()
+  nextTick(() => {
+    composerRef.value?.focus()
+    const length = composer.value.length
+    composerRef.value?.setSelectionRange(length, length)
+  })
+}
+
 function scrollToBottom() {
   nextTick(() => {
     const host = messagesRef.value
@@ -258,7 +269,13 @@ onMounted(() => {
     </button>
   </div>
 
-  <CommandGuideOverlay :open="exampleGuideOpen" :prompts="EXAMPLE_PROMPTS" :show-mention-note="false" @close="exampleGuideOpen = false" />
+  <CommandGuideOverlay
+    :open="exampleGuideOpen"
+    :prompts="EXAMPLE_PROMPTS"
+    :show-mention-note="false"
+    @close="exampleGuideOpen = false"
+    @select="handleSelectExample"
+  />
 </template>
 
 <style scoped>

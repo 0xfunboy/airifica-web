@@ -7,6 +7,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'close'): void
+  (event: 'select', prompt: string): void
 }>()
 
 const defaultPrompts = [
@@ -30,15 +31,8 @@ const defaultPrompts = [
 
 const prompts = props.prompts?.length ? props.prompts : defaultPrompts
 
-async function copyPrompt(prompt: string) {
-  if (typeof navigator === 'undefined' || !navigator.clipboard)
-    return
-
-  try {
-    await navigator.clipboard.writeText(prompt)
-  }
-  catch {
-  }
+function handlePromptClick(prompt: string) {
+  emit('select', prompt)
 }
 </script>
 
@@ -74,10 +68,10 @@ async function copyPrompt(prompt: string) {
           :key="prompt"
           class="command-guide__item"
           type="button"
-          @click="copyPrompt(prompt)"
+          @click="handlePromptClick(prompt)"
         >
           <span>{{ prompt }}</span>
-          <span class="command-guide__hint">Copy</span>
+          <span class="command-guide__hint">Use</span>
         </button>
       </div>
     </div>
