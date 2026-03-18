@@ -140,6 +140,7 @@ let currentLipSyncNode: LipSyncNodeLike | null = null
 let audioUnlockBound = false
 let mouthFrameId: number | undefined
 let activeVisemeTimeline: SpeechVisemeFrame[] | null = null
+let currentQueueItemId: string | null = null
 
 function persistSettings() {
   writeStorage(getStorageScope(), AUTO_SPEAK_KEY, state.autoSpeakEnabled)
@@ -342,6 +343,7 @@ function bindAudioUnlock() {
 
 function stop(reason = 'manual-stop') {
   state.queue = []
+  currentQueueItemId = null
 
   if (canUseBrowserSpeech()) {
     try {
@@ -361,6 +363,66 @@ function stop(reason = 'manual-stop') {
   cleanupExternalPlayback()
   state.error = reason === 'manual-stop' || reason === 'new-message' || reason === 'disabled' ? null : reason
   stopLipSync()
+}
+
+function splitLongSpeechChunk(text: string, maxChars: number) {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (!words.length)
+    return [] as string[]
+
+  const chunks: string[] = []
+  let current = ''
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word
+    if (next.length <= maxChars || !current) {
+      current = next
+      continue
+    }
+
+    chunks.push(current)
+    current = word
+  }
+
+  if (current)
+    chunks.push(current)
+
+  return chunks
+}
+
+function splitSpeechTextIntoChunks(text: string, maxChars = 240) {
+  const normalized = text.trim().replace(/\s+/g, ' ')
+  if (!normalized)
+    return [] as string[]
+
+  const sentences = normalized.match(/[^.!?]+(?:[.!?]+|$)/g)?.map(sentence => sentence.trim()).filter(Boolean) || [normalized]
+  const chunks: string[] = []
+  let current = ''
+
+  for (const sentence of sentences) {
+    if (sentence.length > maxChars * 1.35) {
+      if (current) {
+        chunks.push(current)
+        current = ''
+      }
+      chunks.push(...splitLongSpeechChunk(sentence, maxChars))
+      continue
+    }
+
+    const next = current ? `${current} ${sentence}` : sentence
+    if (next.length <= maxChars) {
+      current = next
+      continue
+    }
+
+    if (current)
+      chunks.push(current)
+    current = sentence
+  }
+
+  if (current)
+    chunks.push(current)
+
+  return chunks.length ? chunks : [normalized]
 }
 
 async function waitForVoices() {
@@ -410,6 +472,7 @@ async function playBrowserQueueItem(next: { id: string, text: string }) {
 
   utterance.onend = () => {
     currentUtterance = null
+    currentQueueItemId = null
     state.queue.shift()
     stopLipSync()
     void processQueue()
@@ -417,6 +480,7 @@ async function playBrowserQueueItem(next: { id: string, text: string }) {
 
   utterance.onerror = (event) => {
     currentUtterance = null
+    currentQueueItemId = null
     state.queue.shift()
     state.error = event.error || 'Speech playback failed.'
     stopLipSync()
@@ -797,6 +861,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
       if (currentSource !== source)
         return
 
+      currentQueueItemId = null
       cleanupExternalPlayback()
       state.queue.shift()
       stopLipSync()
@@ -831,6 +896,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
   }
 
   audio.onended = () => {
+    currentQueueItemId = null
     cleanupExternalPlayback()
     state.queue.shift()
     stopLipSync()
@@ -838,6 +904,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
   }
 
   audio.onerror = () => {
+    currentQueueItemId = null
     cleanupExternalPlayback()
     state.queue.shift()
     state.error = 'External TTS playback failed.'
@@ -850,7 +917,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
 }
 
 async function processQueue() {
-  if (currentUtterance || currentAudio || currentFetchController || state.queue.length === 0)
+  if (currentQueueItemId || currentUtterance || currentAudio || currentFetchController || currentSource || state.queue.length === 0)
     return
 
   const next = state.queue[0]
@@ -871,6 +938,7 @@ async function processQueue() {
   }
 
   try {
+    currentQueueItemId = next.id
     if (preferredMode === 'external') {
       await playExternalQueueItem({ ...next, text: normalized })
       return
@@ -881,6 +949,7 @@ async function processQueue() {
       throw new Error('Speech playback unavailable.')
   }
   catch (error) {
+    currentQueueItemId = null
     state.queue.shift()
     cleanupExternalPlayback()
     if (currentFetchTimeoutId) {
@@ -897,14 +966,25 @@ async function processQueue() {
 }
 
 function enqueue(text: string, id: string) {
-  const normalized = text.trim()
-  if (!normalized)
+  const chunks = splitSpeechTextIntoChunks(text)
+  if (!chunks.length)
     return false
 
   if (!state.supported || !state.autoSpeakEnabled)
     return false
 
-  state.queue.push({ id, text: normalized })
+  const queuedIds = new Set([
+    currentQueueItemId,
+    ...state.queue.map(item => item.id),
+  ].filter(Boolean) as string[])
+
+  chunks.forEach((chunk, index) => {
+    const chunkId = `${id}:chunk:${index}`
+    if (queuedIds.has(chunkId))
+      return
+    state.queue.push({ id: chunkId, text: chunk })
+    queuedIds.add(chunkId)
+  })
   void processQueue()
   return true
 }
