@@ -4,6 +4,8 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ConversationMessageItem from '@/components/ConversationMessageItem.vue'
 import CommandGuideOverlay from '@/components/layout/CommandGuideOverlay.vue'
 import { useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
+import { useConversationComposer } from '@/modules/conversation/composer'
+import { EXAMPLE_PROMPTS } from '@/modules/conversation/examples'
 import { useConversationState } from '@/modules/conversation/state'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
@@ -19,31 +21,12 @@ const EMOTE_INDICATOR_COLORS: Record<string, string> = {
 }
 
 const conversation = useConversationState()
+const composerState = useConversationComposer()
 const emoteDebugStore = useEmoteDebugStore()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const wallet = useWalletSession()
-
-const EXAMPLE_PROMPTS = [
-  'hi, who are you?',
-  'what time is it in New York? And in Tokyo?',
-  'give me $BTC fundamentals',
-  'give me the price of $BTC',
-  'give me a $BTC market analysis',
-  'show me a $BTC chart',
-  'give me fundamentals for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
-  'give me the price of 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
-  'give me a market analysis for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
-  'show me a chart for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
-  'what is today’s boosted token?',
-  'what is today’s new listing?',
-  'what is the most mentioned ticker on X today?',
-  'what is the market sentiment right now?',
-  'what is total volume today?',
-  'what is today’s trending token?',
-]
-
-const composer = ref('')
+const composer = composerState.draft
 const messagesRef = ref<HTMLElement | null>(null)
 const composerRef = ref<HTMLTextAreaElement | null>(null)
 const exampleGuideOpen = ref(false)
@@ -68,14 +51,8 @@ function syncComposerHeight() {
 }
 
 function handleSelectExample(prompt: string) {
-  composer.value = prompt
+  composerState.applyExample(prompt)
   exampleGuideOpen.value = false
-  syncComposerHeight()
-  nextTick(() => {
-    composerRef.value?.focus()
-    const length = composer.value.length
-    composerRef.value?.setSelectionRange(length, length)
-  })
 }
 
 function scrollToBottom() {
@@ -92,7 +69,7 @@ async function handleSubmit() {
   if (!text)
     return
 
-  composer.value = ''
+  composerState.clearDraft()
   syncComposerHeight()
   await conversation.sendMessage(text)
   scrollToBottom()
@@ -127,6 +104,14 @@ watch(() => conversation.pendingMessage.value?.statusNote, () => {
 
 watch(composer, () => {
   syncComposerHeight()
+})
+
+watch(() => composerState.focusToken.value, () => {
+  nextTick(() => {
+    composerRef.value?.focus()
+    const length = composer.value.length
+    composerRef.value?.setSelectionRange(length, length)
+  })
 })
 
 onMounted(() => {

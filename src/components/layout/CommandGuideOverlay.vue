@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
   open: boolean
-  prompts?: string[]
+  prompts?: readonly string[]
   showMentionNote?: boolean
 }>()
 

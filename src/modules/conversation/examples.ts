@@ -1,0 +1,18 @@
+export const EXAMPLE_PROMPTS = [
+  'hi, who are you?',
+  'what time is it in New York? And in Tokyo?',
+  'give me $BTC fundamentals',
+  'give me the price of $BTC',
+  'give me a $BTC market analysis',
+  'show me a $BTC chart',
+  'give me fundamentals for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'give me the price of 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'give me a market analysis for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'show me a chart for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'what is today’s boosted token?',
+  'what is today’s new listing?',
+  'what is the most mentioned ticker on X today?',
+  'what is the market sentiment right now?',
+  'what is total volume today?',
+  'what is today’s trending token?',
+] as const

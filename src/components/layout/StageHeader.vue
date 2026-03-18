@@ -6,11 +6,14 @@ import HeaderLink from '@/components/layout/HeaderLink.vue'
 import PacificaTradeButton from '@/components/layout/PacificaTradeButton.vue'
 import WalletConnectButton from '@/components/layout/WalletConnectButton.vue'
 import { useAvatarLighting } from '@/modules/avatar/lighting'
+import { useConversationComposer } from '@/modules/conversation/composer'
+import { EXAMPLE_PROMPTS } from '@/modules/conversation/examples'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useMarketContext } from '@/modules/market/context'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
 
 const lighting = useAvatarLighting()
+const composerState = useConversationComposer()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const marketContext = useMarketContext()
@@ -24,6 +27,11 @@ function toggleAutoSpeak() {
 
 function previewSpeech() {
   speech.preview('Airifica external speech test.')
+}
+
+function handleSelectGuidePrompt(prompt: string) {
+  composerState.applyExample(prompt)
+  guideOpen.value = false
 }
 </script>
 
@@ -175,7 +183,13 @@ function previewSpeech() {
       </div>
   </header>
 
-  <CommandGuideOverlay :open="guideOpen" @close="guideOpen = false" />
+  <CommandGuideOverlay
+    :open="guideOpen"
+    :prompts="EXAMPLE_PROMPTS"
+    :show-mention-note="false"
+    @close="guideOpen = false"
+    @select="handleSelectGuidePrompt"
+  />
 </template>
 
 <style scoped>
