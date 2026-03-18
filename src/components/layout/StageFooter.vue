@@ -124,7 +124,8 @@ function toggleDrawer() {
 }
 
 function handleMouseEnter() {
-  clearHideTimer()
+  if (isExpanded.value)
+    clearHideTimer()
 }
 
 function handleMouseLeave() {
@@ -179,13 +180,12 @@ onBeforeUnmount(() => {
           class="stage-footer__toggle"
           :class="{ 'stage-footer__toggle--open': isExpanded }"
           :aria-expanded="isExpanded"
+          aria-label="Toggle footer"
           @click="toggleDrawer"
         >
-          <span class="stage-footer__toggle-glyph" aria-hidden="true">
-            <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4.25 10.5 9 5.75l4.75 4.75" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </span>
+          <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M4.25 10.5 9 5.75l4.75 4.75" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
 
         <div class="stage-footer__bar-content" :class="{ 'stage-footer__bar-content--open': isExpanded }">
@@ -215,11 +215,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .stage-footer {
-  position: relative;
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
   display: flex;
-  justify-content: center;
-  width: 100%;
-  padding: 0 16px 12px;
+  justify-content: flex-start;
+  width: auto;
   pointer-events: none;
 }
 
@@ -230,46 +232,48 @@ onBeforeUnmount(() => {
 }
 
 .stage-footer__shell {
-  width: 46px;
-  max-width: min(384px, calc(100vw - 24px));
-  transition: width 300ms ease;
+  width: 34px;
+  max-width: calc(100vw - 24px);
+  overflow: visible;
+  transition: width 340ms ease;
 }
 
 .stage-footer__shell--open {
-  width: min(384px, calc(100vw - 24px));
+  width: calc(100vw - 24px);
 }
 
 .stage-footer__drawer {
   overflow: hidden;
   max-height: 0;
   opacity: 0;
-  transform: translateY(28px);
+  transform: translateY(22px);
   transition:
-    max-height 320ms ease,
+    max-height 360ms ease,
     opacity 220ms ease,
-    transform 320ms ease;
+    transform 360ms ease;
 }
 
 .stage-footer__drawer--open {
-  max-height: 280px;
+  max-height: 320px;
   opacity: 1;
   transform: translateY(0);
 }
 
 .stage-footer__main {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2.4fr);
+  gap: 18px;
   align-items: start;
+  width: 100%;
   margin: 0 0 10px;
-  padding: 16px 18px 14px;
+  padding: 16px 18px 15px;
   border: 1px solid rgba(103, 232, 249, 0.16);
   border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(8, 30, 44, 0.72), rgba(5, 20, 31, 0.66)),
-    rgba(6, 25, 39, 0.58);
-  box-shadow: 0 -16px 48px rgba(5, 23, 36, 0.36);
-  backdrop-filter: blur(20px);
+    linear-gradient(180deg, rgba(8, 30, 44, 0.62), rgba(5, 20, 31, 0.54)),
+    rgba(6, 25, 39, 0.38);
+  box-shadow: 0 -14px 40px rgba(5, 23, 36, 0.24);
+  backdrop-filter: blur(18px);
 }
 
 .stage-footer__brand {
@@ -310,10 +314,10 @@ onBeforeUnmount(() => {
 
 .stage-footer__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px 16px;
-  justify-items: start;
-  text-align: left;
+  justify-items: end;
+  text-align: right;
 }
 
 .stage-footer__column h3 {
@@ -354,84 +358,84 @@ onBeforeUnmount(() => {
 }
 
 .stage-footer__bar {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
-  min-height: 58px;
-  padding: 8px;
-  border: 1px solid rgba(103, 232, 249, 0.14);
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid rgba(103, 232, 249, 0.08);
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(7, 28, 42, 0.62), rgba(4, 17, 27, 0.58)),
-    rgba(6, 25, 39, 0.48);
-  box-shadow: 0 -10px 34px rgba(5, 23, 36, 0.28);
-  backdrop-filter: blur(18px);
+    linear-gradient(180deg, rgba(7, 28, 42, 0.16), rgba(4, 17, 27, 0.12)),
+    rgba(6, 25, 39, 0.08);
+  box-shadow: none;
+  backdrop-filter: blur(8px);
   transition:
+    min-height 260ms ease,
     padding 240ms ease,
     border-radius 240ms ease,
-    background 240ms ease;
+    background 240ms ease,
+    border-color 240ms ease,
+    box-shadow 240ms ease,
+    backdrop-filter 240ms ease;
 }
 
 .stage-footer__bar--open {
   justify-content: space-between;
+  width: 100%;
+  min-height: 58px;
   padding: 10px 14px;
+  border-color: rgba(103, 232, 249, 0.14);
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(7, 28, 42, 0.76), rgba(4, 17, 27, 0.72)),
-    rgba(6, 25, 39, 0.6);
+    linear-gradient(180deg, rgba(7, 28, 42, 0.56), rgba(4, 17, 27, 0.52)),
+    rgba(6, 25, 39, 0.28);
+  box-shadow: 0 -10px 34px rgba(5, 23, 36, 0.18);
+  backdrop-filter: blur(16px);
 }
 
 .stage-footer__toggle {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
-  min-height: 30px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
   padding: 0;
   border: 1px solid rgba(103, 232, 249, 0.16);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(8, 23, 35, 0.7);
   color: rgba(240, 249, 255, 0.9);
   cursor: pointer;
   transition:
     color 160ms ease,
     border-color 160ms ease,
     box-shadow 180ms ease,
-    background 160ms ease;
+    background 160ms ease,
+    transform 220ms ease;
 }
 
 .stage-footer__toggle:hover {
   color: #a5f3fc;
   border-color: rgba(103, 232, 249, 0.28);
-  background: rgba(103, 232, 249, 0.08);
+  background: rgba(103, 232, 249, 0.12);
   box-shadow: 0 0 24px rgba(103, 232, 249, 0.22);
 }
 
-.stage-footer__toggle-glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  color: #67e8f9;
-  transition:
-    transform 220ms ease,
-    filter 180ms ease;
-}
-
-.stage-footer__toggle:hover .stage-footer__toggle-glyph {
-  filter: drop-shadow(0 0 10px rgba(103, 232, 249, 0.42));
-}
-
-.stage-footer__toggle--open .stage-footer__toggle-glyph {
+.stage-footer__toggle--open {
   transform: rotate(180deg);
 }
 
-.stage-footer__toggle-glyph svg {
+.stage-footer__toggle svg {
   width: 16px;
   height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .stage-footer__bar-content {
@@ -492,18 +496,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1180px) {
-  .stage-footer {
-    padding-inline: 12px;
-  }
-}
-
-@media (max-width: 980px) {
-  .stage-footer {
-    padding: 12px 12px 14px;
-  }
-
-  .stage-footer__drawer--open {
-    max-height: 440px;
+  .stage-footer__main {
+    grid-template-columns: 1fr;
   }
 
   .stage-footer__grid {
@@ -511,10 +505,36 @@ onBeforeUnmount(() => {
     justify-items: start;
     text-align: left;
   }
+}
+
+@media (max-width: 980px) {
+  .stage-footer {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    padding-top: 12px;
+  }
+
+  .stage-footer__shell {
+    width: 100%;
+  }
+
+  .stage-footer__shell--open {
+    width: 100%;
+  }
+
+  .stage-footer__drawer--open {
+    max-height: 440px;
+  }
 
   .stage-footer__bar {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .stage-footer__bar--open {
+    width: 100%;
   }
 
   .stage-footer__bar-content {

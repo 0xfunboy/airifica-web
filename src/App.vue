@@ -103,7 +103,7 @@ onUnmounted(() => {
   display: flex;
   flex: 1;
   gap: 8px;
-  padding-bottom: calc(var(--stage-footer-bar-height) + 12px);
+  padding-bottom: 0;
 }
 
 .stage-page__scene {
