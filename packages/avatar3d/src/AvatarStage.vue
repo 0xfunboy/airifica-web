@@ -240,6 +240,7 @@ let ambientRequestId = 0
 let breathGestureSessionId = 0
 let breathGestureElapsedSeconds = 0
 let breathGestureRuntimes: BreathGestureRuntime[] = []
+const FACIAL_TRACK_PATTERN = /(expression|blendshape|morph|viseme|mouth|lip|jaw|tongue|teeth|cheek|brow|blink|eyelid)/i
 
 const blink = useBlink()
 const idleEyeSaccades = useIdleEyeSaccades()
@@ -333,6 +334,17 @@ function applyLightingControls() {
     rimLightRef.value.intensity = props.rimIntensity * exposure
   if (fillLightRef.value)
     fillLightRef.value.intensity = props.fillIntensity * exposure
+}
+
+function stripFacialAnimationTracks(clip: AnimationClip) {
+  const sanitizedTracks = clip.tracks.filter(track => !FACIAL_TRACK_PATTERN.test(track.name))
+  if (sanitizedTracks.length === clip.tracks.length)
+    return clip
+
+  const sanitized = clip.clone()
+  sanitized.tracks = sanitizedTracks.map(track => track.clone())
+  sanitized.resetDuration()
+  return sanitized
 }
 
 function setupStage() {
@@ -479,9 +491,10 @@ async function resolveAnimationClip(vrm: VRM, url: string) {
   if (!clip)
     return null
 
-  reAnchorRootPositionTrack(clip, vrm, { axes: { x: true, y: true, z: true } })
-  animationCache.set(url, clip)
-  return clip
+  const sanitizedClip = stripFacialAnimationTracks(clip)
+  reAnchorRootPositionTrack(sanitizedClip, vrm, { axes: { x: true, y: true, z: true } })
+  animationCache.set(url, sanitizedClip)
+  return sanitizedClip
 }
 
 function ensureAnimationMixer(vrm: VRM) {
@@ -856,6 +869,19 @@ function normalizeVisemeWeights(input: Partial<SpeechVisemeWeights> | null | und
   }
 }
 
+function resolveSpeechDominance() {
+  const incoming = normalizeVisemeWeights(props.visemeWeights)
+  const manualStrength = normalizeManualMouthOpen(props.manualMouthOpen)
+  const incomingPeak = Math.max(incoming.A, incoming.E, incoming.I, incoming.O, incoming.U)
+  const currentPeak = Math.max(speechVisemeState.A, speechVisemeState.E, speechVisemeState.I, speechVisemeState.O, speechVisemeState.U)
+  const peak = Math.max(incomingPeak, currentPeak, manualStrength * 0.72)
+  const activeSpeechDominance = props.speaking
+    ? Math.max(0.88, MathUtils.smootherstep(peak, 0.015, 0.18))
+    : MathUtils.smootherstep(peak, 0.05, 0.24)
+
+  return Math.max(0, Math.min(1, activeSpeechDominance))
+}
+
 function applySpeechExpressions(vrm: VRM, delta: number) {
   const manager = vrm.expressionManager
   const bindings = resolvedExpressions.value
@@ -930,7 +956,8 @@ function applyEmotionExpressions(vrm: VRM, delta: number) {
   if (!manager || !bindings)
     return
 
-  const speechBlend = props.speaking ? 0.72 : 1
+  const speechDominance = resolveSpeechDominance()
+  const speechBlend = MathUtils.lerp(1, 0.08, speechDominance)
   const targets = {
     happy: props.expression === 'happy' ? 1 * speechBlend : 0,
     sad: props.expression === 'sad' ? 1 * speechBlend : 0,
@@ -1062,9 +1089,9 @@ function animate() {
     updateBreathGestures(delta)
     applyEyeTracking(vrm, delta)
     applyHeadTracking(vrm, delta)
+    blink.update(vrm, delta)
     applyEmotionExpressions(vrm, delta)
     applySpeechExpressions(vrm, delta)
-    blink.update(vrm, delta)
     vrm.update(delta)
   }
 
