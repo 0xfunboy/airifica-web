@@ -42,6 +42,11 @@ type ExternalSpeechResponse = {
   timestamps: SpeechWordTimestamp[] | null
 }
 
+type ExternalSpeechStreamResponse = {
+  response: Response
+  requestId: string
+}
+
 function getStorageScope() {
   return typeof window === 'undefined' ? null : window.localStorage
 }
@@ -141,6 +146,7 @@ let audioUnlockBound = false
 let mouthFrameId: number | undefined
 let activeVisemeTimeline: SpeechVisemeFrame[] | null = null
 let currentQueueItemId: string | null = null
+const currentStreamSources = new Set<AudioBufferSourceNode>()
 
 function persistSettings() {
   writeStorage(getStorageScope(), AUTO_SPEAK_KEY, state.autoSpeakEnabled)
@@ -255,6 +261,16 @@ function startSpeechLipSync(clock: PlaybackClock, timeline: SpeechVisemeFrame[],
 }
 
 function cleanupExternalPlayback() {
+  for (const source of currentStreamSources) {
+    try {
+      source.stop()
+    }
+    catch {
+    }
+    source.disconnect()
+  }
+  currentStreamSources.clear()
+
   if (currentSource) {
     try {
       currentSource.stop()
@@ -550,6 +566,20 @@ function buildExternalSpeechPayload(text: string) {
       }
 }
 
+function buildExternalSpeechStreamPayload(text: string) {
+  return {
+    model: appConfig.ttsModel,
+    voice: appConfig.ttsVoice,
+    input: text,
+    response_format: appConfig.ttsStreamFormat,
+    format: appConfig.ttsStreamFormat,
+    speed: appConfig.ttsSpeedFactor,
+    seed: appConfig.ttsSeed ? Number(appConfig.ttsSeed) : undefined,
+    lang_code: appConfig.ttsPhonemeLanguage,
+    stream: true,
+  }
+}
+
 function createExternalSpeechHeaders(text: string, requestId: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -824,6 +854,231 @@ async function fetchExternalSpeech(text: string): Promise<ExternalSpeechResponse
   }
 }
 
+async function fetchExternalSpeechStream(text: string): Promise<ExternalSpeechStreamResponse> {
+  if (!appConfig.ttsSpeechUrl)
+    throw new Error('External TTS endpoint is not configured.')
+
+  currentFetchController?.abort('restart')
+  currentFetchController = new AbortController()
+  if (currentFetchTimeoutId) {
+    window.clearTimeout(currentFetchTimeoutId)
+    currentFetchTimeoutId = undefined
+  }
+
+  const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `tts-stream-${Date.now()}`
+  const headers = createExternalSpeechHeaders(text, requestId)
+
+  console.info('[airifica][tts] stream:start', {
+    requestId,
+    provider: appConfig.ttsProvider,
+    url: appConfig.ttsSpeechUrl,
+    chars: text.length,
+    format: appConfig.ttsStreamFormat,
+  })
+
+  currentFetchTimeoutId = window.setTimeout(() => {
+    currentFetchController?.abort('tts-stream-timeout')
+  }, 120_000)
+
+  const response = await fetch(appConfig.ttsSpeechUrl, {
+    method: 'POST',
+    headers,
+    signal: currentFetchController.signal,
+    body: JSON.stringify(buildExternalSpeechStreamPayload(text)),
+  })
+
+  if (currentFetchTimeoutId) {
+    window.clearTimeout(currentFetchTimeoutId)
+    currentFetchTimeoutId = undefined
+  }
+
+  if (!response.ok) {
+    let details = ''
+    try {
+      const contentType = response.headers.get('content-type') || ''
+      details = contentType.includes('application/json')
+        ? String((await response.json() as Record<string, unknown>).detail || '')
+        : await response.text()
+    }
+    catch {
+    }
+    currentFetchController = null
+    throw new Error(details || `External TTS stream failed with ${response.status} ${response.statusText}.`)
+  }
+
+  return { response, requestId }
+}
+
+function decodePcm16Chunk(context: AudioContext, chunk: Uint8Array, sampleRate: number) {
+  const usableBytes = chunk.byteLength - (chunk.byteLength % 2)
+  if (usableBytes <= 0)
+    return null
+
+  const samples = usableBytes / 2
+  const buffer = context.createBuffer(1, samples, sampleRate)
+  const channel = buffer.getChannelData(0)
+  const view = new DataView(chunk.buffer, chunk.byteOffset, usableBytes)
+
+  for (let index = 0; index < samples; index += 1)
+    channel[index] = view.getInt16(index * 2, true) / 32768
+
+  return buffer
+}
+
+function appendUint8Chunks(chunks: Uint8Array[]) {
+  const totalBytes = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0)
+  const merged = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return merged
+}
+
+async function playExternalStreamQueueItem(next: { id: string, text: string }) {
+  if (!canUseExternalSpeech())
+    return false
+
+  const context = await ensureOutputAudioContext()
+  if (!context) {
+    currentQueueItemId = null
+    return false
+  }
+
+  const lipSyncNode = await ensureOutputLipSyncNode(context)
+    .catch((error) => {
+      console.warn('[airifica][tts] lip sync node unavailable', error)
+      return null
+    })
+
+  const { response, requestId } = await fetchExternalSpeechStream(next.text)
+  const reader = response.body?.getReader()
+  if (!reader) {
+    currentFetchController = null
+    throw new Error('External TTS stream returned no readable body.')
+  }
+
+  state.activeMode = 'external'
+  const streamStartAt = context.currentTime + 0.06
+  let scheduledUntil = streamStartAt
+  let playbackCommitted = false
+  let pendingBytes = new Uint8Array()
+  const chunkBytes = Math.max(2048, Math.round(appConfig.ttsStreamSampleRate * (appConfig.ttsStreamChunkMs / 1000) * 2))
+  let streamClosed = false
+  let finalized = false
+
+  currentPlaybackClock = {
+    currentTime: () => Math.max(0, context.currentTime - streamStartAt),
+    playing: () => currentQueueItemId === next.id && (!streamClosed || currentStreamSources.size > 0 || context.currentTime < scheduledUntil),
+  }
+  startSpeechLipSync(currentPlaybackClock, [], lipSyncNode)
+
+  const finalize = (error?: unknown) => {
+    if (finalized || currentQueueItemId !== next.id)
+      return
+
+    finalized = true
+    currentQueueItemId = null
+    currentFetchController = null
+    currentPlaybackClock = null
+    currentLipSyncNode = null
+    activeVisemeTimeline = null
+    currentSource = null
+    if (currentGain) {
+      currentGain.disconnect()
+      currentGain = null
+    }
+
+    if (error) {
+      state.queue.shift()
+      state.error = error instanceof Error ? error.message : 'External TTS stream failed.'
+      stopLipSync()
+      void processQueue()
+      return
+    }
+
+    state.queue.shift()
+    stopLipSync()
+    void processQueue()
+  }
+
+  const scheduleChunk = (pcmChunk: Uint8Array) => {
+    const audioBuffer = decodePcm16Chunk(context, pcmChunk, appConfig.ttsStreamSampleRate)
+    if (!audioBuffer)
+      return
+
+    const source = context.createBufferSource()
+    const gain = context.createGain()
+    source.buffer = audioBuffer
+    source.connect(gain)
+    if (lipSyncNode)
+      source.connect(lipSyncNode as AudioNode)
+    gain.connect(context.destination)
+
+    currentSource = source
+    currentGain = gain
+    currentStreamSources.add(source)
+    const sourceStartAt = Math.max(scheduledUntil, context.currentTime + 0.02)
+    scheduledUntil = sourceStartAt + audioBuffer.duration
+
+    source.onended = () => {
+      currentStreamSources.delete(source)
+      if (currentSource === source)
+        currentSource = null
+      source.disconnect()
+      gain.disconnect()
+      if (streamClosed && currentStreamSources.size === 0)
+        finalize()
+    }
+
+    source.start(sourceStartAt)
+    playbackCommitted = true
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done)
+        break
+      if (!value?.byteLength)
+        continue
+
+      pendingBytes = appendUint8Chunks([pendingBytes, value])
+      while (pendingBytes.byteLength >= chunkBytes) {
+        scheduleChunk(pendingBytes.slice(0, chunkBytes))
+        pendingBytes = pendingBytes.slice(chunkBytes)
+      }
+    }
+
+    if (pendingBytes.byteLength > 1)
+      scheduleChunk(pendingBytes)
+
+    streamClosed = true
+    if (!playbackCommitted)
+      throw new Error('External TTS stream returned no playable PCM data.')
+
+    if (currentStreamSources.size === 0)
+      finalize()
+
+    return true
+  }
+  catch (error) {
+    streamClosed = true
+    cleanupExternalPlayback()
+    finalize(error)
+    return false
+  }
+  finally {
+    if (currentFetchTimeoutId) {
+      window.clearTimeout(currentFetchTimeoutId)
+      currentFetchTimeoutId = undefined
+    }
+  }
+}
+
 async function playExternalQueueItem(next: { id: string, text: string }) {
   if (!canUseExternalSpeech())
     return false
@@ -940,6 +1195,11 @@ async function processQueue() {
   try {
     currentQueueItemId = next.id
     if (preferredMode === 'external') {
+      if (appConfig.ttsStreamEnabled && appConfig.ttsStreamFormat === 'pcm') {
+        const streamed = await playExternalStreamQueueItem({ ...next, text: normalized })
+        if (streamed || currentQueueItemId !== next.id)
+          return
+      }
       await playExternalQueueItem({ ...next, text: normalized })
       return
     }
