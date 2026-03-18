@@ -40,7 +40,7 @@ import {
 } from '@pixiv/three-vrm'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 
-import { animationUrls, BREATH_SOURCE_URL, BREATH_URL, NO_ANIM_URL } from './assets'
+import { animationUrls, BREATH_ORGANIC_SOURCE_URL, BREATH_SOURCE_URL, BREATH_URL, NO_ANIM_URL } from './assets'
 import { clipFromVRMAnimation, ensureLookAtTarget, loadVRMAnimation, reAnchorRootPositionTrack, useBlink, useIdleEyeSaccades } from './animation'
 import { useVRMLoader } from './loader'
 import { createBreathClip } from './proceduralIdle'
@@ -106,7 +106,8 @@ type BreathGestureRuntime = {
   label: string
   sourceUrl: string
   excerptSeconds?: number
-  intervalSeconds: number
+  intervalMinSeconds: number
+  intervalMaxSeconds: number
   fadeInSeconds: number
   fadeOutSeconds: number
   peakWeight?: number
@@ -144,7 +145,8 @@ const BREATH_GESTURE_SPECS = [
     label: 'BlingBangBangBorn',
     sourceUrl: animationUrls.BlingBangBangBorn,
     excerptSeconds: 4,
-    intervalSeconds: 125,
+    intervalMinSeconds: 54,
+    intervalMaxSeconds: 74,
     fadeInSeconds: 0.75,
     fadeOutSeconds: 1.1,
   },
@@ -153,7 +155,8 @@ const BREATH_GESTURE_SPECS = [
     label: 'CherryPop',
     sourceUrl: animationUrls.CherryPop,
     excerptSeconds: 2.5,
-    intervalSeconds: 25,
+    intervalMinSeconds: 18,
+    intervalMaxSeconds: 26,
     fadeInSeconds: 0.6,
     fadeOutSeconds: 0.9,
   },
@@ -162,7 +165,8 @@ const BREATH_GESTURE_SPECS = [
     label: 'LoveScream',
     sourceUrl: animationUrls.LoveScream,
     excerptSeconds: 3,
-    intervalSeconds: 33,
+    intervalMinSeconds: 24,
+    intervalMaxSeconds: 34,
     fadeInSeconds: 0.55,
     fadeOutSeconds: 0.85,
   },
@@ -170,18 +174,10 @@ const BREATH_GESTURE_SPECS = [
     key: 'dance-arm-wave',
     label: 'DanceArmWave',
     sourceUrl: animationUrls.DanceArmWave,
-    intervalSeconds: 307,
+    intervalMinSeconds: 38,
+    intervalMaxSeconds: 58,
     fadeInSeconds: 0.8,
     fadeOutSeconds: 1.2,
-  },
-  {
-    key: 'dance-hip-swing',
-    label: 'DanceHipSwing',
-    sourceUrl: animationUrls.DanceHipSwing,
-    intervalSeconds: 543,
-    fadeInSeconds: 1.1,
-    fadeOutSeconds: 1.05,
-    peakWeight: 0.82,
   },
 ] as const
 
@@ -696,11 +692,14 @@ async function resolveAnimationClip(vrm: VRM, url: string) {
     return null
 
   if (url === BREATH_URL) {
-    const source = await resolveAnimationClip(vrm, BREATH_SOURCE_URL)
+    const [source, organicSource] = await Promise.all([
+      resolveAnimationClip(vrm, BREATH_SOURCE_URL),
+      resolveAnimationClip(vrm, BREATH_ORGANIC_SOURCE_URL),
+    ])
     if (!source)
       return null
 
-    const clip = createBreathClip(vrm, source)
+    const clip = createBreathClip(vrm, source, organicSource)
     if (!clip)
       return null
 
@@ -832,6 +831,18 @@ function stopBreathGestureAction(runtime: BreathGestureRuntime) {
   runtime.fadeOutStarted = false
 }
 
+function rollBreathGestureInterval(runtime: Pick<BreathGestureRuntime, 'intervalMinSeconds' | 'intervalMaxSeconds'>) {
+  const minInterval = Math.max(1, runtime.intervalMinSeconds)
+  const maxInterval = Math.max(minInterval, runtime.intervalMaxSeconds)
+  return MathUtils.randFloat(minInterval, maxInterval)
+}
+
+function scheduleBreathGesture(runtime: BreathGestureRuntime, initial = false) {
+  const intervalSeconds = rollBreathGestureInterval(runtime)
+  const initialScale = initial ? 0.88 : 1
+  runtime.nextTriggerAt = breathGestureElapsedSeconds + (intervalSeconds * initialScale)
+}
+
 function resetBreathGestureState() {
   breathGestureSessionId += 1
   breathGestureElapsedSeconds = 0
@@ -846,7 +857,7 @@ function initializeBreathGestureState(vrm?: VRM) {
   breathGestureRuntimes = BREATH_GESTURE_SPECS.map(spec => ({
     ...spec,
     action: null,
-    nextTriggerAt: spec.intervalSeconds,
+    nextTriggerAt: 0,
     endsAt: null,
     fadeOutAt: null,
     activeFadeInSeconds: 0,
@@ -855,6 +866,9 @@ function initializeBreathGestureState(vrm?: VRM) {
     clipDuration: 0,
     fadeOutStarted: false,
   }))
+
+  for (const runtime of breathGestureRuntimes)
+    scheduleBreathGesture(runtime, true)
 
   if (vrm) {
     for (const runtime of breathGestureRuntimes)
@@ -874,9 +888,7 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
     return
 
   const activeFadeInSeconds = Math.min(runtime.fadeInSeconds, Math.max(0.18, clip.duration * 0.24))
-  const activeFadeOutSeconds = runtime.key === 'dance-hip-swing'
-    ? Math.min(runtime.fadeOutSeconds, Math.max(0.2, clip.duration * 0.22))
-    : Math.min(runtime.fadeOutSeconds, Math.max(0.18, clip.duration * 0.3))
+  const activeFadeOutSeconds = Math.min(runtime.fadeOutSeconds, Math.max(0.18, clip.duration * 0.3))
   const peakWeight = runtime.peakWeight ?? 1
   const action = mixer.clipAction(clip)
   action.stop()
@@ -894,7 +906,7 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
   runtime.activeFadeOutSeconds = activeFadeOutSeconds
   runtime.startedAt = breathGestureElapsedSeconds
   runtime.clipDuration = clip.duration
-  runtime.nextTriggerAt += runtime.intervalSeconds
+  scheduleBreathGesture(runtime)
   runtime.endsAt = breathGestureElapsedSeconds + clip.duration
   runtime.fadeOutAt = Math.max(breathGestureElapsedSeconds, runtime.endsAt - activeFadeOutSeconds)
   action.setEffectiveWeight(Math.max(peakWeight * 0.02, 0.001))

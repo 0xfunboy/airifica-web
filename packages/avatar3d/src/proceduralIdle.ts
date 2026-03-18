@@ -13,6 +13,7 @@ import {
 const DURATION_SECONDS = 24
 const FPS = 30
 const LOOP_FADE_SECONDS = 2.4
+const TIMES = createTimeline(DURATION_SECONDS, FPS)
 
 const BASE_POSE_BONES: VRMHumanBoneName[] = [
   'hips',
@@ -46,20 +47,36 @@ type MotionComponent = {
   phase?: number
 }
 
+type PositionMotionComponent = {
+  axis: 'x' | 'y' | 'z'
+  amplitude: number
+  periodSeconds: number
+  phase?: number
+}
+
 type PoseSample = {
   position?: Vector3
   quaternion?: Quaternion
 }
 
+type ClipBinding = {
+  position?: {
+    initial: Vector3
+    track: VectorKeyframeTrack
+  }
+  quaternion?: {
+    initial: Quaternion
+    track: QuaternionKeyframeTrack
+  }
+}
+
 function createTimeline(durationSeconds: number, fps: number) {
   const frameCount = durationSeconds * fps + 1
   const times = new Float32Array(frameCount)
-  for (let i = 0; i < frameCount; i += 1)
-    times[i] = i / fps
+  for (let index = 0; index < frameCount; index += 1)
+    times[index] = index / fps
   return times
 }
-
-const TIMES = createTimeline(DURATION_SECONDS, FPS)
 
 function trackNodeName(trackName: string) {
   return trackName.replace(/\.(position|quaternion)$/, '')
@@ -120,6 +137,108 @@ function gatherBasePose(vrm: VRMCore, sourceClip: AnimationClip) {
   return pose
 }
 
+function gatherClipBindings(clip: AnimationClip) {
+  const bindings = new Map<string, ClipBinding>()
+
+  for (const track of clip.tracks) {
+    const nodeName = trackNodeName(track.name)
+    const binding = bindings.get(nodeName) ?? {}
+
+    if (track instanceof QuaternionKeyframeTrack && track.values.length >= 4) {
+      binding.quaternion = {
+        initial: new Quaternion(
+          track.values[0],
+          track.values[1],
+          track.values[2],
+          track.values[3],
+        ).normalize(),
+        track,
+      }
+    }
+    else if (track instanceof VectorKeyframeTrack && track.values.length >= 3) {
+      binding.position = {
+        initial: new Vector3(
+          track.values[0],
+          track.values[1],
+          track.values[2],
+        ),
+        track,
+      }
+    }
+
+    bindings.set(nodeName, binding)
+  }
+
+  return bindings
+}
+
+function sampleLoopedTime(timeSeconds: number, durationSeconds: number) {
+  if (durationSeconds <= 0)
+    return 0
+
+  const wrapped = timeSeconds % durationSeconds
+  return wrapped < 0 ? wrapped + durationSeconds : wrapped
+}
+
+function findTrackSegment(times: ArrayLike<number>, sampleTime: number) {
+  const count = times.length
+  if (count <= 1)
+    return { leftIndex: 0, rightIndex: 0, alpha: 0 }
+
+  if (sampleTime <= times[0])
+    return { leftIndex: 0, rightIndex: 0, alpha: 0 }
+
+  if (sampleTime >= times[count - 1])
+    return { leftIndex: count - 1, rightIndex: count - 1, alpha: 0 }
+
+  let leftIndex = 0
+  let rightIndex = count - 1
+
+  while (rightIndex - leftIndex > 1) {
+    const middleIndex = Math.floor((leftIndex + rightIndex) / 2)
+    if (times[middleIndex] <= sampleTime)
+      leftIndex = middleIndex
+    else
+      rightIndex = middleIndex
+  }
+
+  const startTime = times[leftIndex]
+  const endTime = times[rightIndex]
+  const alpha = endTime > startTime
+    ? (sampleTime - startTime) / (endTime - startTime)
+    : 0
+
+  return { leftIndex, rightIndex, alpha }
+}
+
+function sampleBindingQuaternion(binding: ClipBinding['quaternion'], durationSeconds: number, timeSeconds: number) {
+  if (!binding)
+    return null
+
+  const sampleTime = sampleLoopedTime(timeSeconds, durationSeconds)
+  const { leftIndex, rightIndex, alpha } = findTrackSegment(binding.track.times, sampleTime)
+  const leftOffset = leftIndex * 4
+  const rightOffset = rightIndex * 4
+  const leftQuaternion = new Quaternion(
+    binding.track.values[leftOffset] ?? binding.initial.x,
+    binding.track.values[leftOffset + 1] ?? binding.initial.y,
+    binding.track.values[leftOffset + 2] ?? binding.initial.z,
+    binding.track.values[leftOffset + 3] ?? binding.initial.w,
+  ).normalize()
+
+  if (leftIndex === rightIndex)
+    return leftQuaternion
+
+  const rightQuaternion = new Quaternion(
+    binding.track.values[rightOffset] ?? binding.initial.x,
+    binding.track.values[rightOffset + 1] ?? binding.initial.y,
+    binding.track.values[rightOffset + 2] ?? binding.initial.z,
+    binding.track.values[rightOffset + 3] ?? binding.initial.w,
+  ).normalize()
+
+  return leftQuaternion.slerp(rightQuaternion, alpha).normalize()
+}
+
 function buildConstantQuaternionTrack(trackName: string, quaternion: Quaternion) {
   const values = new Float32Array(TIMES.length * 4)
   for (let index = 0; index < TIMES.length; index += 1) {
@@ -132,12 +251,27 @@ function buildConstantQuaternionTrack(trackName: string, quaternion: Quaternion)
   return new QuaternionKeyframeTrack(trackName, TIMES, values)
 }
 
-function buildAnimatedQuaternionTrack(trackName: string, baseQuaternion: Quaternion, components: MotionComponent[]) {
+function buildAnimatedQuaternionTrack(
+  trackName: string,
+  baseQuaternion: Quaternion,
+  components: MotionComponent[],
+  options?: {
+    organicBinding?: ClipBinding['quaternion']
+    organicDurationSeconds?: number
+    organicWeight?: number
+  },
+) {
   const values = new Float32Array(TIMES.length * 4)
   const animated = new Quaternion()
   const delta = new Quaternion()
+  const organicCurrent = new Quaternion()
+  const organicDelta = new Quaternion()
+  const organicWeighted = new Quaternion()
+  const identityQuaternion = new Quaternion()
   const euler = new Euler(0, 0, 0, 'XYZ')
   const offset = { x: 0, y: 0, z: 0 }
+  const organicDurationSeconds = options?.organicDurationSeconds ?? 0
+  const organicWeight = Math.max(0, Math.min(1, options?.organicWeight ?? 0))
 
   for (let index = 0; index < TIMES.length; index += 1) {
     const timeSeconds = TIMES[index]
@@ -153,9 +287,21 @@ function buildAnimatedQuaternionTrack(trackName: string, baseQuaternion: Quatern
       offset[component.axis] += contribution
     }
 
+    animated.copy(baseQuaternion)
+
+    if (options?.organicBinding && organicDurationSeconds > 0 && organicWeight > 0) {
+      const sampledQuaternion = sampleBindingQuaternion(options.organicBinding, organicDurationSeconds, timeSeconds)
+      if (sampledQuaternion) {
+        organicCurrent.copy(sampledQuaternion)
+        organicDelta.copy(options.organicBinding.initial).invert().multiply(organicCurrent).normalize()
+        organicWeighted.slerpQuaternions(identityQuaternion, organicDelta, organicWeight * envelope)
+        animated.multiply(organicWeighted).normalize()
+      }
+    }
+
     euler.set(offset.x, offset.y, offset.z, 'XYZ')
     delta.setFromEuler(euler)
-    animated.copy(baseQuaternion).multiply(delta).normalize()
+    animated.multiply(delta).normalize()
 
     const valueOffset = index * 4
     values[valueOffset] = animated.x
@@ -178,25 +324,78 @@ function buildConstantPositionTrack(trackName: string, position: Vector3) {
   return new VectorKeyframeTrack(trackName, TIMES, values)
 }
 
+function buildAnimatedPositionTrack(
+  trackName: string,
+  basePosition: Vector3,
+  components: PositionMotionComponent[],
+) {
+  const values = new Float32Array(TIMES.length * 3)
+  const animated = new Vector3()
+  const offset = { x: 0, y: 0, z: 0 }
+
+  for (let index = 0; index < TIMES.length; index += 1) {
+    const timeSeconds = TIMES[index]
+    const envelope = loopEnvelope(timeSeconds)
+    offset.x = 0
+    offset.y = 0
+    offset.z = 0
+
+    for (const component of components) {
+      const contribution = component.amplitude
+        * loopedWave(timeSeconds, component.periodSeconds, component.phase)
+        * envelope
+      offset[component.axis] += contribution
+    }
+
+    animated.copy(basePosition).add(new Vector3(offset.x, offset.y, offset.z))
+
+    const valueOffset = index * 3
+    values[valueOffset] = animated.x
+    values[valueOffset + 1] = animated.y
+    values[valueOffset + 2] = animated.z
+  }
+
+  return new VectorKeyframeTrack(trackName, TIMES, values)
+}
+
 function resolveNodeName(vrm: VRMCore, boneName: VRMHumanBoneName) {
   return vrm.humanoid?.getNormalizedBoneNode(boneName)?.name ?? null
 }
 
-export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip) {
+export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organicClip?: AnimationClip | null) {
   const pose = gatherBasePose(vrm, sourceClip)
   if (pose.size === 0)
     return null
 
+  const organicBindings = organicClip ? gatherClipBindings(organicClip) : null
+  const organicDurationSeconds = organicClip?.duration ?? 0
   const motionByNode = new Map<string, MotionComponent[]>()
+  const positionMotionByNode = new Map<string, PositionMotionComponent[]>()
+  const organicWeightByNode = new Map<string, number>()
   const addMotion = (boneName: VRMHumanBoneName, components: MotionComponent[]) => {
     const nodeName = resolveNodeName(vrm, boneName)
     if (nodeName)
       motionByNode.set(nodeName, components)
   }
+  const addPositionMotion = (boneName: VRMHumanBoneName, components: PositionMotionComponent[]) => {
+    const nodeName = resolveNodeName(vrm, boneName)
+    if (nodeName)
+      positionMotionByNode.set(nodeName, components)
+  }
+  const addOrganicInfluence = (boneName: VRMHumanBoneName, weight: number) => {
+    const nodeName = resolveNodeName(vrm, boneName)
+    if (nodeName)
+      organicWeightByNode.set(nodeName, weight)
+  }
 
   addMotion('hips', [
+    { axis: 'x', amplitudeDeg: 0.35, periodSeconds: 4.8, phase: Math.PI / 8 },
     { axis: 'z', amplitudeDeg: 0.7, periodSeconds: 18, phase: Math.PI / 3 },
     { axis: 'y', amplitudeDeg: 0.45, periodSeconds: 24, phase: Math.PI },
+  ])
+  addPositionMotion('hips', [
+    { axis: 'y', amplitude: 0.0055, periodSeconds: 4.8, phase: 0 },
+    { axis: 'x', amplitude: 0.003, periodSeconds: 12, phase: Math.PI / 2 },
   ])
   addMotion('spine', [
     { axis: 'x', amplitudeDeg: 0.85, periodSeconds: 4.8, phase: Math.PI / 6 },
@@ -242,21 +441,73 @@ export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip) {
   addMotion('rightLowerArm', [{ axis: 'x', amplitudeDeg: 0.2, periodSeconds: 6.5, phase: Math.PI / 5 }])
   addMotion('leftHand', [{ axis: 'x', amplitudeDeg: 0.15, periodSeconds: 9, phase: Math.PI / 3 }])
   addMotion('rightHand', [{ axis: 'x', amplitudeDeg: 0.15, periodSeconds: 9, phase: Math.PI * 0.9 }])
+  addMotion('leftUpperLeg', [
+    { axis: 'x', amplitudeDeg: 0.28, periodSeconds: 5.4, phase: Math.PI / 9 },
+    { axis: 'z', amplitudeDeg: 0.18, periodSeconds: 16, phase: Math.PI / 5 },
+  ])
+  addMotion('rightUpperLeg', [
+    { axis: 'x', amplitudeDeg: 0.28, periodSeconds: 5.4, phase: Math.PI + Math.PI / 9 },
+    { axis: 'z', amplitudeDeg: 0.18, periodSeconds: 16, phase: Math.PI + Math.PI / 5 },
+  ])
+  addMotion('leftLowerLeg', [{ axis: 'x', amplitudeDeg: 0.16, periodSeconds: 5.4, phase: Math.PI / 4 }])
+  addMotion('rightLowerLeg', [{ axis: 'x', amplitudeDeg: 0.16, periodSeconds: 5.4, phase: Math.PI + Math.PI / 4 }])
+  addMotion('leftFoot', [
+    { axis: 'x', amplitudeDeg: 0.12, periodSeconds: 6.2, phase: Math.PI / 3 },
+    { axis: 'z', amplitudeDeg: 0.08, periodSeconds: 18, phase: Math.PI * 0.8 },
+  ])
+  addMotion('rightFoot', [
+    { axis: 'x', amplitudeDeg: 0.12, periodSeconds: 6.2, phase: Math.PI + Math.PI / 3 },
+    { axis: 'z', amplitudeDeg: 0.08, periodSeconds: 18, phase: Math.PI * 1.8 },
+  ])
+  addMotion('leftToes', [{ axis: 'x', amplitudeDeg: 0.08, periodSeconds: 6.4, phase: Math.PI / 2 }])
+  addMotion('rightToes', [{ axis: 'x', amplitudeDeg: 0.08, periodSeconds: 6.4, phase: Math.PI * 1.5 }])
+
+  addOrganicInfluence('hips', 0.08)
+  addOrganicInfluence('spine', 0.16)
+  addOrganicInfluence('chest', 0.22)
+  addOrganicInfluence('upperChest', 0.28)
+  addOrganicInfluence('neck', 0.12)
+  addOrganicInfluence('head', 0.08)
+  addOrganicInfluence('leftShoulder', 0.22)
+  addOrganicInfluence('rightShoulder', 0.22)
+  addOrganicInfluence('leftUpperArm', 0.18)
+  addOrganicInfluence('rightUpperArm', 0.18)
+  addOrganicInfluence('leftLowerArm', 0.12)
+  addOrganicInfluence('rightLowerArm', 0.12)
+  addOrganicInfluence('leftHand', 0.05)
+  addOrganicInfluence('rightHand', 0.05)
+  addOrganicInfluence('leftUpperLeg', 0.06)
+  addOrganicInfluence('rightUpperLeg', 0.06)
+  addOrganicInfluence('leftLowerLeg', 0.04)
+  addOrganicInfluence('rightLowerLeg', 0.04)
 
   const tracks = Array.from(pose.entries()).flatMap(([nodeName, sample]) => {
     const nextTracks = []
 
-    if (sample.position)
-      nextTracks.push(buildConstantPositionTrack(`${nodeName}.position`, sample.position))
+    if (sample.position) {
+      const positionMotion = positionMotionByNode.get(nodeName)
+      if (positionMotion?.length)
+        nextTracks.push(buildAnimatedPositionTrack(`${nodeName}.position`, sample.position, positionMotion))
+      else
+        nextTracks.push(buildConstantPositionTrack(`${nodeName}.position`, sample.position))
+    }
 
     if (!sample.quaternion)
       return nextTracks
 
-    const motion = motionByNode.get(nodeName)
-    if (motion?.length)
-      nextTracks.push(buildAnimatedQuaternionTrack(`${nodeName}.quaternion`, sample.quaternion, motion))
-    else
+    const motion = motionByNode.get(nodeName) ?? []
+    const organicBinding = organicBindings?.get(nodeName)?.quaternion
+    const organicWeight = organicWeightByNode.get(nodeName) ?? 0
+    if (motion.length || (organicBinding && organicWeight > 0)) {
+      nextTracks.push(buildAnimatedQuaternionTrack(`${nodeName}.quaternion`, sample.quaternion, motion, {
+        organicBinding,
+        organicDurationSeconds,
+        organicWeight,
+      }))
+    }
+    else {
       nextTracks.push(buildConstantQuaternionTrack(`${nodeName}.quaternion`, sample.quaternion))
+    }
 
     return nextTracks
   })

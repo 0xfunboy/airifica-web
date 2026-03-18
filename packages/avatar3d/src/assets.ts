@@ -13,3 +13,4 @@ export const animationUrls = {
 export type AmbientAnimationName = keyof typeof animationUrls
 
 export const BREATH_SOURCE_URL = animationUrls.DanceStepping
+export const BREATH_ORGANIC_SOURCE_URL = animationUrls.DanceArmWave
