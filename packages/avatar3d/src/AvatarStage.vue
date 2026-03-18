@@ -121,6 +121,18 @@ type BreathGestureRuntime = {
   fadeOutStarted: boolean
 }
 
+type LoadParticle = {
+  x: number
+  y: number
+  previousX: number
+  previousY: number
+  velocityX: number
+  velocityY: number
+  age: number
+  duration: number
+  radius: number
+}
+
 const BREATH_GESTURE_SPECS = [
   {
     key: 'bling-bang-bang-born',
@@ -169,6 +181,7 @@ const BREATH_GESTURE_SPECS = [
 ] as const
 
 const hostRef = ref<HTMLDivElement | null>(null)
+const loadFieldRef = ref<HTMLCanvasElement | null>(null)
 const rendererRef = shallowRef<WebGLRenderer>()
 const cameraRef = shallowRef<PerspectiveCamera>()
 const sceneRef = shallowRef<Scene>()
@@ -242,6 +255,8 @@ let ambientRequestId = 0
 let breathGestureSessionId = 0
 let breathGestureElapsedSeconds = 0
 let breathGestureRuntimes: BreathGestureRuntime[] = []
+let loadFieldSpawnAccumulator = 0
+const loadFieldParticles: LoadParticle[] = []
 const FACIAL_TRACK_PATTERN = /(expression|blendshape|morph|viseme|mouth|lip|jaw|tongue|teeth|cheek|brow|blink|eyelid)/i
 
 const blink = useBlink()
@@ -420,6 +435,165 @@ function syncSize() {
   rendererRef.value.setSize(bounds.width, bounds.height, false)
   cameraRef.value.aspect = bounds.width / bounds.height
   cameraRef.value.updateProjectionMatrix()
+  syncLoadFieldSize(bounds.width, bounds.height)
+}
+
+function syncLoadFieldSize(width?: number, height?: number) {
+  const canvas = loadFieldRef.value
+  const host = hostRef.value
+  if (!canvas || !host)
+    return
+
+  const bounds = width && height
+    ? { width, height }
+    : host.getBoundingClientRect()
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75)
+  const targetWidth = Math.max(1, Math.round(bounds.width * pixelRatio))
+  const targetHeight = Math.max(1, Math.round(bounds.height * pixelRatio))
+
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+  }
+
+  canvas.style.width = `${bounds.width}px`
+  canvas.style.height = `${bounds.height}px`
+}
+
+function resetLoadField() {
+  loadFieldSpawnAccumulator = 0
+  loadFieldParticles.length = 0
+
+  const canvas = loadFieldRef.value
+  const context = canvas?.getContext('2d')
+  if (canvas && context)
+    context.clearRect(0, 0, canvas.width, canvas.height)
+}
+
+function spawnLoadParticle(width: number, height: number) {
+  const bandX = width * 0.5 + (Math.random() - 0.5) * width * 0.065
+  const bandY = height * (0.16 + Math.random() * 0.68)
+  const edge = Math.floor(Math.random() * 4)
+  let x = bandX
+  let y = bandY
+
+  if (edge === 0) {
+    x = -24
+    y = Math.random() * height
+  }
+  else if (edge === 1) {
+    x = width + 24
+    y = Math.random() * height
+  }
+  else if (edge === 2) {
+    x = Math.random() * width
+    y = -20
+  }
+  else {
+    x = Math.random() * width
+    y = height + 20
+  }
+
+  const duration = 0.85 + Math.random() * 1.45
+  loadFieldParticles.push({
+    x,
+    y,
+    previousX: x,
+    previousY: y,
+    velocityX: (bandX - x) / duration,
+    velocityY: (bandY - y) / duration,
+    age: 0,
+    duration,
+    radius: 0.9 + Math.random() * 2.3,
+  })
+}
+
+function renderLoadField(delta: number) {
+  const canvas = loadFieldRef.value
+  const context = canvas?.getContext('2d')
+  if (!canvas || !context)
+    return
+
+  if (status.value === 'ready') {
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    return
+  }
+
+  const width = canvas.width
+  const height = canvas.height
+  const progress = status.value === 'loading'
+    ? Math.max(0.12, Math.min(1, loadProgress.value / 100 || 0.12))
+    : 0.12
+  const spawnRate = 18 + progress * 42
+  loadFieldSpawnAccumulator += delta * spawnRate
+
+  while (loadFieldSpawnAccumulator >= 1) {
+    spawnLoadParticle(width, height)
+    loadFieldSpawnAccumulator -= 1
+  }
+
+  context.clearRect(0, 0, width, height)
+  context.save()
+  context.globalCompositeOperation = 'lighter'
+
+  const bandX = width * 0.5
+  const bandTop = height * 0.16
+  const bandBottom = height * 0.84
+  const bandGradient = context.createLinearGradient(bandX, bandTop, bandX, bandBottom)
+  bandGradient.addColorStop(0, 'rgba(103, 232, 249, 0)')
+  bandGradient.addColorStop(0.2, `rgba(103, 232, 249, ${0.12 + progress * 0.18})`)
+  bandGradient.addColorStop(0.5, `rgba(255, 244, 199, ${0.1 + progress * 0.16})`)
+  bandGradient.addColorStop(0.8, `rgba(103, 232, 249, ${0.12 + progress * 0.18})`)
+  bandGradient.addColorStop(1, 'rgba(103, 232, 249, 0)')
+  context.fillStyle = bandGradient
+  context.fillRect(bandX - (2 + progress * 6), bandTop, 4 + progress * 12, bandBottom - bandTop)
+
+  const glowRadius = width * (0.08 + progress * 0.06)
+  const glowGradient = context.createRadialGradient(bandX, height * 0.52, glowRadius * 0.12, bandX, height * 0.52, glowRadius)
+  glowGradient.addColorStop(0, `rgba(255, 244, 199, ${0.08 + progress * 0.26})`)
+  glowGradient.addColorStop(0.45, `rgba(103, 232, 249, ${0.06 + progress * 0.16})`)
+  glowGradient.addColorStop(1, 'rgba(103, 232, 249, 0)')
+  context.fillStyle = glowGradient
+  context.beginPath()
+  context.arc(bandX, height * 0.52, glowRadius, 0, Math.PI * 2)
+  context.fill()
+
+  for (let index = loadFieldParticles.length - 1; index >= 0; index -= 1) {
+    const particle = loadFieldParticles[index]
+    particle.previousX = particle.x
+    particle.previousY = particle.y
+    particle.age += delta
+
+    if (particle.age >= particle.duration) {
+      loadFieldParticles.splice(index, 1)
+      continue
+    }
+
+    particle.x += particle.velocityX * delta
+    particle.y += particle.velocityY * delta
+
+    const t = Math.max(0, Math.min(1, particle.age / particle.duration))
+    const intensity = MathUtils.smootherstep(t, 0.08, 0.96)
+    const alpha = (0.03 + progress * 0.16) * intensity
+    const streak = 6 + intensity * 22
+
+    context.strokeStyle = `rgba(161, 243, 255, ${alpha})`
+    context.lineWidth = Math.max(1, particle.radius * (0.8 + intensity))
+    context.beginPath()
+    context.moveTo(particle.previousX, particle.previousY)
+    context.lineTo(
+      particle.x + (particle.x - particle.previousX) * streak * 0.045,
+      particle.y + (particle.y - particle.previousY) * streak * 0.045,
+    )
+    context.stroke()
+
+    context.fillStyle = `rgba(255, 248, 215, ${alpha * 1.75})`
+    context.beginPath()
+    context.arc(particle.x, particle.y, particle.radius * (0.78 + intensity * 0.9), 0, Math.PI * 2)
+    context.fill()
+  }
+
+  context.restore()
 }
 
 function disposeAvatar() {
@@ -455,6 +629,7 @@ function disposeStage() {
   resizeObserver?.disconnect()
   resizeObserver = undefined
   disposeAvatar()
+  resetLoadField()
 
   if (rendererRef.value) {
     rendererRef.value.dispose()
@@ -1110,6 +1285,7 @@ function animate() {
   }
 
   camera.lookAt(0, modelHeadHeight.value * 0.98, 0)
+  renderLoadField(delta)
   renderer.render(scene, camera)
   frameHandle.value = requestAnimationFrame(animate)
 }
@@ -1154,6 +1330,7 @@ onBeforeUnmount(() => {
     <div class="avatar-stage__floor" />
 
     <div v-if="status !== 'ready'" class="avatar-stage__overlay">
+      <canvas ref="loadFieldRef" class="avatar-stage__load-field" aria-hidden="true" />
       <span class="avatar-stage__badge">
         {{ status === 'loading' ? `${loadProgress}%` : 'AIR3 stage' }}
       </span>
@@ -1211,7 +1388,17 @@ onBeforeUnmount(() => {
   z-index: 2;
 }
 
+.avatar-stage__load-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
 .avatar-stage__badge {
+  position: relative;
+  z-index: 1;
   width: fit-content;
   min-height: 32px;
   padding: 0 12px;
@@ -1228,6 +1415,8 @@ onBeforeUnmount(() => {
 
 .avatar-stage__headline,
 .avatar-stage__hint {
+  position: relative;
+  z-index: 1;
   margin: 0;
   max-width: 30rem;
 }
