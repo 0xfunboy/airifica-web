@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import ConversationMessageItem from '@/components/ConversationMessageItem.vue'
+import CommandGuideOverlay from '@/components/layout/CommandGuideOverlay.vue'
 import { useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
 import { useConversationState } from '@/modules/conversation/state'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
@@ -23,9 +24,29 @@ const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const wallet = useWalletSession()
 
+const EXAMPLE_PROMPTS = [
+  'hi, who are you?',
+  'what time is it in New York? And in Tokyo?',
+  'give me $BTC fundamentals',
+  'give me the price of $BTC',
+  'give me a $BTC market analysis',
+  'show me a $BTC chart',
+  'give me fundamentals for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'give me the price of 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'give me a market analysis for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'show me a chart for 2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon',
+  'what is today’s boosted token?',
+  'what is today’s new listing?',
+  'what is the most mentioned ticker on X today?',
+  'what is the market sentiment right now?',
+  'what is total volume today?',
+  'what is today’s trending token?',
+]
+
 const composer = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
 const composerRef = ref<HTMLTextAreaElement | null>(null)
+const exampleGuideOpen = ref(false)
 const COMPOSER_MIN_HEIGHT = 56
 const COMPOSER_MAX_HEIGHT = 112
 
@@ -208,6 +229,9 @@ onMounted(() => {
           </div>
 
           <div class="conversation-shell__right-actions">
+            <button class="conversation-shell__ghost conversation-shell__ghost--example" type="button" @click="exampleGuideOpen = true">
+              Example
+            </button>
             <button class="conversation-shell__send" :disabled="conversation.sending.value || !composer.trim()" type="submit">
               {{ conversation.sending.value ? 'Sending…' : 'Send' }}
             </button>
@@ -233,6 +257,8 @@ onMounted(() => {
       </svg>
     </button>
   </div>
+
+  <CommandGuideOverlay :open="exampleGuideOpen" :prompts="EXAMPLE_PROMPTS" :show-mention-note="false" @close="exampleGuideOpen = false" />
 </template>
 
 <style scoped>
@@ -476,6 +502,12 @@ onMounted(() => {
   background: #5bd6ff;
   color: #04111c;
   font-weight: 700;
+}
+
+.conversation-shell__ghost--example {
+  color: rgba(223, 236, 247, 0.84);
+  font-size: 0.74rem;
+  font-weight: 600;
 }
 
 .conversation-shell__reset-fab {

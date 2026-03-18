@@ -1,13 +1,15 @@
 <script setup lang="ts">
 const props = defineProps<{
   open: boolean
+  prompts?: string[]
+  showMentionNote?: boolean
 }>()
 
 const emit = defineEmits<{
   (event: 'close'): void
 }>()
 
-const prompts = [
+const defaultPrompts = [
   '@tag_agent hi, who are you?',
   '@tag_agent what time is it in New York? And in Tokyo?',
   '@tag_agent give me $BTC fundamentals',
@@ -25,6 +27,8 @@ const prompts = [
   '@tag_agent what is total volume today?',
   '@tag_agent what is today’s trending token?',
 ]
+
+const prompts = props.prompts?.length ? props.prompts : defaultPrompts
 
 async function copyPrompt(prompt: string) {
   if (typeof navigator === 'undefined' || !navigator.clipboard)
@@ -60,7 +64,7 @@ async function copyPrompt(prompt: string) {
         </button>
       </div>
 
-      <div class="command-guide__note">
+      <div v-if="props.showMentionNote !== false" class="command-guide__note">
         Replace <code>@tag_agent</code> with the active mention tag when your channel requires one.
       </div>
 
