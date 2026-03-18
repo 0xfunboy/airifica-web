@@ -1,5 +1,10 @@
 export type SpeechVisemeKey = 'A' | 'E' | 'I' | 'O' | 'U'
 export type SpeechVisemeWeights = Record<SpeechVisemeKey, number>
+export type SpeechWordTimestamp = {
+  word: string
+  startTimeMs: number
+  endTimeMs: number
+}
 export type SpeechVisemeFrame = {
   startMs: number
   durationMs: number
@@ -301,6 +306,38 @@ function createPhonemeFrames(phonemeString: string) {
   return frames
 }
 
+function splitPhonemeWords(phonemes: string) {
+  return phonemes
+    .replace(/[ˈˌ]/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+function createTimelineFramesForWindow(
+  unitsFrames: Array<{ units: number, weights: SpeechVisemeWeights, closure: number }>,
+  startMs: number,
+  durationMs: number,
+) {
+  if (!unitsFrames.length || durationMs <= 0)
+    return [] as SpeechVisemeFrame[]
+
+  const totalUnits = Math.max(1, unitsFrames.reduce((sum, frame) => sum + frame.units, 0))
+  const msPerUnit = durationMs / totalUnits
+  let cursorMs = startMs
+
+  return unitsFrames.map((frame) => {
+    const next = {
+      startMs: cursorMs,
+      durationMs: Math.max(12, frame.units * msPerUnit),
+      weights: frame.weights,
+      closure: frame.closure,
+    }
+    cursorMs += next.durationMs
+    return next
+  })
+}
+
 export function createSpeechVisemeTimelineFromPhonemes(phonemes: string, totalDurationMs: number) {
   const frames = createPhonemeFrames(phonemes)
   if (!frames.length)
@@ -320,6 +357,68 @@ export function createSpeechVisemeTimelineFromPhonemes(phonemes: string, totalDu
     cursorMs += next.durationMs
     return next
   })
+}
+
+export function createSpeechVisemeTimelineFromTimedWords(
+  text: string,
+  timestamps: SpeechWordTimestamp[],
+  totalDurationMs: number,
+  phonemes?: string | null,
+) {
+  const normalizedTimestamps = timestamps
+    .map(entry => ({
+      word: (entry.word || '').trim(),
+      startTimeMs: Math.max(0, Number(entry.startTimeMs) || 0),
+      endTimeMs: Math.max(0, Number(entry.endTimeMs) || 0),
+    }))
+    .filter(entry => entry.word && entry.endTimeMs > entry.startTimeMs)
+
+  if (!normalizedTimestamps.length) {
+    if (phonemes?.trim()) {
+      const fallbackTimeline = createSpeechVisemeTimelineFromPhonemes(phonemes, totalDurationMs)
+      if (fallbackTimeline.length)
+        return fallbackTimeline
+    }
+    return createSpeechVisemeTimeline(text, totalDurationMs)
+  }
+
+  const phonemeWords = phonemes?.trim() ? splitPhonemeWords(phonemes) : []
+  const frames: SpeechVisemeFrame[] = []
+  let cursorMs = 0
+
+  normalizedTimestamps.forEach((entry, index) => {
+    const startMs = Math.max(cursorMs, entry.startTimeMs)
+    const endMs = Math.max(startMs, entry.endTimeMs)
+    if (startMs > cursorMs) {
+      frames.push({
+        startMs: cursorMs,
+        durationMs: startMs - cursorMs,
+        weights: createWeights(),
+        closure: 1,
+      })
+    }
+
+    const wordDurationMs = Math.max(24, endMs - startMs)
+    const phonemeWord = phonemeWords[index] || ''
+    const wordFrames = phonemeWord
+      ? createPhonemeFrames(phonemeWord)
+      : splitWordToSeeds(entry.word.toLowerCase())
+
+    frames.push(...createTimelineFramesForWindow(wordFrames, startMs, wordDurationMs))
+    cursorMs = endMs
+  })
+
+  const finalDurationMs = Math.max(totalDurationMs, cursorMs)
+  if (finalDurationMs > cursorMs) {
+    frames.push({
+      startMs: cursorMs,
+      durationMs: finalDurationMs - cursorMs,
+      weights: createWeights(),
+      closure: 1,
+    })
+  }
+
+  return frames
 }
 
 export function sampleSpeechVisemeState(frames: SpeechVisemeFrame[], timeMs: number) {

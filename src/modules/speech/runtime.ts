@@ -10,12 +10,14 @@ import {
   blendSpeechVisemeWeights,
   cloneSpeechVisemeWeights,
   createSpeechVisemeTimeline,
+  createSpeechVisemeTimelineFromTimedWords,
   createSpeechVisemeTimelineFromPhonemes,
   maxSpeechVisemeWeight,
   sampleSpeechVisemeState,
   zeroSpeechVisemeWeights,
   type SpeechVisemeFrame,
   type SpeechVisemeWeights,
+  type SpeechWordTimestamp,
 } from '@/modules/speech/visemes'
 
 const AUTO_SPEAK_KEY = 'airifica:auto-speak'
@@ -37,6 +39,7 @@ type LipSyncNodeLike = {
 type ExternalSpeechResponse = {
   blob: Blob
   phonemes: string | null
+  timestamps: SpeechWordTimestamp[] | null
 }
 
 function getStorageScope() {
@@ -425,7 +428,18 @@ async function playBrowserQueueItem(next: { id: string, text: string }) {
   return true
 }
 
-function buildSpeechTimeline(text: string, totalDurationMs: number, phonemes?: string | null) {
+function buildSpeechTimeline(
+  text: string,
+  totalDurationMs: number,
+  phonemes?: string | null,
+  timestamps?: SpeechWordTimestamp[] | null,
+) {
+  if (timestamps?.length) {
+    const timedTimeline = createSpeechVisemeTimelineFromTimedWords(text, timestamps, totalDurationMs, phonemes)
+    if (timedTimeline.length)
+      return timedTimeline
+  }
+
   if (phonemes?.trim()) {
     const timeline = createSpeechVisemeTimelineFromPhonemes(phonemes, totalDurationMs)
     if (timeline.length)
@@ -433,6 +447,19 @@ function buildSpeechTimeline(text: string, totalDurationMs: number, phonemes?: s
   }
 
   return createSpeechVisemeTimeline(text, totalDurationMs)
+}
+
+function buildCaptionedSpeechPayload(text: string) {
+  return {
+    model: appConfig.ttsModel,
+    input: text,
+    voice: appConfig.ttsVoice,
+    response_format: appConfig.ttsResponseFormat,
+    speed: appConfig.ttsSpeedFactor,
+    stream: false,
+    return_timestamps: true,
+    lang_code: appConfig.ttsPhonemeLanguage,
+  }
 }
 
 function buildExternalSpeechPayload(text: string) {
@@ -520,6 +547,96 @@ async function fetchExternalPhonemes(
   return phonemes || null
 }
 
+function normalizeCaptionedTimestamps(input: unknown) {
+  if (!Array.isArray(input))
+    return null
+
+  const timestamps = input
+    .map((entry) => {
+      const payload = entry as Record<string, unknown>
+      const word = typeof payload.word === 'string' ? payload.word.trim() : ''
+      const startTimeSec = Number(payload.start_time)
+      const endTimeSec = Number(payload.end_time)
+      if (!word || !Number.isFinite(startTimeSec) || !Number.isFinite(endTimeSec) || endTimeSec <= startTimeSec)
+        return null
+
+      return {
+        word,
+        startTimeMs: Math.max(0, startTimeSec * 1000),
+        endTimeMs: Math.max(0, endTimeSec * 1000),
+      } satisfies SpeechWordTimestamp
+    })
+    .filter(Boolean) as SpeechWordTimestamp[]
+
+  return timestamps.length ? timestamps : null
+}
+
+function decodeBase64AudioPayload(audioBase64: string, mimeType: string) {
+  const encoded = audioBase64.includes(',')
+    ? audioBase64.split(',').pop() || ''
+    : audioBase64
+  const normalized = encoded.trim()
+  if (!normalized)
+    throw new Error('Captioned speech returned an empty audio payload.')
+
+  const binary = atob(normalized)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index)
+
+  return new Blob([bytes], { type: mimeType })
+}
+
+async function fetchCaptionedSpeech(
+  text: string,
+  requestId: string,
+  signal: AbortSignal,
+  baseHeaders: Record<string, string>,
+) {
+  if (!appConfig.ttsCaptionUrl)
+    return null
+
+  const response = await fetch(appConfig.ttsCaptionUrl, {
+    method: 'POST',
+    headers: {
+      ...baseHeaders,
+      'X-Airifica-TTS-Source': 'webapp-captioned',
+    },
+    signal,
+    body: JSON.stringify(buildCaptionedSpeechPayload(text)),
+  })
+
+  const contentType = response.headers.get('content-type') || ''
+  if (!response.ok) {
+    let details = ''
+    try {
+      details = contentType.includes('application/json')
+        ? String((await response.json() as Record<string, unknown>).detail || '')
+        : await response.text()
+    }
+    catch {
+    }
+    throw new Error(details || `Captioned speech failed with ${response.status} ${response.statusText}.`)
+  }
+
+  if (!contentType.includes('application/json'))
+    throw new Error('Captioned speech returned a non-JSON payload.')
+
+  const payload = await response.json() as Record<string, unknown>
+  const audioBase64 = typeof payload.audio === 'string' ? payload.audio : ''
+  const audioFormat = typeof payload.audio_format === 'string' ? payload.audio_format : `audio/${appConfig.ttsResponseFormat}`
+  const timestamps = normalizeCaptionedTimestamps(payload.timestamps)
+  const blob = decodeBase64AudioPayload(audioBase64, audioFormat)
+
+  console.info('[airifica][tts] captioned:response', {
+    requestId,
+    bytes: blob.size,
+    timestamps: timestamps?.length || 0,
+  })
+
+  return { blob, timestamps }
+}
+
 async function fetchExternalSpeech(text: string): Promise<ExternalSpeechResponse> {
   if (!appConfig.ttsSpeechUrl)
     throw new Error('External TTS endpoint is not configured.')
@@ -550,6 +667,32 @@ async function fetchExternalSpeech(text: string): Promise<ExternalSpeechResponse
   }, 120_000)
 
   try {
+    const phonemePromise = fetchExternalPhonemes(text, requestId, currentFetchController.signal, headers)
+      .catch((error) => {
+        console.warn('[airifica][tts] phonemes:error', error)
+        return null
+      })
+
+    if (appConfig.ttsCaptionUrl) {
+      try {
+        const [captionedResult, phonemeResult] = await Promise.all([
+          fetchCaptionedSpeech(text, requestId, currentFetchController.signal, headers),
+          phonemePromise,
+        ])
+
+        if (captionedResult) {
+          return {
+            blob: captionedResult.blob,
+            phonemes: phonemeResult,
+            timestamps: captionedResult.timestamps,
+          }
+        }
+      }
+      catch (error) {
+        console.warn('[airifica][tts] captioned:error', error)
+      }
+    }
+
     const [audioResult, phonemeResult] = await Promise.all([
       fetch(appConfig.ttsSpeechUrl, {
         method: 'POST',
@@ -599,16 +742,13 @@ async function fetchExternalSpeech(text: string): Promise<ExternalSpeechResponse
 
         return blob
       }),
-      fetchExternalPhonemes(text, requestId, currentFetchController.signal, headers)
-        .catch((error) => {
-          console.warn('[airifica][tts] phonemes:error', error)
-          return null
-        }),
+      phonemePromise,
     ])
 
     return {
       blob: audioResult,
       phonemes: phonemeResult,
+      timestamps: null,
     }
   }
   finally {
@@ -624,7 +764,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
   if (!canUseExternalSpeech())
     return false
 
-  const { blob, phonemes } = await fetchExternalSpeech(next.text)
+  const { blob, phonemes, timestamps } = await fetchExternalSpeech(next.text)
   const context = await ensureOutputAudioContext()
 
   if (context?.state === 'running') {
@@ -647,7 +787,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     currentSource = source
     currentGain = gain
     const startedAt = context.currentTime
-    const timeline = buildSpeechTimeline(next.text, decoded.duration * 1000, phonemes)
+    const timeline = buildSpeechTimeline(next.text, decoded.duration * 1000, phonemes, timestamps)
     currentPlaybackClock = {
       currentTime: () => Math.max(0, context.currentTime - startedAt),
       playing: () => currentSource === source && (context.currentTime - startedAt) < decoded.duration,
@@ -687,7 +827,7 @@ async function playExternalQueueItem(next: { id: string, text: string }) {
     startSpeechLipSync({
       currentTime: () => audio.currentTime,
       playing: () => !audio.paused && !audio.ended,
-    }, buildSpeechTimeline(next.text, Math.max(audio.duration || 0, 0) * 1000 || 0, phonemes))
+    }, buildSpeechTimeline(next.text, Math.max(audio.duration || 0, 0) * 1000 || 0, phonemes, timestamps))
   }
 
   audio.onended = () => {

@@ -77,6 +77,7 @@ const ttsDevProxyUrl = import.meta.env.DEV
   ? normalizeUrl(import.meta.env.VITE_AIR3_TTS_DEV_PROXY_URL || '', 'http://127.0.0.1:4041')
   : ''
 const ttsSpeechPath = (import.meta.env.VITE_AIR3_TTS_SPEECH_PATH || '/v1/audio/speech').trim()
+const ttsCaptionPath = (import.meta.env.VITE_AIR3_TTS_CAPTION_PATH || '/api/tts/captioned').trim()
 const ttsPhonemePath = (import.meta.env.VITE_AIR3_TTS_PHONEME_PATH || '/api/tts/phonemes').trim()
 const ttsRequestBaseUrl = import.meta.env.DEV && ttsBaseUrl
   ? ttsDevProxyUrl
@@ -116,6 +117,8 @@ export const appConfig = {
   ttsDevProxyUrl,
   ttsSpeechPath,
   ttsSpeechUrl: resolveEndpointUrl(ttsRequestBaseUrl, ttsSpeechPath),
+  ttsCaptionPath,
+  ttsCaptionUrl: resolveEndpointUrl(ttsRequestBaseUrl, ttsCaptionPath),
   ttsPhonemePath,
   ttsPhonemeUrl: resolveEndpointUrl(ttsRequestBaseUrl, ttsPhonemePath),
   ttsModel: (import.meta.env.VITE_AIR3_TTS_MODEL || 'gpt-4o-mini-tts').trim(),

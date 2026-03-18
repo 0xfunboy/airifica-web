@@ -37,6 +37,7 @@ const env = { ...envExample, ...envLocal, ...process.env }
 const proxyPort = Number(env.AIRIFICA_TTS_PROXY_PORT || 4041)
 const targetBaseUrl = String(env.AIRIFICA_TTS_PROXY_TARGET_URL || env.VITE_AIR3_TTS_BASE_URL || '').trim().replace(/\/+$/, '')
 const targetSpeechPath = String(env.AIRIFICA_TTS_PROXY_TARGET_PATH || '/v1/audio/speech').trim()
+const targetCaptionPath = String(env.AIRIFICA_TTS_PROXY_CAPTION_PATH || '/dev/captioned_speech').trim()
 const targetPhonemePath = String(env.AIRIFICA_TTS_PROXY_PHONEME_PATH || '/dev/phonemize').trim()
 
 if (!targetBaseUrl) {
@@ -92,6 +93,8 @@ const server = createServer(async (req, res) => {
     const sourceUrl = new URL(req.url || '/', `http://127.0.0.1:${proxyPort}`)
     const rewrittenPath = sourceUrl.pathname === '/api/tts'
       ? targetSpeechPath
+      : sourceUrl.pathname === '/api/tts/captioned'
+        ? targetCaptionPath
       : sourceUrl.pathname === '/api/tts/phonemes'
         ? targetPhonemePath
         : sourceUrl.pathname
