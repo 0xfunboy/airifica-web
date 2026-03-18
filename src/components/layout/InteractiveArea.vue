@@ -12,7 +12,7 @@
   flex-direction: column;
   width: min(500px, 32vw);
   min-width: 30%;
-  height: 85dvh;
+  height: var(--stage-side-panel-height, 85dvh);
 }
 
 .interactive-area__inner {

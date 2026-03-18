@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { onBeforeUnmount, ref } from 'vue'
+
 type FooterLink = {
   label: string
   href: string
@@ -45,7 +47,7 @@ const sections: FooterSection[] = [
       { label: 'Cookie Policy', href: 'https://airewardrop.xyz/legal' },
     ],
   },
-] 
+]
 
 const socials = [
   {
@@ -84,45 +86,110 @@ const socials = [
     path: 'M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.85s-.012 3.584-.07 4.85c-.148 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07s-3.584-.012-4.85-.07c-3.252-.148-4.771-1.691-4.919-4.919-.058-1.265-.069-1.645-.069-4.85s.012-3.584.07-4.85c.148-3.225 1.664-4.771 4.919-4.919 1.266-.058 1.644-.07 4.85-.07zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948s.014 3.667.072 4.947c.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072s3.667-.014 4.947-.072c4.358-.2 6.78-2.618 6.98-6.98.059-1.281.073-1.689.073-4.948s-.014-3.667-.072-4.947c-.2-4.358-2.618-6.78-6.98-6.98-1.281-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.162 6.162 6.162 6.162-2.759 6.162-6.162-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4s1.791-4 4-4 4 1.79 4 4-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.441 1.441 1.441 1.441-.645 1.441-1.441-.645-1.44-1.441-1.44z',
   },
 ] as const
+
+const isExpanded = ref(false)
+let hideTimer: number | null = null
+
+function clearHideTimer() {
+  if (hideTimer !== null) {
+    window.clearTimeout(hideTimer)
+    hideTimer = null
+  }
+}
+
+function scheduleAutoHide() {
+  clearHideTimer()
+  hideTimer = window.setTimeout(() => {
+    isExpanded.value = false
+  }, 5000)
+}
+
+function openDrawer() {
+  isExpanded.value = true
+  scheduleAutoHide()
+}
+
+function closeDrawer() {
+  isExpanded.value = false
+  clearHideTimer()
+}
+
+function toggleDrawer() {
+  if (isExpanded.value) {
+    closeDrawer()
+    return
+  }
+
+  openDrawer()
+}
+
+function handleMouseEnter() {
+  clearHideTimer()
+}
+
+function handleMouseLeave() {
+  if (isExpanded.value)
+    scheduleAutoHide()
+}
+
+onBeforeUnmount(() => {
+  clearHideTimer()
+})
 </script>
 
 <template>
-  <footer class="stage-footer">
-    <div class="stage-footer__main">
-      <div class="stage-footer__brand">
-        <a href="https://airewardrop.xyz" class="stage-footer__brand-link" target="_blank" rel="noopener noreferrer">
-          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="stage-footer__brand-icon" aria-hidden="true">
-            <path d="M20 4L6 36H14L20 22L26 36H34L20 4Z" fill="currentColor" />
-            <path d="M20 12V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-          <span>AIRewardrop</span>
-        </a>
-        <p class="stage-footer__brand-copy">
-          Autonomous agent infrastructure for crypto.
-        </p>
-        <a href="https://airewardrop.xyz/blog" target="_blank" rel="noopener noreferrer" class="stage-footer__brand-blog">
-          Our Blog →
-        </a>
-      </div>
+  <footer class="stage-footer" @mouseenter="handleMouseEnter" @mouseleave="handleMouseLeave">
+    <div class="stage-footer__drawer" :class="{ 'stage-footer__drawer--open': isExpanded }">
+      <div class="stage-footer__main">
+        <div class="stage-footer__brand">
+          <a href="https://airewardrop.xyz" class="stage-footer__brand-link" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="stage-footer__brand-icon" aria-hidden="true">
+              <path d="M20 4L6 36H14L20 22L26 36H34L20 4Z" fill="currentColor" />
+              <path d="M20 12V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span>AIRewardrop</span>
+          </a>
+          <p class="stage-footer__brand-copy">
+            Autonomous agent infrastructure for crypto.
+          </p>
+          <a href="https://airewardrop.xyz/blog" target="_blank" rel="noopener noreferrer" class="stage-footer__brand-blog">
+            Our Blog →
+          </a>
+        </div>
 
-      <div class="stage-footer__grid">
-        <div v-for="section in sections" :key="section.title" class="stage-footer__column">
-          <h3>{{ section.title }}</h3>
-          <ul>
-            <li v-for="link in section.links" :key="link.label">
-              <a :href="link.href" :target="link.external ? '_blank' : undefined" :rel="link.external ? 'noopener noreferrer' : undefined">
-                {{ link.label }}
-              </a>
-            </li>
-          </ul>
+        <div class="stage-footer__grid">
+          <div v-for="section in sections" :key="section.title" class="stage-footer__column">
+            <h3>{{ section.title }}</h3>
+            <ul>
+              <li v-for="link in section.links" :key="link.label">
+                <a :href="link.href" :target="link.external ? '_blank' : undefined" :rel="link.external ? 'noopener noreferrer' : undefined">
+                  {{ link.label }}
+                </a>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="stage-footer__bottom">
-      <p>
-        © 2025 AIRewardrop. All rights reserved.<br>
-        Disclaimer: Not financial advice. Always do your own research.
+    <div class="stage-footer__bar">
+      <button
+        type="button"
+        class="stage-footer__toggle"
+        :class="{ 'stage-footer__toggle--open': isExpanded }"
+        :aria-expanded="isExpanded"
+        @click="toggleDrawer"
+      >
+        <span class="stage-footer__toggle-glyph" aria-hidden="true">
+          <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4.25 10.5 9 5.75l4.75 4.75" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span>{{ isExpanded ? 'Hide footer' : 'Show footer' }}</span>
+      </button>
+
+      <p class="stage-footer__disclaimer">
+        © 2025 AIRewardrop. All rights reserved. Not financial advice.
       </p>
 
       <div class="stage-footer__socials">
@@ -145,33 +212,62 @@ const socials = [
 
 <style scoped>
 .stage-footer {
+  position: relative;
   width: 100%;
-  padding: 14px 18px 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(15, 15, 18, 0.94);
-  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(14px);
+  padding: 0 16px 12px;
+  pointer-events: none;
+}
+
+.stage-footer__drawer,
+.stage-footer__bar {
+  pointer-events: auto;
+}
+
+.stage-footer__drawer {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    max-height 320ms ease,
+    opacity 220ms ease,
+    transform 320ms ease;
+}
+
+.stage-footer__drawer--open {
+  max-height: 280px;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .stage-footer__main {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
-  gap: 10px;
+  gap: 12px;
   align-items: start;
+  margin: 0 auto 10px;
+  padding: 16px 18px 14px;
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(8, 30, 44, 0.92), rgba(5, 20, 31, 0.88)),
+    rgba(6, 25, 39, 0.82);
+  box-shadow: 0 -16px 48px rgba(5, 23, 36, 0.36);
+  backdrop-filter: blur(20px);
 }
 
 .stage-footer__brand {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .stage-footer__brand-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: rgb(225, 29, 72);
-  font-size: 1.02rem;
+  color: #67e8f9;
+  font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
 }
@@ -184,13 +280,14 @@ const socials = [
 .stage-footer__brand-copy {
   margin: 0;
   max-width: 18rem;
-  color: rgba(161, 161, 170, 0.92);
-  font-size: 0.84rem;
+  color: rgba(224, 242, 254, 0.72);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .stage-footer__brand-blog {
-  color: #fafafa;
-  font-size: 0.82rem;
+  color: rgba(240, 249, 255, 0.92);
+  font-size: 0.8rem;
   font-weight: 600;
   text-decoration: none;
 }
@@ -198,91 +295,171 @@ const socials = [
 .stage-footer__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
   justify-items: end;
   text-align: right;
 }
 
 .stage-footer__column h3 {
-  margin: 0 0 5px;
-  color: rgb(225, 29, 72);
-  font-size: 0.86rem;
+  margin: 0 0 6px;
+  color: rgba(103, 232, 249, 0.92);
+  font-size: 0.82rem;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .stage-footer__column ul {
+  display: grid;
+  gap: 5px;
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  gap: 5px;
+}
+
+.stage-footer__column a,
+.stage-footer__brand-blog {
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease;
 }
 
 .stage-footer__column a {
-  color: rgba(161, 161, 170, 0.92);
-  font-size: 0.82rem;
+  color: rgba(224, 242, 254, 0.68);
+  font-size: 0.8rem;
   text-decoration: none;
 }
 
 .stage-footer__column a:hover,
-.stage-footer__brand-blog:hover {
-  color: rgb(225, 29, 72);
+.stage-footer__brand-blog:hover,
+.stage-footer__brand-link:hover {
+  color: #a5f3fc;
+  text-shadow: 0 0 14px rgba(103, 232, 249, 0.28);
 }
 
-.stage-footer__bottom {
+.stage-footer__bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(63, 63, 70, 0.8);
+  gap: 14px;
+  min-height: 58px;
+  padding: 10px 14px;
+  border: 1px solid rgba(103, 232, 249, 0.14);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(7, 28, 42, 0.92), rgba(4, 17, 27, 0.9)),
+    rgba(6, 25, 39, 0.78);
+  box-shadow: 0 -10px 34px rgba(5, 23, 36, 0.28);
+  backdrop-filter: blur(18px);
 }
 
-.stage-footer__bottom p {
+.stage-footer__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 14px 0 10px;
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(240, 249, 255, 0.9);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 180ms ease,
+    background 160ms ease;
+}
+
+.stage-footer__toggle:hover {
+  color: #a5f3fc;
+  border-color: rgba(103, 232, 249, 0.28);
+  background: rgba(103, 232, 249, 0.08);
+  box-shadow: 0 0 24px rgba(103, 232, 249, 0.22);
+}
+
+.stage-footer__toggle-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #67e8f9;
+  transition:
+    transform 220ms ease,
+    filter 180ms ease;
+}
+
+.stage-footer__toggle:hover .stage-footer__toggle-glyph {
+  filter: drop-shadow(0 0 10px rgba(103, 232, 249, 0.42));
+}
+
+.stage-footer__toggle--open .stage-footer__toggle-glyph {
+  transform: rotate(180deg);
+}
+
+.stage-footer__toggle-glyph svg {
+  width: 18px;
+  height: 18px;
+}
+
+.stage-footer__disclaimer {
+  flex: 1 1 auto;
   margin: 0;
-  color: rgba(161, 161, 170, 0.84);
+  color: rgba(224, 242, 254, 0.66);
   font-size: 0.72rem;
   line-height: 1.45;
+  text-align: center;
 }
 
 .stage-footer__socials {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
+  flex: 0 0 auto;
 }
 
 .stage-footer__socials a {
-  color: rgba(161, 161, 170, 0.92);
-  transition: color 160ms ease;
+  color: rgba(224, 242, 254, 0.7);
+  transition:
+    color 160ms ease,
+    transform 160ms ease,
+    filter 160ms ease;
 }
 
 .stage-footer__socials a:hover {
-  color: rgb(225, 29, 72);
+  color: #67e8f9;
+  transform: translateY(-1px);
+  filter: drop-shadow(0 0 10px rgba(103, 232, 249, 0.36));
 }
 
 .stage-footer__socials svg {
-  width: 24px;
-  height: 24px;
+  width: 21px;
+  height: 21px;
 }
 
 @media (max-width: 1180px) {
   .stage-footer {
-    padding-inline: 14px;
+    padding-inline: 12px;
   }
 
   .stage-footer__grid {
-    gap: 6px;
-  }
-
-  .stage-footer__socials {
-    gap: 12px;
+    gap: 8px;
   }
 }
 
 @media (max-width: 980px) {
   .stage-footer {
-    position: relative;
+    padding: 12px 12px 14px;
+  }
+
+  .stage-footer__drawer--open {
+    max-height: 440px;
   }
 
   .stage-footer__main {
@@ -295,9 +472,14 @@ const socials = [
     text-align: left;
   }
 
-  .stage-footer__bottom {
-    flex-direction: column;
-    align-items: flex-start;
+  .stage-footer__bar {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stage-footer__disclaimer {
+    order: 3;
+    width: 100%;
   }
 }
 </style>

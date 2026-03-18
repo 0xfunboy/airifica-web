@@ -71,6 +71,8 @@ onUnmounted(() => {
 
 <style scoped>
 .stage-page {
+  --stage-footer-bar-height: 70px;
+  --stage-side-panel-height: min(85dvh, calc(100dvh - 152px));
   position: relative;
   width: 100vw;
   height: 100dvh;
@@ -85,6 +87,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .stage-page__header {
@@ -92,6 +95,7 @@ onUnmounted(() => {
   z-index: 20;
   width: 100%;
   padding: 4px 0;
+  pointer-events: auto;
 }
 
 .stage-page__content {
@@ -99,7 +103,7 @@ onUnmounted(() => {
   display: flex;
   flex: 1;
   gap: 8px;
-  padding-bottom: 136px;
+  padding-bottom: calc(var(--stage-footer-bar-height) + 12px);
 }
 
 .stage-page__scene {
@@ -107,6 +111,7 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 50%;
   z-index: 1;
+  pointer-events: none;
 }
 
 :deep(.stage-page__interactive) {
@@ -116,6 +121,7 @@ onUnmounted(() => {
   right: 16px;
   z-index: 10;
   height: auto;
+  pointer-events: auto;
 }
 
 .stage-page__footer {
@@ -124,6 +130,7 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   z-index: 18;
+  pointer-events: auto;
 }
 
 @media (min-width: 768px) {

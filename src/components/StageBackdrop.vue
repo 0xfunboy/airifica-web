@@ -188,7 +188,7 @@ watch(() => wallet.token.value, () => {
 </script>
 
 <template>
-  <div class="stage-backdrop" aria-hidden="true">
+  <div class="stage-backdrop">
     <img :src="appConfig.stageBackgroundUrl" alt="" class="stage-backdrop__image" loading="eager" decoding="async">
 
     <div class="stage-backdrop__wash" />
@@ -494,8 +494,11 @@ watch(() => wallet.token.value, () => {
   z-index: 1;
   display: none;
   width: min(384px, calc(100vw - 24px));
-  max-height: calc(100dvh - 132px);
+  height: var(--stage-side-panel-height, 85dvh);
+  max-height: var(--stage-side-panel-height, 85dvh);
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   gap: 12px;
   flex-direction: column;
   padding: 16px;
