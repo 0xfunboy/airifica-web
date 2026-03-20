@@ -9,7 +9,19 @@ function createRequestId() {
 
 async function readJson<T>(response: Response): Promise<T> {
   const raw = await response.text()
-  return raw ? JSON.parse(raw) as T : {} as T
+  if (!raw)
+    return {} as T
+
+  try {
+    return JSON.parse(raw) as T
+  }
+  catch {
+    return {
+      error: raw.length > 600 ? `${raw.slice(0, 600)}…` : raw,
+      raw,
+      contentType: response.headers.get('content-type') || '',
+    } as T
+  }
 }
 
 export async function requestJson<T>(
@@ -63,4 +75,3 @@ export async function requestJson<T>(
     globalThis.clearTimeout(timeout)
   }
 }
-
