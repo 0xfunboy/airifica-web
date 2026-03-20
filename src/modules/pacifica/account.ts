@@ -29,6 +29,9 @@ const state = reactive({
   status: { ...DEFAULT_STATUS } as Air3PacificaStatus,
   account: null as Air3PacificaAccountSnapshot | null,
   positions: [] as Air3PacificaPosition[],
+  accountMissing: false,
+  minimumDepositUsd: 10,
+  onboardingHint: null as string | null,
   loading: false,
   setupLoading: false,
   closingSymbol: null as string | null,
@@ -42,6 +45,9 @@ function reset() {
   state.status = { ...DEFAULT_STATUS }
   state.account = null
   state.positions = []
+  state.accountMissing = false
+  state.minimumDepositUsd = 10
+  state.onboardingHint = null
   state.error = null
   state.lastSyncedAt = null
 }
@@ -71,11 +77,17 @@ async function refreshOverview() {
     state.status = overview.status || { ...DEFAULT_STATUS }
     state.account = overview.account || null
     state.positions = Array.isArray(overview.positions) ? overview.positions : []
+    state.accountMissing = Boolean(overview.accountMissing)
+    state.minimumDepositUsd = Number.isFinite(overview.minimumDepositUsd) ? Number(overview.minimumDepositUsd) : 10
+    state.onboardingHint = overview.onboardingHint || null
     state.lastSyncedAt = Date.now()
     return overview
   }
   catch (error) {
-    reset()
+    state.account = null
+    state.positions = []
+    state.accountMissing = false
+    state.onboardingHint = null
     state.error = error instanceof Error ? error.message : 'Failed to load Pacifica overview.'
     throw error
   }
@@ -172,6 +184,9 @@ export function usePacificaAccount() {
     closingSymbol: computed(() => state.closingSymbol),
     error: computed(() => state.error),
     lastSyncedAt: computed(() => state.lastSyncedAt),
+    accountMissing: computed(() => state.accountMissing),
+    minimumDepositUsd: computed(() => state.minimumDepositUsd),
+    onboardingHint: computed(() => state.onboardingHint),
     hasWalletSession: computed(() => Boolean(wallet.address.value && wallet.token.value)),
     readyToExecute: computed(() => state.status.readyToExecute),
     activePositionsCount: computed(() => state.positions.length),

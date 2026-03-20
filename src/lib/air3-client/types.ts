@@ -134,6 +134,9 @@ export interface Air3PacificaOverview {
   status: Air3PacificaStatus
   account: Air3PacificaAccountSnapshot | null
   positions: Air3PacificaPosition[]
+  accountMissing?: boolean
+  minimumDepositUsd?: number | null
+  onboardingHint?: string | null
 }
 
 export interface Air3CreateTradeProposalResponse {

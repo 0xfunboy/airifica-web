@@ -43,12 +43,18 @@ const accountMetrics = computed(() => {
 })
 
 const readinessLabel = computed(() => {
+  if (requiresPacificaActivation.value)
+    return 'activate account'
   if (pacifica.readyToExecute.value)
     return 'ready'
   if (wallet.isAuthenticated.value)
     return 'onboarding'
   return 'wallet required'
 })
+
+const requiresPacificaActivation = computed(() =>
+  Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && pacifica.accountMissing.value),
+)
 
 const onboardingHint = computed(() => {
   if (!wallet.isConnected.value)
@@ -59,13 +65,15 @@ const onboardingHint = computed(() => {
     return 'Builder onboarding has not started yet.'
   if (!pacifica.readyToExecute.value)
     return 'Builder approval or agent binding is still pending.'
+  if (requiresPacificaActivation.value)
+    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop and deposit at least ${formatUsd(pacifica.minimumDepositUsd.value)} to initialize this account.`
   if ((pacifica.account.value?.availableToSpend || 0) <= 0)
     return 'The account is connected. Deposit funds to make execution available.'
   return 'Pacifica account is ready for execution.'
 })
 
 const requiresFunding = computed(() =>
-  Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
+  Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
 )
 
 async function refreshOverview() {
@@ -209,8 +217,18 @@ onMounted(() => {
         {{ pacifica.setupLoading.value ? 'Binding builder...' : 'Complete onboarding' }}
       </button>
 
+      <a
+        v-else-if="requiresPacificaActivation"
+        class="surface-button surface-button--primary"
+        :href="marketContext.pacificaTradeUrl.value"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open Pacifica with AIRewardrop
+      </a>
+
       <button
-        v-else
+      v-else
         class="surface-button surface-button--secondary"
         :disabled="pacifica.loading.value"
         type="button"
@@ -229,6 +247,10 @@ onMounted(() => {
         Withdraw
       </a>
     </div>
+
+    <span v-if="requiresPacificaActivation" class="pacifica-card__funding">
+      Pacifica does not see this account yet. Open Pacifica with AIRewardrop and deposit at least {{ formatUsd(pacifica.minimumDepositUsd.value) }}.
+    </span>
 
     <span v-if="requiresFunding" class="pacifica-card__funding">
       Deposit funds to enable execution.

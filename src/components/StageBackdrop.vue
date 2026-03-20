@@ -35,12 +35,16 @@ const canConnectPacifica = computed(() =>
   Boolean(wallet.isAuthenticated.value && !pacifica.readyToExecute.value),
 )
 
+const requiresPacificaActivation = computed(() =>
+  Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && pacifica.accountMissing.value),
+)
+
 const canCloseCurrentPosition = computed(() =>
   Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && currentPacificaPosition.value),
 )
 
 const requiresFunding = computed(() =>
-  Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
+  Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
 )
 
 const onboardingHint = computed(() => {
@@ -50,6 +54,8 @@ const onboardingHint = computed(() => {
     return 'Sign the AIR3 session to unlock Pacifica actions.'
   if (!pacifica.readyToExecute.value)
     return 'Approve AIRewardrop as builder and bind the dedicated agent wallet.'
+  if (requiresPacificaActivation.value)
+    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop and deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)} to initialize the account.`
   if (requiresFunding.value)
     return 'Your Pacifica account is connected but not funded yet.'
   return 'Builder onboarding is complete.'
@@ -295,7 +301,7 @@ watch(() => wallet.token.value, () => {
           <div class="stage-backdrop__account-row">
             <div>
               <div class="stage-backdrop__account-title">
-                {{ pacifica.readyToExecute.value ? (requiresFunding ? 'Builder ready, funding required' : 'Ready to execute') : wallet.isAuthenticated.value ? 'Wallet connected, builder pending' : 'Connect wallet to trade' }}
+                {{ pacifica.readyToExecute.value ? (requiresPacificaActivation ? 'Builder ready, Pacifica activation required' : requiresFunding ? 'Builder ready, funding required' : 'Ready to execute') : wallet.isAuthenticated.value ? 'Wallet connected, builder pending' : 'Connect wallet to trade' }}
               </div>
               <div class="stage-backdrop__account-subtitle">
                 Equity {{ formatPrice(pacifica.account.value?.equity) }} · Available {{ formatPrice(pacifica.account.value?.availableToSpend) }} · Withdrawable {{ formatPrice(pacifica.account.value?.availableToWithdraw) }} · Open {{ pacifica.positions.value.length }}
@@ -337,13 +343,23 @@ watch(() => wallet.token.value, () => {
               </button>
 
               <a
+                v-else-if="requiresPacificaActivation"
+                :href="pacificaTradeUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="stage-backdrop__primary-action"
+              >
+                Open Pacifica with AIRewardrop
+              </a>
+
+              <a
                 v-if="wallet.isAuthenticated.value"
-                :href="requiresFunding ? pacificaDepositUrl : pacificaPortfolioUrl"
+                :href="requiresPacificaActivation ? pacificaDepositUrl : requiresFunding ? pacificaDepositUrl : pacificaPortfolioUrl"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="stage-backdrop__secondary-action"
               >
-                {{ requiresFunding ? 'Deposit on Pacifica' : 'Open portfolio' }}
+                {{ requiresPacificaActivation ? `Deposit ${formatPrice(pacifica.minimumDepositUsd.value)}` : requiresFunding ? 'Deposit on Pacifica' : 'Open portfolio' }}
               </a>
 
               <button
@@ -406,13 +422,13 @@ watch(() => wallet.token.value, () => {
           {{ pacifica.error.value }}
         </div>
 
-        <details v-if="!pacifica.readyToExecute.value || requiresFunding" class="stage-backdrop__detail-card">
+        <details v-if="!pacifica.readyToExecute.value || requiresPacificaActivation || requiresFunding" class="stage-backdrop__detail-card">
           <summary>Onboarding guide</summary>
           <ol class="stage-backdrop__guide">
             <li>Connect your Solana wallet and sign the AIR3 session.</li>
-            <li>Click <strong>Complete Pacifica onboarding</strong>. AIR3 prepares two Pacifica payloads for your account.</li>
+            <li>Click <strong>Complete Pacifica onboarding</strong>. AIR3 prepares two Pacifica payloads for your account, so two wallet signatures are expected.</li>
             <li>Approve AIRewardrop as builder, then bind the dedicated agent wallet to your Pacifica account.</li>
-            <li>Fund the Pacifica account before executing the first trade.</li>
+            <li>Open Pacifica with AIRewardrop and deposit at least {{ formatPrice(pacifica.minimumDepositUsd.value) }} to initialize the account.</li>
             <li>Once funded, chart proposals can open and close positions directly from AIR3.</li>
           </ol>
           <div class="stage-backdrop__guide-actions">
