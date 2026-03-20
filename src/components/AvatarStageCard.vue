@@ -34,6 +34,12 @@ const lighting = useAvatarLighting()
       @load-progress="avatar.handleLoadProgress"
       @load-finish="avatar.handleLoadFinish"
       @error="avatar.handleLoadError"
+    />
+
+    <button
+      class="avatar-stage-layer__hitbox"
+      type="button"
+      aria-label="Interact with AIR3 avatar"
       @click="avatar.triggerInteractionGesture('avatar-click')"
     />
   </div>
@@ -50,7 +56,30 @@ const lighting = useAvatarLighting()
 .avatar-stage-layer__stage {
   width: 100%;
   height: 100%;
+  pointer-events: none;
+}
+
+.avatar-stage-layer__hitbox {
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  z-index: 3;
+  width: min(29vw, 360px);
+  height: min(80dvh, 760px);
+  transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: pointer;
+  background: transparent;
+  border: 0;
+  clip-path: ellipse(33% 47% at 50% 52%);
+}
+
+@media (max-width: 980px) {
+  .avatar-stage-layer__hitbox {
+    top: 54%;
+    width: min(54vw, 360px);
+    height: min(72dvh, 640px);
+    clip-path: ellipse(36% 46% at 50% 52%);
+  }
 }
 </style>
