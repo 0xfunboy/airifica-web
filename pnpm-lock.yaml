@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@airifica/air3-client':
-        specifier: workspace:*
-        version: link:packages/air3-client
       '@airifica/avatar3d':
         specifier: workspace:*
         version: link:packages/avatar3d
@@ -39,8 +36,6 @@ importers:
       vue-tsc:
         specifier: ^3.2.5
         version: 3.2.5(typescript@5.9.3)
-
-  packages/air3-client: {}
 
   packages/avatar3d:
     dependencies:

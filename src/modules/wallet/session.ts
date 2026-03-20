@@ -1,6 +1,6 @@
 import { computed, reactive } from 'vue'
 
-import type { Air3PacificaUnsignedPayload } from '@airifica/air3-client'
+import type { Air3PacificaUnsignedPayload } from '@/lib/air3-client'
 
 import { createGuestIdentity } from '@/lib/ids'
 import { createAir3Client } from '@/lib/air3'

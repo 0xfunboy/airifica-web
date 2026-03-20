@@ -1,4 +1,4 @@
-import type { Air3TradeProposal } from '@airifica/air3-client'
+import type { Air3TradeProposal } from '@/lib/air3-client'
 
 import { computeProposalConfidence } from '@/modules/trade/proposalMetrics'
 

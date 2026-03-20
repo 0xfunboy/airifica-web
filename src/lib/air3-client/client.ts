@@ -250,7 +250,7 @@ export class Air3Client {
   deriveTradeProposal(input: DeriveTradeProposalInput) {
     return requestJson<{ ok: boolean, proposal: Air3TradeProposal | null }>(
       this.config,
-      `${resolveRuntimeBaseUrl(this.config)}/api/airi3/proposal`,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/proposal`,
       {
         method: 'POST',
         headers: {

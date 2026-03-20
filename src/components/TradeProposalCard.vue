@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
-import type { Air3TradeProposal } from '@airifica/air3-client'
+import type { Air3TradeProposal } from '@/lib/air3-client'
 
 import { createAir3Client } from '@/lib/air3'
 import { useMarketContext } from '@/modules/market/context'

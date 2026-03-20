@@ -1,4 +1,4 @@
-import type { Air3MessageMeta, Air3TradeProposal } from '@airifica/air3-client'
+import type { Air3MessageMeta, Air3TradeProposal } from '@/lib/air3-client'
 
 export interface ConversationMessage {
   id: string

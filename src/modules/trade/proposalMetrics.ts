@@ -1,4 +1,4 @@
-import type { Air3TradeProposal } from '@airifica/air3-client'
+import type { Air3TradeProposal } from '@/lib/air3-client'
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))

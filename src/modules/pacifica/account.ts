@@ -4,7 +4,7 @@ import type {
   Air3PacificaAccountSnapshot,
   Air3PacificaPosition,
   Air3PacificaStatus,
-} from '@airifica/air3-client'
+} from '@/lib/air3-client'
 
 import { appConfig } from '@/config/app'
 import { createAir3Client } from '@/lib/air3'

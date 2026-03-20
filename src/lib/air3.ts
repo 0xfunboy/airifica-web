@@ -1,6 +1,6 @@
-import type { Air3ClientConfig } from '@airifica/air3-client'
+import type { Air3ClientConfig } from '@/lib/air3-client'
 
-import { Air3Client } from '@airifica/air3-client'
+import { Air3Client } from '@/lib/air3-client'
 
 import { appConfig } from '@/config/app'
 

@@ -1,8 +1,8 @@
 import { computed, reactive } from 'vue'
 
-import type { Air3MessageEnvelope } from '@airifica/air3-client'
+import type { Air3MessageEnvelope } from '@/lib/air3-client'
 
-import { extractMessageText, hasPendingProposal } from '@airifica/air3-client'
+import { extractMessageText, hasPendingProposal } from '@/lib/air3-client'
 
 import { createId } from '@/lib/ids'
 import { createAir3Client } from '@/lib/air3'

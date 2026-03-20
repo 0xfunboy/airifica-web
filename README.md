@@ -14,7 +14,7 @@
 ## Runtime Areas
 
 - [src/](./src): application shell, UI components and domain modules
-- [packages/air3-client](./packages/air3-client): browser client for AIR3, Pacifica and session endpoints
+- [src/lib/air3-client](./src/lib/air3-client): browser connector for AIR3, Pacifica and session endpoints
 - [packages/avatar3d](./packages/avatar3d): Three/VRM stage runtime, gaze, breath loop and ambient gestures
 - [public/brand](./public/brand): stage branding, favicons and the default AIR3 VRM asset
 - [public/vrm-animations](./public/vrm-animations): ambient and gesture VRMA clips used by the avatar runtime

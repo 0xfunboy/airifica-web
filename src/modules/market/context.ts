@@ -1,6 +1,6 @@
 import { computed, reactive, watch } from 'vue'
 
-import type { Air3MarketContext } from '@airifica/air3-client'
+import type { Air3MarketContext } from '@/lib/air3-client'
 
 import { appConfig } from '@/config/app'
 import { createAir3Client } from '@/lib/air3'
