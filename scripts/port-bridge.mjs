@@ -40,15 +40,33 @@ const TTS_TARGET_PORT = 4041
 const LISTEN_HOST = '127.0.0.1'
 const LISTEN_PORT = 5173
 
-const PACIFICA_BASE_URL = (process.env.PACIFICA_API_BASE || 'https://api.pacifica.fi').replace(/\/+$/, '')
-const AIRI3_DATA_DIR = (process.env.AIRI3_DATA_DIR || '/home/funboy/air3-stack/eliza-air3/agent/data/airi3').trim()
-const AIRI3_STATE_FILE = path.join(path.resolve(AIRI3_DATA_DIR), 'airi3-state.json')
+const TTS_PROXY_PATHS = new Set([
+  '/api/tts',
+  '/api/tts/captioned',
+  '/api/tts/phonemes',
+])
+
+const AIR3_ALLOWED_ROUTES = [
+  { method: 'POST', pattern: /^\/api\/auth\/challenge$/ },
+  { method: 'POST', pattern: /^\/api\/auth\/verify$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/session$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/message$/ },
+  { method: 'GET', pattern: /^\/api\/airi3\/history(?:\?|$)/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/proposal$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/proposals$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/proposals\/\d+\/approve$/ },
+  { method: 'GET', pattern: /^\/api\/airi3\/health$/ },
+  { method: 'GET', pattern: /^\/api\/airi3\/market-context(?:\?|$)/ },
+  { method: 'GET', pattern: /^\/api\/airi3\/pacifica\/status$/ },
+  { method: 'GET', pattern: /^\/api\/airi3\/pacifica\/overview$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/pacifica\/prepare-agent$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/pacifica\/approve-builder$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/pacifica\/bind-agent$/ },
+  { method: 'POST', pattern: /^\/api\/airi3\/pacifica\/positions\/close$/ },
+]
 
 function resolveTarget(pathname = '/') {
-  if (pathname === '/api/airi3/pacifica/approve-builder')
-    return { kind: 'approve-builder' }
-
-  if (pathname.startsWith('/api/tts') || pathname.startsWith('/v1/audio/speech'))
+  if (TTS_PROXY_PATHS.has(pathname))
     return { kind: 'proxy', host: TTS_TARGET_HOST, port: TTS_TARGET_PORT }
 
   if (pathname.startsWith('/api/'))
@@ -82,142 +100,16 @@ function sendJson(res, statusCode, payload) {
   res.end(body)
 }
 
-function readRequestBody(req) {
-  return new Promise((resolve, reject) => {
-    let raw = ''
-    req.setEncoding('utf8')
-    req.on('data', chunk => {
-      raw += chunk
-      if (raw.length > 1024 * 1024)
-        reject(new Error('Request body too large'))
-    })
-    req.on('end', () => resolve(raw))
-    req.on('error', reject)
-  })
-}
-
-function parseJsonBody(raw) {
-  if (!raw)
-    return {}
-  return JSON.parse(raw)
-}
-
-async function ensureAuthorized(headers) {
-  const response = await fetch(`http://${AIR3_TARGET_HOST}:${AIR3_TARGET_PORT}/api/airi3/pacifica/status`, {
-    method: 'GET',
-    headers: {
-      ...(headers.authorization ? { authorization: headers.authorization } : {}),
-      ...(headers['x-wallet-address'] ? { 'x-wallet-address': headers['x-wallet-address'] } : {}),
-      ...(headers['x-session-identity'] ? { 'x-session-identity': headers['x-session-identity'] } : {}),
-      ...(headers['x-airi3-client'] ? { 'x-airi3-client': headers['x-airi3-client'] } : {}),
-    },
-  })
-
-  if (!response.ok) {
-    const message = await response.text().catch(() => '')
-    throw new Error(message || `Authorization check failed (${response.status})`)
-  }
-}
-
-function updateBindingState(walletAddress, patch) {
-  fs.mkdirSync(path.dirname(AIRI3_STATE_FILE), { recursive: true })
-  const raw = fs.existsSync(AIRI3_STATE_FILE) ? fs.readFileSync(AIRI3_STATE_FILE, 'utf8') : ''
-  const parsed = raw ? JSON.parse(raw) : { nextProposalId: 1, pacificaBindings: {}, proposals: {} }
-  const existing = parsed?.pacificaBindings?.[walletAddress]
-  if (!existing)
-    throw new Error('No prepared Pacifica binding found for this wallet.')
-
-  parsed.pacificaBindings[walletAddress] = {
-    ...existing,
-    ...patch,
-    updatedAt: Date.now(),
-  }
-
-  const tempPath = `${AIRI3_STATE_FILE}.tmp`
-  fs.writeFileSync(tempPath, JSON.stringify(parsed, null, 2))
-  fs.renameSync(tempPath, AIRI3_STATE_FILE)
-  return parsed.pacificaBindings[walletAddress]
-}
-
-async function handleApproveBuilder(req, res) {
-  if (req.method !== 'POST')
-    return sendJson(res, 405, { ok: false, error: 'Method not allowed' })
-
-  try {
-    await ensureAuthorized(req.headers)
-
-    const rawBody = await readRequestBody(req)
-    const payload = parseJsonBody(rawBody)
-    const signedPayload = payload?.signedPayload || {}
-
-    const account = String(signedPayload.account || req.headers['x-wallet-address'] || '').trim()
-    const builderCode = String(signedPayload.builder_code || signedPayload.builder || '').trim()
-    const maxFeeRate = String(signedPayload.max_fee_rate || '').trim()
-    const signature = String(signedPayload.signature || '').trim()
-    const timestamp = Number(signedPayload.timestamp)
-    const expiryWindow = Number(signedPayload.expiry_window)
-
-    if (!account || !builderCode || !maxFeeRate || !signature || !Number.isFinite(timestamp) || !Number.isFinite(expiryWindow)) {
-      return sendJson(res, 400, { ok: false, error: 'Incomplete builder approval payload.' })
-    }
-
-    const upstreamResponse = await fetch(`${PACIFICA_BASE_URL}/api/v1/account/builder_codes/approve`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        account,
-        agent_wallet: null,
-        signature,
-        timestamp,
-        expiry_window: expiryWindow,
-        builder_code: builderCode,
-        max_fee_rate: maxFeeRate,
-      }),
-    })
-
-    const responseText = await upstreamResponse.text()
-    if (!upstreamResponse.ok) {
-      return sendJson(res, 502, {
-        ok: false,
-        error: `Pacifica approve builder failed (${upstreamResponse.status}): ${responseText}`,
-      })
-    }
-
-    let pacificaResponse
-    try {
-      pacificaResponse = responseText ? JSON.parse(responseText) : {}
-    }
-    catch {
-      pacificaResponse = { raw: responseText }
-    }
-
-    updateBindingState(account, {
-      builderApprovedAt: Date.now(),
-    })
-
-    return sendJson(res, 200, {
-      ok: true,
-      pacificaResponse,
-    })
-  }
-  catch (error) {
-    return sendJson(res, 500, {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Builder approval bridge failed.',
-    })
-  }
+function isAllowedApiRoute(method, pathname) {
+  return AIR3_ALLOWED_ROUTES.some(route => route.method === method && route.pattern.test(pathname))
 }
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', `http://${LISTEN_HOST}:${LISTEN_PORT}`)
   const target = resolveTarget(url.pathname)
 
-  if (target.kind === 'approve-builder') {
-    void handleApproveBuilder(req, res)
-    return
-  }
+  if (url.pathname.startsWith('/api/') && !TTS_PROXY_PATHS.has(url.pathname) && !isAllowedApiRoute(req.method || 'GET', `${url.pathname}${url.search}`))
+    return sendJson(res, 404, { ok: false, error: 'Route not exposed by Airifica gateway' })
 
   const upstream = http.request(
     {
