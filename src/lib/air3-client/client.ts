@@ -79,6 +79,7 @@ export interface ApproveTradeProposalInput {
   proposalId: number
   walletAddress: string
   notionalUsd?: number
+  leverage?: number
   headers?: HeadersInit
 }
 
@@ -308,6 +309,7 @@ export class Air3Client {
         body: JSON.stringify({
           walletAddress: input.walletAddress,
           ...(input.notionalUsd ? { notional_usd: input.notionalUsd } : {}),
+          ...(input.leverage ? { leverage: input.leverage } : {}),
         }),
       },
       30_000,

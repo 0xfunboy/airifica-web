@@ -26,12 +26,32 @@ const result = ref<{ success: boolean, message: string } | null>(null)
 const executing = ref(false)
 const awaitingConfirmation = ref(false)
 const notionalUsd = ref('0')
+const leverage = ref(1)
 const autoExecutionStarted = ref(false)
 const strategyOpen = ref(false)
 
 const marketPrice = computed(() =>
   marketContext.currentSymbol.value === props.proposal.symbol ? marketContext.market.value?.price ?? null : null,
 )
+const marketMeta = computed(() =>
+  marketContext.currentSymbol.value === props.proposal.symbol ? marketContext.market.value : null,
+)
+const maxLeverage = computed(() => {
+  const marketMax = Number(marketMeta.value?.maxLeverage || 0)
+  return Number.isFinite(marketMax) && marketMax >= 1 ? Math.max(1, Math.trunc(marketMax)) : 1
+})
+const numericSizeUsd = computed(() => {
+  const numeric = Number(notionalUsd.value)
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0
+})
+const effectiveNotionalUsd = computed(() => numericSizeUsd.value * leverage.value)
+const estimatedAssetAmount = computed(() =>
+  props.proposal.entry > 0 ? effectiveNotionalUsd.value / props.proposal.entry : 0,
+)
+const minimumOrderHint = computed(() => {
+  const minimum = Number(marketMeta.value?.minOrderSize || 0)
+  return Number.isFinite(minimum) && minimum > 0 ? minimum : null
+})
 const derivedConfidence = computed(() => computeProposalConfidence(props.proposal, { marketPrice: marketPrice.value }))
 const confidencePct = computed(() => Math.round(derivedConfidence.value * 100))
 const riskReward = computed(() => computeRiskReward(props.proposal))
@@ -105,6 +125,20 @@ function notifyEmbeddedTradeExecuted(payload: Record<string, unknown>) {
   }, targetOrigin)
 }
 
+function formatUsd(value: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: value >= 100 ? 0 : 2,
+    maximumFractionDigits: value >= 100 ? 0 : 2,
+  })
+}
+
+function formatAssetAmount(value: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  })
+}
+
 async function handleExecute() {
   if (executing.value)
     return
@@ -165,6 +199,7 @@ async function handleExecute() {
       proposalId,
       walletAddress: wallet.address.value,
       notionalUsd: Number.isFinite(requestedNotional) && requestedNotional > 0 ? requestedNotional : undefined,
+      leverage: leverage.value,
       headers: wallet.buildRequestHeaders(),
     })
 
@@ -196,6 +231,10 @@ async function handleExecute() {
     executing.value = false
   }
 }
+
+watch(() => maxLeverage.value, (value) => {
+  leverage.value = value
+}, { immediate: true })
 
 function handleExecuteClick() {
   if (!canExecute.value)
@@ -311,10 +350,42 @@ function toggleStrategy() {
       </article>
     </div>
 
-    <label class="proposal-card__field">
-      <span>Size (USD)</span>
-      <input v-model="notionalUsd" type="number" min="0" step="1" placeholder="0">
-    </label>
+    <div class="proposal-card__execution">
+      <label class="proposal-card__field proposal-card__field--size">
+        <span>Size (USD)</span>
+        <input v-model="notionalUsd" type="number" min="0" step="0.1" placeholder="0">
+      </label>
+
+      <div class="proposal-card__leverage">
+        <div class="proposal-card__leverage-head">
+          <span>Leverage</span>
+          <strong>{{ leverage }}x</strong>
+        </div>
+        <input
+          v-model.number="leverage"
+          class="proposal-card__leverage-slider"
+          type="range"
+          min="1"
+          :max="maxLeverage"
+          step="1"
+        >
+        <div class="proposal-card__leverage-scale">
+          <span>1x</span>
+          <span>{{ maxLeverage }}x max</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="proposal-card__amount-preview">
+      <span class="proposal-card__amount-asset">{{ formatAssetAmount(estimatedAssetAmount) }} {{ proposal.symbol }}</span>
+      <span class="proposal-card__amount-divider" />
+      <span class="proposal-card__amount-notional">{{ formatUsd(effectiveNotionalUsd) }} USD</span>
+      <span class="proposal-card__amount-used">Used {{ formatUsd(numericSizeUsd) }} USD</span>
+    </div>
+
+    <p v-if="minimumOrderHint" class="proposal-card__market-hint">
+      Pacifica {{ proposal.symbol }} currently reports lot {{ marketMeta?.lotSize ?? 'n/a' }} and minimum order {{ minimumOrderHint }} USD.
+    </p>
 
     <div class="proposal-card__utility-row">
       <button
@@ -544,6 +615,13 @@ function toggleStrategy() {
   line-height: 1.55;
 }
 
+.proposal-card__execution {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
+  align-items: end;
+}
+
 .proposal-card__field {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -551,13 +629,92 @@ function toggleStrategy() {
   gap: 10px;
 }
 
+.proposal-card__field--size {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
 .proposal-card__field input {
-  min-height: 20px;
+  min-height: 44px;
   border: 1px solid rgba(138, 218, 255, 0.12);
   background: rgba(2, 12, 21, 0.78);
-  padding: 0 8px;
-  font-size: 0.82rem;
+  padding: 0 12px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f5fbff;
   outline: none;
+}
+
+.proposal-card__leverage {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  background: rgba(8, 20, 33, 0.44);
+}
+
+.proposal-card__leverage-head,
+.proposal-card__leverage-scale,
+.proposal-card__amount-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proposal-card__leverage-head span,
+.proposal-card__leverage-scale span {
+  color: var(--text-2);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.proposal-card__leverage-head strong {
+  color: #8af4ff;
+  font-size: 1rem;
+}
+
+.proposal-card__leverage-slider {
+  width: 100%;
+  accent-color: #67e8f9;
+}
+
+.proposal-card__amount-preview {
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  background: rgba(8, 20, 33, 0.4);
+}
+
+.proposal-card__amount-asset,
+.proposal-card__amount-notional {
+  color: #eefaff;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.proposal-card__amount-used {
+  color: rgba(186, 230, 253, 0.76);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.proposal-card__amount-divider {
+  flex: 1;
+  min-width: 24px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(103, 232, 249, 0.24), rgba(103, 232, 249, 0));
+}
+
+.proposal-card__market-hint {
+  margin: -2px 0 0;
+  color: rgba(186, 230, 253, 0.56);
+  font-size: 0.72rem;
+  line-height: 1.5;
 }
 
 .proposal-card__action {
@@ -693,6 +850,7 @@ function toggleStrategy() {
     grid-template-columns: 1fr;
   }
 
+  .proposal-card__execution,
   .proposal-card__field {
     grid-template-columns: 1fr;
   }

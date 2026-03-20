@@ -192,6 +192,10 @@ export interface Air3MarketContext {
   funding?: number | null
   openInterest?: number | null
   supportedOnPacifica?: boolean
+  tickSize?: number | null
+  lotSize?: number | null
+  minOrderSize?: number | null
+  maxLeverage?: number | null
   data: Air3MarketContextCandle[]
 }
 
