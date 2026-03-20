@@ -66,9 +66,9 @@ const onboardingHint = computed(() => {
   if (!pacifica.readyToExecute.value)
     return 'Builder approval or agent binding is still pending.'
   if (requiresPacificaActivation.value)
-    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop and deposit at least ${formatUsd(pacifica.minimumDepositUsd.value)} to initialize this account.`
+    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop, then deposit at least ${formatUsd(pacifica.minimumDepositUsd.value)} to initialize this account.`
   if ((pacifica.account.value?.availableToSpend || 0) <= 0)
-    return 'The account is connected. Deposit funds to make execution available.'
+    return 'No funds on Pacifica yet. Deposit before execution.'
   return 'Pacifica account is ready for execution.'
 })
 
@@ -220,11 +220,11 @@ onMounted(() => {
       <a
         v-else-if="requiresPacificaActivation"
         class="surface-button surface-button--primary"
-        :href="marketContext.pacificaTradeUrl.value"
+        :href="marketContext.pacificaDepositUrl.value"
         target="_blank"
         rel="noreferrer"
       >
-        Open Pacifica with AIRewardrop
+        Deposit
       </a>
 
       <button
@@ -249,11 +249,11 @@ onMounted(() => {
     </div>
 
     <span v-if="requiresPacificaActivation" class="pacifica-card__funding">
-      Pacifica does not see this account yet. Open Pacifica with AIRewardrop and deposit at least {{ formatUsd(pacifica.minimumDepositUsd.value) }}.
+      Activate Pacifica with AIRewardrop, then deposit at least {{ formatUsd(pacifica.minimumDepositUsd.value) }}.
     </span>
 
     <span v-if="requiresFunding" class="pacifica-card__funding">
-      Deposit funds to enable execution.
+      No funds on Pacifica.
     </span>
 
     <p v-if="pacifica.error.value" class="pacifica-card__error">

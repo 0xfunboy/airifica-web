@@ -40,6 +40,26 @@ const state = reactive({
 })
 
 const wallet = useWalletSession()
+let syncInitialized = false
+
+function safeRefreshOverview() {
+  if (!wallet.token.value || state.loading)
+    return
+
+  void refreshOverview().catch(() => {})
+}
+
+function initializeSync() {
+  if (syncInitialized || typeof window === 'undefined')
+    return
+
+  syncInitialized = true
+  window.addEventListener('focus', safeRefreshOverview)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible')
+      safeRefreshOverview()
+  })
+}
 
 function reset() {
   state.status = { ...DEFAULT_STATUS }
@@ -97,6 +117,8 @@ async function refreshOverview() {
 }
 
 export function usePacificaAccount() {
+  initializeSync()
+
   async function setupBuilderAccess(options?: { maxFeeRate?: string }) {
     if (!wallet.address.value || !wallet.token.value)
       throw new Error('Connect your Solana wallet and sign the AIR3 session first.')

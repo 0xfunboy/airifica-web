@@ -47,6 +47,18 @@ const requiresFunding = computed(() =>
   Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
 )
 
+const accountMetrics = computed(() => {
+  if (!pacifica.account.value)
+    return []
+
+  return [
+    { label: 'Account Equity', value: formatPrice(pacifica.account.value.equity) },
+    { label: 'Available', value: formatPrice(pacifica.account.value.availableToSpend) },
+    { label: 'Withdrawable', value: formatPrice(pacifica.account.value.availableToWithdraw) },
+    { label: 'Open Positions', value: String(pacifica.positions.value.length) },
+  ]
+})
+
 const onboardingHint = computed(() => {
   if (!wallet.isConnected.value)
     return 'Connect your Solana wallet first.'
@@ -55,9 +67,9 @@ const onboardingHint = computed(() => {
   if (!pacifica.readyToExecute.value)
     return 'Approve AIRewardrop as builder and bind the dedicated agent wallet.'
   if (requiresPacificaActivation.value)
-    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop and deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)} to initialize the account.`
+    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop, then deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)} to initialize the account.`
   if (requiresFunding.value)
-    return 'Your Pacifica account is connected but not funded yet.'
+    return 'No funds on Pacifica yet. Deposit before execution.'
   return 'Builder onboarding is complete.'
 })
 
@@ -301,7 +313,7 @@ watch(() => wallet.token.value, () => {
           <div class="stage-backdrop__account-row">
             <div>
               <div class="stage-backdrop__account-title">
-                {{ pacifica.readyToExecute.value ? (requiresPacificaActivation ? 'Builder ready, Pacifica activation required' : requiresFunding ? 'Builder ready, funding required' : 'Ready to execute') : wallet.isAuthenticated.value ? 'Wallet connected, builder pending' : 'Connect wallet to trade' }}
+                {{ pacifica.readyToExecute.value ? (requiresPacificaActivation ? 'Builder ready, activate Pacifica account' : requiresFunding ? 'No funds on Pacifica' : 'Ready to execute') : wallet.isAuthenticated.value ? 'Wallet connected, builder pending' : 'Connect wallet to trade' }}
               </div>
               <div class="stage-backdrop__account-subtitle">
                 Equity {{ formatPrice(pacifica.account.value?.equity) }} · Available {{ formatPrice(pacifica.account.value?.availableToSpend) }} · Withdrawable {{ formatPrice(pacifica.account.value?.availableToWithdraw) }} · Open {{ pacifica.positions.value.length }}
@@ -343,23 +355,23 @@ watch(() => wallet.token.value, () => {
               </button>
 
               <a
-                v-else-if="requiresPacificaActivation"
-                :href="pacificaTradeUrl"
+                v-else-if="requiresPacificaActivation || requiresFunding"
+                :href="requiresPacificaActivation ? pacificaTradeUrl : pacificaDepositUrl"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="stage-backdrop__primary-action"
               >
-                Open Pacifica with AIRewardrop
+                Deposit
               </a>
 
               <a
                 v-if="wallet.isAuthenticated.value"
-                :href="requiresPacificaActivation ? pacificaDepositUrl : requiresFunding ? pacificaDepositUrl : pacificaPortfolioUrl"
+                :href="requiresPacificaActivation ? pacificaTradeUrl : pacificaPortfolioUrl"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="stage-backdrop__secondary-action"
               >
-                {{ requiresPacificaActivation ? `Deposit ${formatPrice(pacifica.minimumDepositUsd.value)}` : requiresFunding ? 'Deposit on Pacifica' : 'Open portfolio' }}
+                {{ requiresPacificaActivation ? 'Open AIRewardrop referral' : 'Open portfolio' }}
               </a>
 
               <button
@@ -373,6 +385,13 @@ watch(() => wallet.token.value, () => {
               </button>
             </div>
           </div>
+        </div>
+
+        <div v-if="accountMetrics.length" class="stage-backdrop__account-metrics">
+          <article v-for="metric in accountMetrics" :key="metric.label" class="stage-backdrop__account-metric">
+            <span>{{ metric.label }}</span>
+            <strong>{{ metric.value }}</strong>
+          </article>
         </div>
 
         <div v-if="currentPacificaPosition" class="stage-backdrop__detail-card">
@@ -428,15 +447,16 @@ watch(() => wallet.token.value, () => {
             <li>Connect your Solana wallet and sign the AIR3 session.</li>
             <li>Click <strong>Complete Pacifica onboarding</strong>. AIR3 prepares two Pacifica payloads for your account, so two wallet signatures are expected.</li>
             <li>Approve AIRewardrop as builder, then bind the dedicated agent wallet to your Pacifica account.</li>
-            <li>Open Pacifica with AIRewardrop and deposit at least {{ formatPrice(pacifica.minimumDepositUsd.value) }} to initialize the account.</li>
-            <li>Once funded, chart proposals can open and close positions directly from AIR3.</li>
+            <li v-if="requiresPacificaActivation">Open Pacifica through the AIRewardrop referral link once, then deposit at least {{ formatPrice(pacifica.minimumDepositUsd.value) }} to initialize the account.</li>
+            <li v-else-if="requiresFunding">Deposit funds on Pacifica. Once equity is visible here, AIR3 can execute trades directly.</li>
+            <li v-else>Once funded, chart proposals can open and close positions directly from AIR3.</li>
           </ol>
           <div class="stage-backdrop__guide-actions">
-            <a :href="pacificaTradeUrl" target="_blank" rel="noopener noreferrer" class="stage-backdrop__secondary-action">
-              Open {{ marketContext.currentSymbol.value }} on Pacifica
+            <a :href="requiresPacificaActivation ? pacificaTradeUrl : pacificaDepositUrl" target="_blank" rel="noopener noreferrer" class="stage-backdrop__secondary-action">
+              {{ requiresPacificaActivation ? 'Open AIRewardrop referral' : 'Deposit on Pacifica' }}
             </a>
-            <a :href="pacificaDepositUrl" target="_blank" rel="noopener noreferrer" class="stage-backdrop__secondary-action">
-              Deposit
+            <a :href="requiresPacificaActivation ? pacificaDepositUrl : pacificaPortfolioUrl" target="_blank" rel="noopener noreferrer" class="stage-backdrop__secondary-action">
+              {{ requiresPacificaActivation ? 'Deposit' : 'Open portfolio' }}
             </a>
             <a :href="pacificaWithdrawUrl" target="_blank" rel="noopener noreferrer" class="stage-backdrop__secondary-action">
               Withdraw
@@ -669,6 +689,34 @@ watch(() => wallet.token.value, () => {
 .stage-backdrop__account-stack {
   display: grid;
   gap: 8px;
+}
+
+.stage-backdrop__account-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stage-backdrop__account-metric {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(103, 232, 249, 0.1);
+  background: rgba(8, 28, 42, 0.28);
+}
+
+.stage-backdrop__account-metric span {
+  color: rgba(186, 230, 253, 0.52);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.stage-backdrop__account-metric strong {
+  color: rgba(240, 249, 255, 0.96);
+  font-size: 0.94rem;
+  font-weight: 600;
 }
 
 .stage-backdrop__account-card,

@@ -59,13 +59,17 @@ const proposalForExecution = computed(() => ({
   confidence: Number(derivedConfidence.value.toFixed(2)),
 }))
 const requiresOnboarding = computed(() => wallet.isAuthenticated.value && !pacifica.readyToExecute.value)
+const requiresActivation = computed(() =>
+  wallet.isAuthenticated.value && pacifica.readyToExecute.value && pacifica.accountMissing.value,
+)
 const requiresFunding = computed(() =>
-  wallet.isAuthenticated.value && pacifica.readyToExecute.value && ((pacifica.account.value?.availableToSpend || 0) <= 0),
+  wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0),
 )
 const canExecute = computed(() =>
-  wallet.isAuthenticated.value && pacifica.readyToExecute.value && !requiresFunding.value,
+  wallet.isAuthenticated.value && pacifica.readyToExecute.value && !requiresActivation.value && !requiresFunding.value,
 )
 const pacificaTradeUrl = computed(() => marketContext.buildPacificaTradeUrl(props.proposal.symbol))
+const pacificaFundingUrl = computed(() => requiresActivation.value ? pacificaTradeUrl.value : marketContext.pacificaDepositUrl.value)
 const hasStrategy = computed(() => Boolean(props.proposal.thesis?.trim()))
 const sideTone = computed(() => props.proposal.side === 'LONG'
   ? {
@@ -121,10 +125,18 @@ async function handleExecute() {
     return
   }
 
+  if (requiresActivation.value) {
+    result.value = {
+      success: false,
+      message: `Open Pacifica with AIRewardrop once and deposit at least ${pacifica.minimumDepositUsd.value} USDC before execution.`,
+    }
+    return
+  }
+
   if (requiresFunding.value) {
     result.value = {
       success: false,
-      message: 'Pacifica account has no spendable balance yet. Deposit funds first.',
+      message: 'No funds on Pacifica. Deposit before execution.',
     }
     return
   }
@@ -324,13 +336,13 @@ function toggleStrategy() {
         {{ pacifica.setupLoading.value ? 'Connecting…' : 'Complete onboarding' }}
       </button>
       <a
-        v-else
+        v-else-if="requiresActivation || requiresFunding"
         class="proposal-card__utility-link proposal-card__utility-link--primary"
-        :href="pacificaTradeUrl"
+        :href="pacificaFundingUrl"
         target="_blank"
         rel="noreferrer"
       >
-        Open trade
+        Deposit
       </a>
     </div>
 
@@ -354,7 +366,7 @@ function toggleStrategy() {
         {{ wallet.authenticating.value ? 'Verifying...' : 'Sign session' }}
       </button>
       <button
-        v-else-if="!requiresOnboarding"
+        v-else-if="!requiresOnboarding && !requiresActivation && !requiresFunding"
         class="surface-button surface-button--primary proposal-card__action"
         :disabled="executing || !canExecute"
         type="button"
@@ -368,8 +380,20 @@ function toggleStrategy() {
               : 'Execute trade'
         }}
       </button>
+      <a
+        v-else-if="requiresActivation || requiresFunding"
+        class="surface-button surface-button--primary proposal-card__action"
+        :href="pacificaFundingUrl"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Deposit
+      </a>
+      <span v-if="requiresActivation" class="proposal-card__note">
+        Activate Pacifica with AIRewardrop, then deposit at least {{ pacifica.minimumDepositUsd.value }} USDC.
+      </span>
       <span v-if="requiresFunding" class="proposal-card__note">
-        Deposit funds before execution.
+        No funds on Pacifica.
       </span>
     </div>
 
