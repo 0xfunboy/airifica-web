@@ -617,7 +617,7 @@ function toggleStrategy() {
 
 .proposal-card__execution {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(112px, 0.62fr) minmax(0, 1.38fr);
   gap: 10px;
   align-items: end;
 }
@@ -634,12 +634,17 @@ function toggleStrategy() {
   gap: 8px;
 }
 
+.proposal-card__field--size span {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
 .proposal-card__field input {
-  min-height: 44px;
+  min-height: 40px;
   border: 1px solid rgba(138, 218, 255, 0.12);
   background: rgba(2, 12, 21, 0.78);
-  padding: 0 12px;
-  font-size: 1.15rem;
+  padding: 0 10px;
+  font-size: 1rem;
   font-weight: 700;
   color: #f5fbff;
   outline: none;

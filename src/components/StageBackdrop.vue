@@ -27,6 +27,11 @@ const trendToneClass = computed(() => {
 const currentPacificaPosition = computed(() =>
   pacifica.getPositionForSymbol(marketContext.currentSymbol.value),
 )
+const otherPacificaPositions = computed(() =>
+  pacifica.positions.value.filter(position =>
+    !currentPacificaPosition.value || getPositionKey(position) !== getPositionKey(currentPacificaPosition.value),
+  ),
+)
 
 const requiresSessionSignature = computed(() =>
   Boolean(wallet.isConnected.value && !wallet.isAuthenticated.value),
@@ -322,7 +327,7 @@ watch(() => wallet.token.value, () => {
             <span class="stage-backdrop__eyebrow">AIR3 Market Surface</span>
             <span class="stage-backdrop__surface-symbol">{{ marketContext.currentSymbol.value }}</span>
             <span class="stage-backdrop__surface-description">
-              Pacifica market context rendered inside AIR3. Trade execution routes through your Pacifica account via the AIRewardrop builder program.
+              Live Pacifica market context and execution status.
             </span>
           </div>
           <div v-if="pacifica.readyToExecute.value" class="stage-backdrop__surface-status">
@@ -549,11 +554,11 @@ watch(() => wallet.token.value, () => {
           </div>
         </div>
 
-        <details v-if="pacifica.positions.value.length" class="stage-backdrop__detail-card">
-          <summary>Open builder positions · {{ pacifica.positions.value.length }}</summary>
+        <details v-if="otherPacificaPositions.length" class="stage-backdrop__detail-card">
+          <summary>Open builder positions · {{ otherPacificaPositions.length }}</summary>
           <div class="stage-backdrop__positions-list">
             <div
-              v-for="position in pacifica.positions.value"
+              v-for="position in otherPacificaPositions"
               :key="`${position.symbol}:${position.side || 'NA'}`"
               class="stage-backdrop__position-card"
             >
