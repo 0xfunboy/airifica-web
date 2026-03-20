@@ -107,6 +107,7 @@ export const appConfig = {
   pacificaWithdrawBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaBuilderCode: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_CODE || 'AIRewardrop').trim(),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || 'AIRewardrop').trim(),
+  pacificaBuilderMaxFeeRate: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_MAX_FEE_RATE || '0.001').trim(),
   embeddedAllowedOrigin: (import.meta.env.VITE_AIR3_EMBED_ALLOWED_ORIGIN || '').trim(),
   ttsProvider: normalizedTtsProvider === 'browser'
     ? 'browser'

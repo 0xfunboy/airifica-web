@@ -132,7 +132,7 @@ export function usePacificaAccount() {
       })
       const prepared = await client.preparePacificaAgent({
         pacificaAccount: wallet.address.value,
-        maxFeeRate: options?.maxFeeRate,
+        maxFeeRate: options?.maxFeeRate || appConfig.pacificaBuilderMaxFeeRate,
         options: {
           builderCode: appConfig.pacificaBuilderCode,
           referralCode: appConfig.pacificaReferralCode,
