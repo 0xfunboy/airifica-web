@@ -65,6 +65,8 @@ const AIR3_ALLOWED_ROUTES = [
   { method: 'POST', pattern: /^\/api\/airi3\/pacifica\/positions\/close$/ },
 ]
 
+const PRIVATE_NETWORK_ORIGIN_PATTERN = /^https?:\/\/(?:(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?|(?:10|192\.168)(?:\.\d{1,3}){2}(?::\d+)?|172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}(?::\d+)?)$/i
+
 function resolveTarget(pathname = '/') {
   if (TTS_PROXY_PATHS.has(pathname))
     return { kind: 'proxy', host: TTS_TARGET_HOST, port: TTS_TARGET_PORT }
@@ -104,9 +106,39 @@ function isAllowedApiRoute(method, pathname) {
   return AIR3_ALLOWED_ROUTES.some(route => route.method === method && route.pattern.test(pathname))
 }
 
+function isCorsAllowedOrigin(origin) {
+  if (!origin)
+    return false
+  return PRIVATE_NETWORK_ORIGIN_PATTERN.test(origin)
+}
+
+function buildCorsHeaders(origin) {
+  if (!isCorsAllowedOrigin(origin))
+    return {}
+
+  return {
+    'access-control-allow-origin': origin,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'authorization,content-type,x-request-id,x-session-identity',
+    'access-control-max-age': '600',
+    vary: 'Origin',
+  }
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', `http://${LISTEN_HOST}:${LISTEN_PORT}`)
   const target = resolveTarget(url.pathname)
+  const corsHeaders = buildCorsHeaders(req.headers.origin)
+
+  if (req.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
+    const requestedMethod = String(req.headers['access-control-request-method'] || 'GET').toUpperCase()
+    if (TTS_PROXY_PATHS.has(url.pathname) || isAllowedApiRoute(requestedMethod, `${url.pathname}${url.search}`)) {
+      res.writeHead(204, corsHeaders)
+      res.end()
+      return
+    }
+  }
 
   if (url.pathname.startsWith('/api/') && !TTS_PROXY_PATHS.has(url.pathname) && !isAllowedApiRoute(req.method || 'GET', `${url.pathname}${url.search}`))
     return sendJson(res, 404, { ok: false, error: 'Route not exposed by Airifica gateway' })
@@ -120,14 +152,20 @@ const server = http.createServer((req, res) => {
       headers: normalizeHeaders(req.headers, target),
     },
     (upstreamRes) => {
-      res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers)
+      res.writeHead(upstreamRes.statusCode ?? 502, {
+        ...upstreamRes.headers,
+        ...corsHeaders,
+      })
       upstreamRes.pipe(res)
     },
   )
 
   upstream.on('error', () => {
     if (!res.headersSent)
-      res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' })
+      res.writeHead(502, {
+        'content-type': 'text/plain; charset=utf-8',
+        ...corsHeaders,
+      })
     res.end('Airifica upstream unavailable')
   })
 
