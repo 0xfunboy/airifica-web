@@ -121,9 +121,16 @@ export interface Air3PacificaPosition {
   amount: number
   entryPrice: number
   markPrice: number
+  liquidationPrice: number
+  takeProfitPrice: number
+  stopLossPrice: number
+  notionalUsd: number
+  unrealizedPnlUsd: number
+  unrealizedPnlPct: number
   funding: number
   margin: number
   isolated: boolean
+  openOrderCount: number
   createdAt: number
   updatedAt: number
   raw?: Record<string, unknown>

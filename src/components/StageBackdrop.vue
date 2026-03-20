@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
 
+import type { Air3PacificaPosition } from '@/lib/air3-client'
+
 import { appConfig } from '@/config/app'
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
@@ -59,6 +61,20 @@ const accountMetrics = computed(() => {
   ]
 })
 
+const executionStateTitle = computed(() => {
+  if (!wallet.isConnected.value)
+    return 'Connect wallet to trade'
+  if (!wallet.isAuthenticated.value)
+    return 'Sign Pacifica session'
+  if (!pacifica.readyToExecute.value)
+    return 'Complete builder onboarding'
+  if (requiresPacificaActivation.value)
+    return 'Pacifica activation required'
+  if (requiresFunding.value)
+    return 'Deposit funds to execute'
+  return 'Ready to execute'
+})
+
 const onboardingHint = computed(() => {
   if (!wallet.isConnected.value)
     return 'Connect your Solana wallet first.'
@@ -69,9 +85,40 @@ const onboardingHint = computed(() => {
   if (requiresPacificaActivation.value)
     return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop, then deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)} to initialize the account.`
   if (requiresFunding.value)
-    return 'No funds on Pacifica yet. Deposit before execution.'
+    return 'No funds available on Pacifica. Deposit collateral, then execute directly from AIR3.'
   return 'Builder onboarding is complete.'
 })
+
+function buildPositionMetrics(position: Air3PacificaPosition) {
+  const metrics = [
+    { label: 'Entry', value: formatPrice(position.entryPrice) },
+    { label: 'Mark', value: formatPrice(position.markPrice) },
+    { label: 'Take profit', value: position.takeProfitPrice > 0 ? formatPrice(position.takeProfitPrice) : '--' },
+    { label: 'Stop loss', value: position.stopLossPrice > 0 ? formatPrice(position.stopLossPrice) : '--' },
+    { label: 'Liq price', value: position.liquidationPrice > 0 ? formatPrice(position.liquidationPrice) : '--' },
+    { label: 'Notional', value: position.notionalUsd > 0 ? formatPrice(position.notionalUsd) : '--' },
+  ]
+
+  if (position.margin > 0)
+    metrics.push({ label: 'Margin', value: formatPrice(position.margin) })
+  else
+    metrics.push({ label: 'Funding', value: formatRate(position.funding) })
+
+  metrics.push({ label: 'Open orders', value: String(position.openOrderCount || 0) })
+  return metrics
+}
+
+function positionSideClass(side: 'LONG' | 'SHORT' | null | undefined) {
+  return side === 'LONG'
+    ? 'stage-backdrop__position-side stage-backdrop__position-side--long'
+    : 'stage-backdrop__position-side stage-backdrop__position-side--short'
+}
+
+function positionPnlClass(position: Air3PacificaPosition) {
+  return position.unrealizedPnlUsd >= 0
+    ? 'stage-backdrop__pnl stage-backdrop__pnl--positive'
+    : 'stage-backdrop__pnl stage-backdrop__pnl--negative'
+}
 
 const chartPath = computed(() => {
   const candles = market.value?.data || []
@@ -130,6 +177,38 @@ function formatCompact(value: number | null | undefined) {
     notation: 'compact',
     maximumFractionDigits: 2,
   }).format(Number(value))
+}
+
+function formatSize(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 4,
+  }).format(Number(value))
+}
+
+function formatSignedUsd(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  const numeric = Number(value)
+  return `${numeric >= 0 ? '+' : ''}${formatPrice(numeric)}`
+}
+
+function formatSignedPercent(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  const numeric = Number(value)
+  return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(2)}%`
+}
+
+function formatRate(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  return `${Number(value).toFixed(6)}`
 }
 
 async function refreshPacificaOverview() {
@@ -313,7 +392,7 @@ watch(() => wallet.token.value, () => {
           <div class="stage-backdrop__account-row">
             <div>
               <div class="stage-backdrop__account-title">
-                {{ pacifica.readyToExecute.value ? (requiresPacificaActivation ? 'Builder ready, activate Pacifica account' : requiresFunding ? 'No funds on Pacifica' : 'Ready to execute') : wallet.isAuthenticated.value ? 'Wallet connected, builder pending' : 'Connect wallet to trade' }}
+                {{ executionStateTitle }}
               </div>
               <div class="stage-backdrop__account-subtitle">
                 Equity {{ formatPrice(pacifica.account.value?.equity) }} · Available {{ formatPrice(pacifica.account.value?.availableToSpend) }} · Withdrawable {{ formatPrice(pacifica.account.value?.availableToWithdraw) }} · Open {{ pacifica.positions.value.length }}
@@ -366,23 +445,13 @@ watch(() => wallet.token.value, () => {
 
               <a
                 v-if="wallet.isAuthenticated.value"
-                :href="requiresPacificaActivation ? pacificaTradeUrl : pacificaPortfolioUrl"
+                :href="requiresPacificaActivation ? pacificaDepositUrl : pacificaPortfolioUrl"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="stage-backdrop__secondary-action"
               >
-                {{ requiresPacificaActivation ? 'Open AIRewardrop referral' : 'Open portfolio' }}
+                {{ requiresPacificaActivation ? 'Deposit on Pacifica' : 'Open portfolio' }}
               </a>
-
-              <button
-                v-if="canCloseCurrentPosition"
-                :disabled="pacifica.closingSymbol.value === marketContext.currentSymbol.value"
-                class="stage-backdrop__danger-action"
-                type="button"
-                @click="handleCloseCurrentPosition"
-              >
-                {{ pacifica.closingSymbol.value === marketContext.currentSymbol.value ? 'Closing…' : `Close ${marketContext.currentSymbol.value}` }}
-              </button>
             </div>
           </div>
         </div>
@@ -395,17 +464,43 @@ watch(() => wallet.token.value, () => {
         </div>
 
         <div v-if="currentPacificaPosition" class="stage-backdrop__detail-card">
-          <div class="stage-backdrop__metric-label">
-            Current market position
+          <div class="stage-backdrop__position-header">
+            <div class="stage-backdrop__metric-label">
+              Current market position
+            </div>
           </div>
           <div class="stage-backdrop__position-row">
             <div class="stage-backdrop__position-main">
-              <strong>{{ currentPacificaPosition.side }}</strong>
-              {{ formatCompact(currentPacificaPosition.amount) }} {{ currentPacificaPosition.symbol }}
+              <span :class="positionSideClass(currentPacificaPosition.side)">
+                {{ currentPacificaPosition.side }}
+              </span>
+              <strong>{{ formatSize(currentPacificaPosition.amount) }} {{ currentPacificaPosition.symbol }}</strong>
             </div>
-            <div class="stage-backdrop__account-subtitle">
-              Entry {{ formatPrice(currentPacificaPosition.entryPrice) }} · Mark {{ formatPrice(currentPacificaPosition.markPrice) }}
+            <div class="stage-backdrop__position-actions">
+              <div :class="positionPnlClass(currentPacificaPosition)">
+                {{ formatSignedUsd(currentPacificaPosition.unrealizedPnlUsd) }}
+                <span>{{ formatSignedPercent(currentPacificaPosition.unrealizedPnlPct) }}</span>
+              </div>
+              <button
+                v-if="canCloseCurrentPosition"
+                :disabled="pacifica.closingSymbol.value === marketContext.currentSymbol.value"
+                class="stage-backdrop__danger-action"
+                type="button"
+                @click="handleCloseCurrentPosition"
+              >
+                {{ pacifica.closingSymbol.value === marketContext.currentSymbol.value ? 'Closing…' : 'Market close' }}
+              </button>
             </div>
+          </div>
+          <div class="stage-backdrop__position-metrics">
+            <article
+              v-for="metric in buildPositionMetrics(currentPacificaPosition)"
+              :key="`${currentPacificaPosition.symbol}:${metric.label}`"
+              class="stage-backdrop__position-metric"
+            >
+              <span>{{ metric.label }}</span>
+              <strong>{{ metric.value }}</strong>
+            </article>
           </div>
         </div>
 
@@ -419,10 +514,25 @@ watch(() => wallet.token.value, () => {
             >
               <div>
                 <div class="stage-backdrop__position-title">
-                  {{ position.side || 'OPEN' }} {{ position.symbol }}
+                  <span :class="positionSideClass(position.side)">{{ position.side || 'OPEN' }}</span>
+                  <strong>{{ position.symbol }}</strong>
                 </div>
                 <div class="stage-backdrop__account-subtitle">
-                  Size {{ formatCompact(position.amount) }} · Entry {{ formatPrice(position.entryPrice) }} · Mark {{ formatPrice(position.markPrice) }}
+                  Size {{ formatSize(position.amount) }} · Entry {{ formatPrice(position.entryPrice) }} · Mark {{ formatPrice(position.markPrice) }}
+                </div>
+                <div :class="positionPnlClass(position)">
+                  {{ formatSignedUsd(position.unrealizedPnlUsd) }}
+                  <span>{{ formatSignedPercent(position.unrealizedPnlPct) }}</span>
+                </div>
+                <div class="stage-backdrop__position-metrics stage-backdrop__position-metrics--compact">
+                  <article
+                    v-for="metric in buildPositionMetrics(position)"
+                    :key="`${position.symbol}:${position.side || 'OPEN'}:${metric.label}`"
+                    class="stage-backdrop__position-metric"
+                  >
+                    <span>{{ metric.label }}</span>
+                    <strong>{{ metric.value }}</strong>
+                  </article>
                 </div>
               </div>
               <button
@@ -431,7 +541,7 @@ watch(() => wallet.token.value, () => {
                 type="button"
                 @click="handleCloseListedPosition(position.symbol, position.side)"
               >
-                {{ pacifica.closingSymbol.value === position.symbol ? 'Closing…' : 'Close' }}
+                {{ pacifica.closingSymbol.value === position.symbol ? 'Closing…' : 'Market close' }}
               </button>
             </div>
           </div>
@@ -724,12 +834,17 @@ watch(() => wallet.token.value, () => {
   padding: 12px 14px;
 }
 
+.stage-backdrop__position-header,
 .stage-backdrop__account-row,
 .stage-backdrop__position-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.stage-backdrop__account-row,
+.stage-backdrop__position-row {
   margin-top: 8px;
 }
 
@@ -787,6 +902,85 @@ watch(() => wallet.token.value, () => {
   color: #fecdd3;
 }
 
+.stage-backdrop__position-side {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stage-backdrop__position-side--long {
+  border-color: rgba(52, 211, 153, 0.24);
+  background: rgba(34, 197, 94, 0.18);
+  color: #dcfce7;
+}
+
+.stage-backdrop__position-side--short {
+  border-color: rgba(251, 113, 133, 0.24);
+  background: rgba(251, 113, 133, 0.18);
+  color: #ffe4e6;
+}
+
+.stage-backdrop__pnl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.stage-backdrop__pnl--positive {
+  color: #86efac;
+}
+
+.stage-backdrop__pnl--negative {
+  color: #fda4af;
+}
+
+.stage-backdrop__position-actions {
+  display: grid;
+  justify-items: flex-end;
+  gap: 8px;
+}
+
+.stage-backdrop__position-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.stage-backdrop__position-metrics--compact {
+  margin-top: 10px;
+}
+
+.stage-backdrop__position-metric {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(103, 232, 249, 0.1);
+  background: rgba(8, 28, 42, 0.28);
+}
+
+.stage-backdrop__position-metric span {
+  color: rgba(186, 230, 253, 0.52);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.stage-backdrop__position-metric strong {
+  color: rgba(240, 249, 255, 0.96);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
 .stage-backdrop__positions-list {
   display: grid;
   gap: 8px;
@@ -795,7 +989,7 @@ watch(() => wallet.token.value, () => {
 
 .stage-backdrop__position-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 12px;

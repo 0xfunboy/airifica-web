@@ -41,6 +41,7 @@ const state = reactive({
 
 const wallet = useWalletSession()
 let syncInitialized = false
+let syncInterval: ReturnType<typeof setInterval> | undefined
 
 function safeRefreshOverview() {
   if (!wallet.token.value || state.loading)
@@ -54,6 +55,10 @@ function initializeSync() {
     return
 
   syncInitialized = true
+  syncInterval = setInterval(() => {
+    if (document.visibilityState === 'visible')
+      safeRefreshOverview()
+  }, 12_000)
   window.addEventListener('focus', safeRefreshOverview)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible')
