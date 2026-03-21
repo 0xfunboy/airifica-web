@@ -71,28 +71,28 @@ const executionStateTitle = computed(() => {
   if (!wallet.isConnected.value)
     return 'Connect wallet to trade'
   if (!wallet.isAuthenticated.value)
-    return 'Sign Pacifica session'
+    return 'Sign session'
   if (!pacifica.readyToExecute.value)
-    return 'Complete builder onboarding'
+    return 'Complete onboarding'
   if (requiresPacificaActivation.value)
-    return 'Pacifica activation required'
+    return 'Activate Pacifica'
   if (requiresFunding.value)
-    return 'Deposit funds to execute'
-  return 'Ready to execute'
+    return 'Add collateral'
+  return 'Ready to trade'
 })
 
 const onboardingHint = computed(() => {
   if (!wallet.isConnected.value)
-    return 'Connect your Solana wallet first.'
+    return 'Connect your Solana wallet.'
   if (!wallet.isAuthenticated.value)
-    return 'Sign the AIR3 session to unlock Pacifica actions.'
+    return 'Sign the AIR3 session.'
   if (!pacifica.readyToExecute.value)
-    return 'Approve AIRewardrop as builder and bind the dedicated agent wallet.'
+    return 'Approve AIRewardrop and bind the agent wallet.'
   if (requiresPacificaActivation.value)
-    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop, then deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)} to initialize the account.`
+    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop and deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)}.`
   if (requiresFunding.value)
-    return 'No funds available on Pacifica. Deposit collateral, then execute directly from AIR3.'
-  return 'Builder onboarding is complete.'
+    return 'Add collateral on Pacifica to execute trades.'
+  return 'AIRewardrop builder is linked.'
 })
 
 function getPositionKey(position: Pick<Air3PacificaPosition, 'symbol' | 'side'>) {
@@ -421,7 +421,7 @@ watch(() => wallet.token.value, () => {
                 {{ executionStateTitle }}
               </div>
               <div class="stage-backdrop__account-subtitle">
-                {{ pacifica.readyToExecute.value ? 'Pacifica account linked through the AIRewardrop builder.' : 'Pacifica execution routes through your bound AIR3 builder wallet.' }}
+                {{ pacifica.readyToExecute.value ? 'AIRewardrop builder linked.' : 'AIRewardrop builder setup.' }}
               </div>
               <div class="stage-backdrop__account-hint">
                 {{ onboardingHint }}

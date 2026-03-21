@@ -60,6 +60,11 @@ function persistToken(value: string | null) {
     removeStorage(getSessionStorage(), TOKEN_KEY)
 }
 
+function clearAuthentication(message?: string | null) {
+  persistToken(null)
+  state.error = message || null
+}
+
 const sessionIdentity = computed(() => state.address || state.guestSessionId)
 const shortAddress = computed(() =>
   state.address ? `${state.address.slice(0, 4)}…${state.address.slice(-4)}` : null,
@@ -260,6 +265,7 @@ export function useWalletSession() {
     authenticate,
     connect,
     disconnect,
+    clearAuthentication,
     tryRestore,
     signPacificaPayload,
   }

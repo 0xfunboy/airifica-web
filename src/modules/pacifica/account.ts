@@ -25,6 +25,15 @@ function normalizeSymbol(raw: string | null | undefined) {
     .replace(/[^A-Z0-9]/g, '')
 }
 
+function isSessionAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /\b401\b/.test(message)
+    || /unauthorized/i.test(message)
+    || /missing token/i.test(message)
+    || /invalid token/i.test(message)
+    || /jwt/i.test(message)
+}
+
 const state = reactive({
   status: { ...DEFAULT_STATUS } as Air3PacificaStatus,
   account: null as Air3PacificaAccountSnapshot | null,
@@ -113,6 +122,14 @@ async function refreshOverview() {
     state.positions = []
     state.accountMissing = false
     state.onboardingHint = null
+
+    if (isSessionAuthError(error)) {
+      wallet.clearAuthentication('Pacifica session expired. Sign again to load account data.')
+      state.status = { ...DEFAULT_STATUS }
+      state.error = 'Pacifica session expired. Sign again.'
+      return null
+    }
+
     state.error = error instanceof Error ? error.message : 'Failed to load Pacifica overview.'
     throw error
   }
