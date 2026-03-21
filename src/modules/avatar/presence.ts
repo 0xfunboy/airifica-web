@@ -148,7 +148,9 @@ function triggerInteractionGesture(reason: 'stage-ready' | 'login' | 'prompt-sen
     return triggerGestureFamily('wave', 'base')
   if (reason === 'prompt-send')
     return triggerGestureFamily('wave')
-  if (reason === 'speech-end' || reason === 'speech-stop')
+  if (reason === 'speech-end')
+    return triggerGestureFamily('wave')
+  if (reason === 'speech-stop')
     return triggerGestureFamily('hip')
 
   triggerGestureFamily('hip')
