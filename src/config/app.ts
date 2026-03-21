@@ -93,7 +93,7 @@ export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
   productName: (import.meta.env.VITE_AIRIFICA_PRODUCT_NAME || 'AIR3').trim(),
   runtimeBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_ELIZA_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '', '', {
-    sameOriginFallback: '',
+    sameOriginFallback: '/',
   }),
   serviceApiBaseUrl: normalizeApiBase(
     import.meta.env.VITE_AIR3_SERVICE_API_URL || import.meta.env.VITE_AIR3_SERVICE_URL || import.meta.env.VITE_AIR3_ELIZA_BASE_URL || '',
