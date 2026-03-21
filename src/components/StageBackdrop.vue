@@ -134,6 +134,12 @@ function positionPnlClass(position: Air3PacificaPosition) {
     : 'stage-backdrop__pnl stage-backdrop__pnl--negative'
 }
 
+function positionPnlHeadClass(position: Air3PacificaPosition) {
+  return position.unrealizedPnlUsd >= 0
+    ? 'stage-backdrop__pnl-head stage-backdrop__pnl-head--positive'
+    : 'stage-backdrop__pnl-head stage-backdrop__pnl-head--negative'
+}
+
 const chartPath = computed(() => {
   const candles = market.value?.data || []
   if (candles.length < 2)
@@ -524,8 +530,8 @@ watch(() => wallet.token.value, () => {
             <div class="stage-backdrop__position-table-head">
               <span>Ticker</span>
               <span>Value $</span>
-              <span>PnL %</span>
-              <span>PnL $</span>
+              <span :class="positionPnlHeadClass(currentPacificaPosition)">PnL %</span>
+              <span :class="positionPnlHeadClass(currentPacificaPosition)">PnL $</span>
             </div>
             <div class="stage-backdrop__position-table-row">
               <strong>{{ currentPacificaPosition.symbol }}</strong>
@@ -580,8 +586,8 @@ watch(() => wallet.token.value, () => {
                   <div class="stage-backdrop__position-table-head">
                     <span>Ticker</span>
                     <span>Value $</span>
-                    <span>PnL %</span>
-                    <span>PnL $</span>
+                    <span :class="positionPnlHeadClass(position)">PnL %</span>
+                    <span :class="positionPnlHeadClass(position)">PnL $</span>
                   </div>
                   <div class="stage-backdrop__position-table-row">
                     <strong>{{ position.symbol }}</strong>
@@ -1026,6 +1032,14 @@ watch(() => wallet.token.value, () => {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.stage-backdrop__pnl-head--positive {
+  color: rgba(134, 239, 172, 0.82);
+}
+
+.stage-backdrop__pnl-head--negative {
+  color: rgba(253, 164, 175, 0.82);
 }
 
 .stage-backdrop__position-table-row strong {
