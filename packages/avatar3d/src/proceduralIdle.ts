@@ -45,6 +45,21 @@ const MIRRORED_BONE_PAIRS: Array<[VRMHumanBoneName, VRMHumanBoneName]> = [
   ['leftUpperArm', 'rightUpperArm'],
   ['leftLowerArm', 'rightLowerArm'],
   ['leftHand', 'rightHand'],
+  ['leftThumbMetacarpal', 'rightThumbMetacarpal'],
+  ['leftThumbProximal', 'rightThumbProximal'],
+  ['leftThumbDistal', 'rightThumbDistal'],
+  ['leftIndexProximal', 'rightIndexProximal'],
+  ['leftIndexIntermediate', 'rightIndexIntermediate'],
+  ['leftIndexDistal', 'rightIndexDistal'],
+  ['leftMiddleProximal', 'rightMiddleProximal'],
+  ['leftMiddleIntermediate', 'rightMiddleIntermediate'],
+  ['leftMiddleDistal', 'rightMiddleDistal'],
+  ['leftRingProximal', 'rightRingProximal'],
+  ['leftRingIntermediate', 'rightRingIntermediate'],
+  ['leftRingDistal', 'rightRingDistal'],
+  ['leftLittleProximal', 'rightLittleProximal'],
+  ['leftLittleIntermediate', 'rightLittleIntermediate'],
+  ['leftLittleDistal', 'rightLittleDistal'],
   ['leftUpperLeg', 'rightUpperLeg'],
   ['leftLowerLeg', 'rightLowerLeg'],
   ['leftFoot', 'rightFoot'],
@@ -290,6 +305,32 @@ function sampleBindingQuaternion(binding: ClipBinding['quaternion'], durationSec
   return leftQuaternion.slerp(rightQuaternion, alpha).normalize()
 }
 
+function sampleBindingPosition(binding: ClipBinding['position'], durationSeconds: number, timeSeconds: number) {
+  if (!binding)
+    return null
+
+  const sampleTime = sampleLoopedTime(timeSeconds, durationSeconds)
+  const { leftIndex, rightIndex, alpha } = findTrackSegment(binding.track.times, sampleTime)
+  const leftOffset = leftIndex * 3
+  const rightOffset = rightIndex * 3
+  const leftPosition = new Vector3(
+    binding.track.values[leftOffset] ?? binding.initial.x,
+    binding.track.values[leftOffset + 1] ?? binding.initial.y,
+    binding.track.values[leftOffset + 2] ?? binding.initial.z,
+  )
+
+  if (leftIndex === rightIndex)
+    return leftPosition
+
+  const rightPosition = new Vector3(
+    binding.track.values[rightOffset] ?? binding.initial.x,
+    binding.track.values[rightOffset + 1] ?? binding.initial.y,
+    binding.track.values[rightOffset + 2] ?? binding.initial.z,
+  )
+
+  return leftPosition.lerp(rightPosition, alpha)
+}
+
 function buildConstantQuaternionTrack(trackName: string, quaternion: Quaternion) {
   const values = new Float32Array(TIMES.length * 4)
   for (let index = 0; index < TIMES.length; index += 1) {
@@ -413,6 +454,136 @@ function resolveNodeName(vrm: VRMCore, boneName: VRMHumanBoneName) {
   return vrm.humanoid?.getNormalizedBoneNode(boneName)?.name ?? null
 }
 
+function gestureTrackNodeName(trackName: string) {
+  return trackName.replace(/\.(position|quaternion)$/, '')
+}
+
+function buildMirroredNodeMap(vrm: VRMCore) {
+  const nodeMap = new Map<string, string>()
+
+  for (const [leftBone, rightBone] of MIRRORED_BONE_PAIRS) {
+    const leftNode = resolveNodeName(vrm, leftBone)
+    const rightNode = resolveNodeName(vrm, rightBone)
+    if (!leftNode || !rightNode)
+      continue
+
+    nodeMap.set(leftNode, rightNode)
+    nodeMap.set(rightNode, leftNode)
+  }
+
+  return nodeMap
+}
+
+function createMirroredClip(vrm: VRMCore, clip: AnimationClip) {
+  const nodeMap = buildMirroredNodeMap(vrm)
+  const tracks = clip.tracks.map((track) => {
+    const nodeName = gestureTrackNodeName(track.name)
+    const suffix = track.name.endsWith('.quaternion')
+      ? '.quaternion'
+      : track.name.endsWith('.position')
+        ? '.position'
+        : ''
+    const nextNodeName = nodeMap.get(nodeName) ?? nodeName
+    const nextTrackName = suffix ? `${nextNodeName}${suffix}` : track.name
+
+    if (track instanceof QuaternionKeyframeTrack) {
+      const values = new Float32Array(track.values.length)
+      for (let offset = 0; offset < track.values.length; offset += 4) {
+        values[offset] = track.values[offset] ?? 0
+        values[offset + 1] = -(track.values[offset + 1] ?? 0)
+        values[offset + 2] = -(track.values[offset + 2] ?? 0)
+        values[offset + 3] = track.values[offset + 3] ?? 1
+      }
+      return new QuaternionKeyframeTrack(nextTrackName, Float32Array.from(track.times), values)
+    }
+
+    if (track instanceof VectorKeyframeTrack) {
+      const values = new Float32Array(track.values.length)
+      for (let offset = 0; offset < track.values.length; offset += 3) {
+        values[offset] = -(track.values[offset] ?? 0)
+        values[offset + 1] = track.values[offset + 1] ?? 0
+        values[offset + 2] = track.values[offset + 2] ?? 0
+      }
+      return new VectorKeyframeTrack(nextTrackName, Float32Array.from(track.times), values)
+    }
+
+    const clonedTrack = track.clone()
+    clonedTrack.name = nextTrackName
+    return clonedTrack
+  })
+
+  const mirrored = new AnimationClip(`${clip.name || 'breath'}-mirror`, clip.duration, tracks)
+  mirrored.resetDuration()
+  return mirrored
+}
+
+function buildAlternatingBreathClip(vrm: VRMCore, baseClip: AnimationClip) {
+  const mirroredClip = createMirroredClip(vrm, baseClip)
+  const baseBindings = gatherClipBindings(baseClip)
+  const mirroredBindings = gatherClipBindings(mirroredClip)
+  const nodeNames = new Set<string>([
+    ...baseBindings.keys(),
+    ...mirroredBindings.keys(),
+  ])
+  const tracks = []
+  const blendedPosition = new Vector3()
+  const blendedQuaternion = new Quaternion()
+
+  for (const nodeName of nodeNames) {
+    const baseBinding = baseBindings.get(nodeName)
+    const mirroredBinding = mirroredBindings.get(nodeName)
+
+    if (baseBinding?.position || mirroredBinding?.position) {
+      const values = new Float32Array(TIMES.length * 3)
+      for (let index = 0; index < TIMES.length; index += 1) {
+        const timeSeconds = TIMES[index]
+        const mirrorBlend = 0.5 - 0.5 * Math.cos((2 * Math.PI * timeSeconds) / DURATION_SECONDS)
+        const basePosition = sampleBindingPosition(baseBinding?.position, baseClip.duration, timeSeconds)
+        const mirroredPosition = sampleBindingPosition(mirroredBinding?.position, mirroredClip.duration, timeSeconds)
+        const finalPosition = basePosition && mirroredPosition
+          ? blendedPosition.copy(basePosition).lerp(mirroredPosition, mirrorBlend)
+          : (basePosition ?? mirroredPosition)
+
+        if (!finalPosition)
+          continue
+
+        const offset = index * 3
+        values[offset] = finalPosition.x
+        values[offset + 1] = finalPosition.y
+        values[offset + 2] = finalPosition.z
+      }
+      tracks.push(new VectorKeyframeTrack(`${nodeName}.position`, TIMES, values))
+    }
+
+    if (baseBinding?.quaternion || mirroredBinding?.quaternion) {
+      const values = new Float32Array(TIMES.length * 4)
+      for (let index = 0; index < TIMES.length; index += 1) {
+        const timeSeconds = TIMES[index]
+        const mirrorBlend = 0.5 - 0.5 * Math.cos((2 * Math.PI * timeSeconds) / DURATION_SECONDS)
+        const baseQuaternion = sampleBindingQuaternion(baseBinding?.quaternion, baseClip.duration, timeSeconds)
+        const mirroredQuaternion = sampleBindingQuaternion(mirroredBinding?.quaternion, mirroredClip.duration, timeSeconds)
+        const finalQuaternion = baseQuaternion && mirroredQuaternion
+          ? blendedQuaternion.copy(baseQuaternion).slerp(mirroredQuaternion, mirrorBlend).normalize()
+          : (baseQuaternion ?? mirroredQuaternion)
+
+        if (!finalQuaternion)
+          continue
+
+        const offset = index * 4
+        values[offset] = finalQuaternion.x
+        values[offset + 1] = finalQuaternion.y
+        values[offset + 2] = finalQuaternion.z
+        values[offset + 3] = finalQuaternion.w
+      }
+      tracks.push(new QuaternionKeyframeTrack(`${nodeName}.quaternion`, TIMES, values))
+    }
+  }
+
+  const clip = new AnimationClip('breath', DURATION_SECONDS, tracks)
+  clip.resetDuration()
+  return clip
+}
+
 export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organicClip?: AnimationClip | null) {
   const pose = gatherBasePose(vrm, sourceClip)
   if (pose.size === 0)
@@ -514,12 +685,24 @@ export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organi
   addMotion('leftToes', [{ axis: 'x', amplitudeDeg: 0.03, periodSeconds: 7.4, phase: Math.PI / 2 }])
   addMotion('rightToes', [{ axis: 'x', amplitudeDeg: 0.03, periodSeconds: 7.65, phase: Math.PI * 1.44 }])
 
-  addOrganicInfluence('hips', 0.04)
-  addOrganicInfluence('spine', 0.08)
-  addOrganicInfluence('chest', 0.1)
-  addOrganicInfluence('upperChest', 0.12)
-  addOrganicInfluence('neck', 0.05)
-  addOrganicInfluence('head', 0.03)
+  addOrganicInfluence('hips', 0.08)
+  addOrganicInfluence('spine', 0.16)
+  addOrganicInfluence('chest', 0.22)
+  addOrganicInfluence('upperChest', 0.28)
+  addOrganicInfluence('neck', 0.12)
+  addOrganicInfluence('head', 0.08)
+  addOrganicInfluence('leftShoulder', 0.22)
+  addOrganicInfluence('rightShoulder', 0.22)
+  addOrganicInfluence('leftUpperArm', 0.18)
+  addOrganicInfluence('rightUpperArm', 0.18)
+  addOrganicInfluence('leftLowerArm', 0.12)
+  addOrganicInfluence('rightLowerArm', 0.12)
+  addOrganicInfluence('leftHand', 0.05)
+  addOrganicInfluence('rightHand', 0.05)
+  addOrganicInfluence('leftUpperLeg', 0.05)
+  addOrganicInfluence('rightUpperLeg', 0.05)
+  addOrganicInfluence('leftLowerLeg', 0.03)
+  addOrganicInfluence('rightLowerLeg', 0.03)
 
   const tracks = Array.from(pose.entries()).flatMap(([nodeName, sample]) => {
     const nextTracks = []
@@ -552,5 +735,7 @@ export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organi
     return nextTracks
   })
 
-  return new AnimationClip('breath', DURATION_SECONDS, tracks)
+  const baseClip = new AnimationClip('breath-base', DURATION_SECONDS, tracks)
+  baseClip.resetDuration()
+  return buildAlternatingBreathClip(vrm, baseClip)
 }
