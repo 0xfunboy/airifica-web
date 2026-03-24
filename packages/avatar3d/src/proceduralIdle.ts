@@ -40,6 +40,17 @@ const BASE_POSE_BONES: VRMHumanBoneName[] = [
   'rightToes',
 ]
 
+const MIRRORED_BONE_PAIRS: Array<[VRMHumanBoneName, VRMHumanBoneName]> = [
+  ['leftShoulder', 'rightShoulder'],
+  ['leftUpperArm', 'rightUpperArm'],
+  ['leftLowerArm', 'rightLowerArm'],
+  ['leftHand', 'rightHand'],
+  ['leftUpperLeg', 'rightUpperLeg'],
+  ['leftLowerLeg', 'rightLowerLeg'],
+  ['leftFoot', 'rightFoot'],
+  ['leftToes', 'rightToes'],
+]
+
 type MotionComponent = {
   axis: 'x' | 'y' | 'z'
   amplitudeDeg: number
@@ -97,6 +108,15 @@ function loopEnvelope(timeSeconds: number) {
   return fadeIn * fadeOut
 }
 
+function mirrorQuaternion(quaternion: Quaternion) {
+  return new Quaternion(
+    quaternion.x,
+    -quaternion.y,
+    -quaternion.z,
+    quaternion.w,
+  ).normalize()
+}
+
 function gatherBasePose(vrm: VRMCore, sourceClip: AnimationClip) {
   const pose = new Map<string, PoseSample>()
 
@@ -135,6 +155,37 @@ function gatherBasePose(vrm: VRMCore, sourceClip: AnimationClip) {
   }
 
   return pose
+}
+
+function symmetrizePairedPose(vrm: VRMCore, pose: Map<string, PoseSample>) {
+  for (const [leftBone, rightBone] of MIRRORED_BONE_PAIRS) {
+    const leftNode = resolveNodeName(vrm, leftBone)
+    const rightNode = resolveNodeName(vrm, rightBone)
+    if (!leftNode || !rightNode)
+      continue
+
+    const leftSample = pose.get(leftNode) ?? {}
+    const rightSample = pose.get(rightNode) ?? {}
+    const leftQuaternion = leftSample.quaternion
+    const rightQuaternion = rightSample.quaternion
+
+    if (leftQuaternion && rightQuaternion) {
+      const canonicalLeft = leftQuaternion.clone().slerp(mirrorQuaternion(rightQuaternion), 0.5).normalize()
+      leftSample.quaternion = canonicalLeft
+      rightSample.quaternion = mirrorQuaternion(canonicalLeft)
+    }
+    else if (leftQuaternion) {
+      rightSample.quaternion = mirrorQuaternion(leftQuaternion)
+    }
+    else if (rightQuaternion) {
+      const canonicalLeft = mirrorQuaternion(rightQuaternion)
+      leftSample.quaternion = canonicalLeft
+      rightSample.quaternion = mirrorQuaternion(canonicalLeft)
+    }
+
+    pose.set(leftNode, leftSample)
+    pose.set(rightNode, rightSample)
+  }
 }
 
 function gatherClipBindings(clip: AnimationClip) {
@@ -366,6 +417,7 @@ export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organi
   const pose = gatherBasePose(vrm, sourceClip)
   if (pose.size === 0)
     return null
+  symmetrizePairedPose(vrm, pose)
 
   const organicBindings = organicClip ? gatherClipBindings(organicClip) : null
   const organicDurationSeconds = organicClip?.duration ?? 0
@@ -462,24 +514,12 @@ export function createBreathClip(vrm: VRMCore, sourceClip: AnimationClip, organi
   addMotion('leftToes', [{ axis: 'x', amplitudeDeg: 0.03, periodSeconds: 7.4, phase: Math.PI / 2 }])
   addMotion('rightToes', [{ axis: 'x', amplitudeDeg: 0.03, periodSeconds: 7.65, phase: Math.PI * 1.44 }])
 
-  addOrganicInfluence('hips', 0.08)
-  addOrganicInfluence('spine', 0.16)
-  addOrganicInfluence('chest', 0.22)
-  addOrganicInfluence('upperChest', 0.28)
-  addOrganicInfluence('neck', 0.12)
-  addOrganicInfluence('head', 0.08)
-  addOrganicInfluence('leftShoulder', 0.22)
-  addOrganicInfluence('rightShoulder', 0.22)
-  addOrganicInfluence('leftUpperArm', 0.18)
-  addOrganicInfluence('rightUpperArm', 0.18)
-  addOrganicInfluence('leftLowerArm', 0.12)
-  addOrganicInfluence('rightLowerArm', 0.12)
-  addOrganicInfluence('leftHand', 0.05)
-  addOrganicInfluence('rightHand', 0.05)
-  addOrganicInfluence('leftUpperLeg', 0.05)
-  addOrganicInfluence('rightUpperLeg', 0.05)
-  addOrganicInfluence('leftLowerLeg', 0.03)
-  addOrganicInfluence('rightLowerLeg', 0.03)
+  addOrganicInfluence('hips', 0.04)
+  addOrganicInfluence('spine', 0.08)
+  addOrganicInfluence('chest', 0.1)
+  addOrganicInfluence('upperChest', 0.12)
+  addOrganicInfluence('neck', 0.05)
+  addOrganicInfluence('head', 0.03)
 
   const tracks = Array.from(pose.entries()).flatMap(([nodeName, sample]) => {
     const nextTracks = []
