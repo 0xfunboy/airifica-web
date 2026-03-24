@@ -112,12 +112,20 @@ function isPositionExpanded(position: Pick<Air3PacificaPosition, 'symbol' | 'sid
 }
 
 function buildPositionDetailFields(position: Air3PacificaPosition) {
+  const makerFee = pacifica.account.value?.makerFee
+  const takerFee = pacifica.account.value?.takerFee
+  const feeParts = [
+    Number.isFinite(makerFee) ? `M ${formatRatePercent(makerFee)}` : null,
+    Number.isFinite(takerFee) ? `T ${formatRatePercent(takerFee)}` : null,
+    Number.isFinite(position.funding) ? `F ${formatSignedRatePercent(position.funding)}` : null,
+  ].filter(Boolean)
+
   return [
     { label: 'Price', value: formatPrice(position.markPrice) },
     { label: 'Entry', value: formatPrice(position.entryPrice) },
     { label: 'TP', value: position.takeProfitPrice > 0 ? formatPrice(position.takeProfitPrice) : '--' },
     { label: 'SL', value: position.stopLossPrice > 0 ? formatPrice(position.stopLossPrice) : '--' },
-    { label: 'Fund', value: formatRate(position.funding) },
+    { label: 'Fees', value: feeParts.length ? feeParts.join(' · ') : '--' },
     { label: 'Liq', value: position.liquidationPrice > 0 ? formatPrice(position.liquidationPrice) : '--' },
   ]
 }
@@ -241,6 +249,21 @@ function formatRate(value: number | null | undefined) {
     return '--'
 
   return `${Number(value).toFixed(6)}`
+}
+
+function formatRatePercent(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  return `${(Number(value) * 100).toFixed(4)}%`
+}
+
+function formatSignedRatePercent(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  const numeric = Number(value) * 100
+  return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(4)}%`
 }
 
 async function refreshPacificaOverview() {
@@ -1048,6 +1071,14 @@ watch(() => wallet.token.value, () => {
   font-weight: 600;
 }
 
+.stage-backdrop__position-table-row strong.stage-backdrop__pnl--positive {
+  color: #86efac;
+}
+
+.stage-backdrop__position-table-row strong.stage-backdrop__pnl--negative {
+  color: #fda4af;
+}
+
 .stage-backdrop__toggle-details {
   margin-top: 10px;
   display: inline-flex;
@@ -1098,6 +1129,8 @@ watch(() => wallet.token.value, () => {
   color: rgba(240, 249, 255, 0.96);
   font-size: 0.82rem;
   font-weight: 600;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .stage-backdrop__positions-list {

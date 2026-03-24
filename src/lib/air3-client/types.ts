@@ -103,11 +103,15 @@ export interface Air3PacificaPrepareAgentOptions {
 
 export interface Air3PacificaAccountSnapshot {
   balance: number
+  feeLevel: number
+  makerFee: number
+  takerFee: number
   equity: number
   availableToSpend: number
   availableToWithdraw: number
   pendingBalance: number
   totalMarginUsed: number
+  crossMmr: number
   positionsCount: number
   ordersCount: number
   stopOrdersCount: number
