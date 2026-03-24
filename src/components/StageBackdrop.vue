@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 import type { Air3PacificaPosition } from '@/lib/air3-client'
 
@@ -16,6 +16,13 @@ const market = computed(() => marketContext.market.value)
 const pacificaTradeUrl = computed(() => marketContext.pacificaTradeUrl.value)
 const pacificaPortfolioUrl = computed(() => marketContext.pacificaPortfolioUrl.value)
 const pacificaDepositUrl = computed(() => marketContext.pacificaDepositUrl.value)
+const marketUniverse = computed(() => marketContext.universe.value)
+const marketMenuOpen = ref(false)
+const marketMenuRef = ref<HTMLElement | null>(null)
+
+const selectedMarketRow = computed(() =>
+  marketUniverse.value.find(row => row.symbol === marketContext.currentSymbol.value) || null,
+)
 
 const trendToneClass = computed(() => {
   const changePct = market.value?.changePct || 0
@@ -266,6 +273,34 @@ function formatSignedRatePercent(value: number | null | undefined) {
   return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(4)}%`
 }
 
+function marketRowChangeClass(changePct: number | null | undefined) {
+  return Number(changePct || 0) >= 0
+    ? 'stage-backdrop__market-row-change stage-backdrop__market-row-change--positive'
+    : 'stage-backdrop__market-row-change stage-backdrop__market-row-change--negative'
+}
+
+function toggleMarketMenu() {
+  marketMenuOpen.value = !marketMenuOpen.value
+  if (marketMenuOpen.value)
+    void marketContext.refreshMarketUniverse().catch(() => {})
+}
+
+function handleSelectMarketSymbol(symbol: string) {
+  marketContext.setSymbol(symbol)
+  marketMenuOpen.value = false
+}
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  const target = event.target as Node | null
+  if (!marketMenuOpen.value || !target)
+    return
+
+  if (marketMenuRef.value?.contains(target))
+    return
+
+  marketMenuOpen.value = false
+}
+
 async function refreshPacificaOverview() {
   if (!wallet.token.value)
     return
@@ -332,6 +367,11 @@ async function handleCloseListedPosition(symbol: string, side?: 'LONG' | 'SHORT'
 onMounted(() => {
   void marketContext.refreshMarketContext()
   void refreshPacificaOverview()
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
 })
 
 watch(() => wallet.token.value, () => {
@@ -354,7 +394,37 @@ watch(() => wallet.token.value, () => {
         <div class="stage-backdrop__surface-head">
           <div class="stage-backdrop__surface-copy">
             <span class="stage-backdrop__eyebrow">AIR3 Market Surface</span>
-            <span class="stage-backdrop__surface-symbol">{{ marketContext.currentSymbol.value }}</span>
+            <div ref="marketMenuRef" class="stage-backdrop__surface-symbol-shell">
+              <button
+                class="stage-backdrop__surface-symbol-button"
+                type="button"
+                @click="toggleMarketMenu"
+              >
+                <span class="stage-backdrop__surface-symbol">{{ selectedMarketRow?.symbol || marketContext.currentSymbol.value }}</span>
+                <span :class="['stage-backdrop__surface-symbol-icon', { 'stage-backdrop__surface-symbol-icon--open': marketMenuOpen }]">⌄</span>
+              </button>
+
+              <div v-if="marketMenuOpen" class="stage-backdrop__market-dropdown">
+                <div class="stage-backdrop__market-dropdown-head">
+                  <span>Ticker</span>
+                  <span>Price</span>
+                  <span>Change</span>
+                  <span>Volume</span>
+                </div>
+                <button
+                  v-for="row in marketUniverse"
+                  :key="row.symbol"
+                  type="button"
+                  class="stage-backdrop__market-row"
+                  @click="handleSelectMarketSymbol(row.symbol)"
+                >
+                  <strong>{{ row.symbol }}</strong>
+                  <span>{{ formatPrice(row.price) }}</span>
+                  <span :class="marketRowChangeClass(row.changePct)">{{ formatChange(row.changePct) }}</span>
+                  <span>{{ formatCompact(row.volume24h) }}</span>
+                </button>
+              </div>
+            </div>
             <span class="stage-backdrop__surface-description">
               Live Pacifica market context and execution status.
             </span>
@@ -738,6 +808,7 @@ watch(() => wallet.token.value, () => {
 }
 
 .stage-backdrop__surface-copy {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -754,6 +825,99 @@ watch(() => wallet.token.value, () => {
 .stage-backdrop__surface-symbol {
   font-size: 1.28rem;
   font-weight: 600;
+}
+
+.stage-backdrop__surface-symbol-shell {
+  position: relative;
+}
+
+.stage-backdrop__surface-symbol-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(240, 249, 255, 0.96);
+  cursor: pointer;
+}
+
+.stage-backdrop__surface-symbol-icon {
+  color: rgba(186, 230, 253, 0.68);
+  font-size: 0.78rem;
+  transition: transform 180ms ease;
+}
+
+.stage-backdrop__surface-symbol-icon--open {
+  transform: rotate(180deg);
+}
+
+.stage-backdrop__market-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 8;
+  display: grid;
+  width: min(356px, calc(100vw - 56px));
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  background: rgba(5, 22, 34, 0.96);
+  box-shadow: 0 22px 54px rgba(2, 10, 18, 0.42);
+  backdrop-filter: blur(20px);
+}
+
+.stage-backdrop__market-dropdown-head,
+.stage-backdrop__market-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 0.9fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.stage-backdrop__market-dropdown-head {
+  padding: 0 6px 8px;
+  color: rgba(186, 230, 253, 0.46);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stage-backdrop__market-row {
+  padding: 9px 6px;
+  border: 0;
+  border-top: 1px solid rgba(103, 232, 249, 0.08);
+  background: transparent;
+  color: rgba(224, 242, 254, 0.88);
+  text-align: left;
+  cursor: pointer;
+}
+
+.stage-backdrop__market-row strong {
+  color: rgba(248, 250, 252, 0.98);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.stage-backdrop__market-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.stage-backdrop__market-row-change {
+  font-weight: 700;
+}
+
+.stage-backdrop__market-row-change--positive {
+  color: #86efac;
+}
+
+.stage-backdrop__market-row-change--negative {
+  color: #fda4af;
 }
 
 .stage-backdrop__surface-description,

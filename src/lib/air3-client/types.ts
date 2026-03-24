@@ -210,6 +210,24 @@ export interface Air3MarketContext {
   data: Air3MarketContextCandle[]
 }
 
+export interface Air3PacificaMarketRow {
+  symbol: string
+  price: number
+  changePct: number
+  volume24h: number
+  funding?: number | null
+  openInterest?: number | null
+  tickSize?: number | null
+  lotSize?: number | null
+  minOrderSize?: number | null
+  maxLeverage?: number | null
+}
+
+export interface Air3MarketUniverseResponse {
+  ok: boolean
+  markets: Air3PacificaMarketRow[]
+}
+
 export interface Air3HealthResponse {
   ok: boolean
   service: string

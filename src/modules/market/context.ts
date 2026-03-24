@@ -1,6 +1,6 @@
 import { computed, reactive, watch } from 'vue'
 
-import type { Air3MarketContext } from '@/lib/air3-client'
+import type { Air3MarketContext, Air3PacificaMarketRow } from '@/lib/air3-client'
 
 import { appConfig } from '@/config/app'
 import { createAir3Client } from '@/lib/air3'
@@ -39,14 +39,18 @@ const state = reactive({
     appConfig.defaultMarket,
   ) || appConfig.defaultMarket,
   market: null as Air3MarketContext | null,
+  universe: [] as Air3PacificaMarketRow[],
+  universeLoading: false,
   loading: false,
   error: null as string | null,
   lastSyncedAt: null as number | null,
+  lastUniverseSyncedAt: null as number | null,
 })
 
 const wallet = useWalletSession()
 const conversation = useConversationState()
 let initialized = false
+let universeRefreshTimer: ReturnType<typeof setInterval> | undefined
 
 function persistSymbol(symbol: string) {
   state.currentSymbol = symbol
@@ -160,6 +164,22 @@ async function refreshMarketContext() {
   }
 }
 
+async function refreshMarketUniverse() {
+  state.universeLoading = true
+
+  try {
+    const client = createAir3Client({
+      token: wallet.token.value || undefined,
+    })
+    const payload = await client.fetchMarketUniverse(wallet.buildRequestHeaders())
+    state.universe = Array.isArray(payload.markets) ? payload.markets : []
+    state.lastUniverseSyncedAt = Date.now()
+  }
+  finally {
+    state.universeLoading = false
+  }
+}
+
 function setSymbol(symbol: string | null | undefined) {
   const normalized = normalizeSymbol(symbol)
   if (!normalized)
@@ -181,6 +201,11 @@ function initializeSync() {
   watch(() => state.currentSymbol, () => {
     void refreshMarketContext()
   }, { immediate: true })
+
+  void refreshMarketUniverse()
+  universeRefreshTimer = setInterval(() => {
+    void refreshMarketUniverse().catch(() => {})
+  }, 60_000)
 }
 
 export function useMarketContext() {
@@ -189,9 +214,12 @@ export function useMarketContext() {
   return {
     currentSymbol: computed(() => state.currentSymbol),
     market: computed(() => state.market),
+    universe: computed(() => state.universe),
+    universeLoading: computed(() => state.universeLoading),
     loading: computed(() => state.loading),
     error: computed(() => state.error),
     lastSyncedAt: computed(() => state.lastSyncedAt),
+    lastUniverseSyncedAt: computed(() => state.lastUniverseSyncedAt),
     pacificaTradeUrl: computed(() => buildPacificaTradeUrl(state.currentSymbol)),
     pacificaPortfolioUrl: computed(() => appConfig.pacificaPortfolioBaseUrl),
     pacificaDepositUrl: computed(() => appConfig.pacificaDepositBaseUrl),
@@ -199,5 +227,6 @@ export function useMarketContext() {
     buildPacificaTradeUrl,
     setSymbol,
     refreshMarketContext,
+    refreshMarketUniverse,
   }
 }

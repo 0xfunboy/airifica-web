@@ -7,6 +7,7 @@ import type {
   Air3HealthResponse,
   Air3HistoryResponse,
   Air3MarketContext,
+  Air3MarketUniverseResponse,
   Air3MessageContent,
   Air3MessageEnvelope,
   Air3PacificaOverview,
@@ -430,6 +431,18 @@ export class Air3Client {
         method: 'GET',
         headers: input.headers,
       },
+    )
+  }
+
+  fetchMarketUniverse(headers?: HeadersInit) {
+    return requestJson<Air3MarketUniverseResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/market-universe`,
+      {
+        method: 'GET',
+        headers,
+      },
+      25_000,
     )
   }
 
