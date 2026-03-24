@@ -52,6 +52,7 @@ const minimumOrderHint = computed(() => {
   const minimum = Number(marketMeta.value?.minOrderSize || 0)
   return Number.isFinite(minimum) && minimum > 0 ? minimum : null
 })
+const minLeverage = computed(() => 1)
 const derivedConfidence = computed(() => computeProposalConfidence(props.proposal, { marketPrice: marketPrice.value }))
 const confidencePct = computed(() => Math.round(derivedConfidence.value * 100))
 const riskReward = computed(() => computeRiskReward(props.proposal))
@@ -233,8 +234,12 @@ async function handleExecute() {
 }
 
 watch(() => maxLeverage.value, (value) => {
-  leverage.value = value
+  leverage.value = Math.min(Math.max(minLeverage.value, leverage.value), value)
 }, { immediate: true })
+
+watch(() => props.proposal.symbol, () => {
+  leverage.value = minLeverage.value
+})
 
 function handleExecuteClick() {
   if (!canExecute.value)
@@ -365,12 +370,12 @@ function toggleStrategy() {
           v-model.number="leverage"
           class="proposal-card__leverage-slider"
           type="range"
-          min="1"
+          :min="minLeverage"
           :max="maxLeverage"
           step="1"
         >
         <div class="proposal-card__leverage-scale">
-          <span>1x</span>
+          <span>{{ minLeverage }}x</span>
           <span>{{ maxLeverage }}x max</span>
         </div>
       </div>
@@ -617,8 +622,8 @@ function toggleStrategy() {
 
 .proposal-card__execution {
   display: grid;
-  grid-template-columns: minmax(112px, 0.62fr) minmax(0, 1.38fr);
-  gap: 10px;
+  grid-template-columns: minmax(78px, 0.34fr) minmax(0, 0.76fr);
+  gap: 8px;
   align-items: end;
 }
 
@@ -631,7 +636,8 @@ function toggleStrategy() {
 
 .proposal-card__field--size {
   grid-template-columns: 1fr;
-  gap: 8px;
+  gap: 6px;
+  max-width: 104px;
 }
 
 .proposal-card__field--size span {
@@ -640,11 +646,11 @@ function toggleStrategy() {
 }
 
 .proposal-card__field input {
-  min-height: 40px;
+  min-height: 36px;
   border: 1px solid rgba(138, 218, 255, 0.12);
   background: rgba(2, 12, 21, 0.78);
-  padding: 0 10px;
-  font-size: 1rem;
+  padding: 0 8px;
+  font-size: 0.92rem;
   font-weight: 700;
   color: #f5fbff;
   outline: none;
@@ -652,8 +658,9 @@ function toggleStrategy() {
 
 .proposal-card__leverage {
   display: grid;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid rgba(138, 218, 255, 0.08);
   background: rgba(8, 20, 33, 0.44);
@@ -671,14 +678,14 @@ function toggleStrategy() {
 .proposal-card__leverage-head span,
 .proposal-card__leverage-scale span {
   color: var(--text-2);
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .proposal-card__leverage-head strong {
   color: #8af4ff;
-  font-size: 1rem;
+  font-size: 0.94rem;
 }
 
 .proposal-card__leverage-slider {

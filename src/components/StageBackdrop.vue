@@ -76,7 +76,7 @@ const expandedPositionKeys = reactive(new Set<string>())
 
 const executionStateTitle = computed(() => {
   if (!wallet.isConnected.value)
-    return 'Connect wallet to trade'
+    return 'Connect wallet'
   if (!wallet.isAuthenticated.value)
     return 'Sign session'
   if (!pacifica.readyToExecute.value)
@@ -88,18 +88,32 @@ const executionStateTitle = computed(() => {
   return 'Ready to trade'
 })
 
+const surfaceStatusLabel = computed(() => {
+  if (!wallet.isConnected.value)
+    return 'Wallet offline'
+  if (!wallet.isAuthenticated.value)
+    return 'Session unsigned'
+  if (!pacifica.readyToExecute.value)
+    return 'Builder setup'
+  if (requiresPacificaActivation.value)
+    return 'Activation needed'
+  if (requiresFunding.value)
+    return 'No collateral'
+  return 'Ready'
+})
+
 const onboardingHint = computed(() => {
   if (!wallet.isConnected.value)
-    return 'Connect your Solana wallet.'
+    return 'Use your Solana wallet to enable Pacifica actions.'
   if (!wallet.isAuthenticated.value)
-    return 'Sign the AIR3 session.'
+    return 'Sign once to sync your Pacifica state.'
   if (!pacifica.readyToExecute.value)
-    return 'Approve AIRewardrop and bind the agent wallet.'
+    return 'Approve AIRewardrop and bind AIR3.'
   if (requiresPacificaActivation.value)
-    return pacifica.onboardingHint.value || `Open Pacifica with AIRewardrop and deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)}.`
+    return pacifica.onboardingHint.value || `Open Pacifica once and deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)}.`
   if (requiresFunding.value)
-    return 'Add collateral on Pacifica to execute trades.'
-  return 'AIRewardrop builder is linked.'
+    return 'Add collateral to execute trades.'
+  return 'Portfolio and execution are live.'
 })
 
 function getPositionKey(position: Pick<Air3PacificaPosition, 'symbol' | 'side'>) {
@@ -401,7 +415,7 @@ watch(() => wallet.token.value, () => {
                 @click="toggleMarketMenu"
               >
                 <span class="stage-backdrop__surface-symbol">{{ selectedMarketRow?.symbol || marketContext.currentSymbol.value }}</span>
-                <span :class="['stage-backdrop__surface-symbol-icon', { 'stage-backdrop__surface-symbol-icon--open': marketMenuOpen }]">⌄</span>
+                <span :class="['stage-backdrop__surface-symbol-icon', { 'stage-backdrop__surface-symbol-icon--open': marketMenuOpen }]">▾</span>
               </button>
 
               <div v-if="marketMenuOpen" class="stage-backdrop__market-dropdown">
@@ -426,11 +440,12 @@ watch(() => wallet.token.value, () => {
               </div>
             </div>
             <span class="stage-backdrop__surface-description">
-              Live Pacifica market context and execution status.
+              Live market context and account state.
             </span>
-          </div>
-          <div v-if="pacifica.readyToExecute.value" class="stage-backdrop__surface-status">
-            Builder ready
+            <div class="stage-backdrop__surface-meta">
+              <span class="stage-backdrop__surface-status-label">Status</span>
+              <span class="stage-backdrop__surface-status">{{ surfaceStatusLabel }}</span>
+            </div>
           </div>
         </div>
 
@@ -518,9 +533,6 @@ watch(() => wallet.token.value, () => {
             <div>
               <div class="stage-backdrop__account-title">
                 {{ executionStateTitle }}
-              </div>
-              <div class="stage-backdrop__account-subtitle">
-                {{ pacifica.readyToExecute.value ? 'AIRewardrop builder linked.' : 'AIRewardrop builder setup.' }}
               </div>
               <div class="stage-backdrop__account-hint">
                 {{ onboardingHint }}
@@ -812,6 +824,7 @@ watch(() => wallet.token.value, () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .stage-backdrop__eyebrow,
@@ -834,7 +847,7 @@ watch(() => wallet.token.value, () => {
 .stage-backdrop__surface-symbol-button {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -844,12 +857,27 @@ watch(() => wallet.token.value, () => {
 
 .stage-backdrop__surface-symbol-icon {
   color: rgba(186, 230, 253, 0.68);
-  font-size: 0.78rem;
-  transition: transform 180ms ease;
+  font-size: 1.08rem;
+  line-height: 1;
+  transition: transform 180ms ease, color 180ms ease;
 }
 
 .stage-backdrop__surface-symbol-icon--open {
   transform: rotate(180deg);
+}
+
+.stage-backdrop__surface-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.stage-backdrop__surface-status-label {
+  color: rgba(186, 230, 253, 0.42);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .stage-backdrop__market-dropdown {
@@ -933,13 +961,13 @@ watch(() => wallet.token.value, () => {
 .stage-backdrop__surface-status {
   display: inline-flex;
   align-items: center;
-  min-height: 32px;
-  padding: 0 12px;
+  min-height: 24px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid rgba(103, 232, 249, 0.2);
   background: rgba(103, 232, 249, 0.08);
   color: rgba(224, 247, 255, 0.92);
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   font-weight: 600;
 }
 
