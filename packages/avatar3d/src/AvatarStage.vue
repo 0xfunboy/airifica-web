@@ -112,6 +112,7 @@ type BreathGestureRuntime = {
   label: string
   sourceUrl: string
   excerptSeconds?: number
+  mirrored?: boolean
   intervalMinSeconds: number
   intervalMaxSeconds: number
   fadeInSeconds: number
@@ -126,6 +127,7 @@ type BreathGestureRuntime = {
   startedAt: number | null
   clipDuration: number
   fadeOutStarted: boolean
+  mirrorNext: boolean
 }
 
 type LoadParticle = {
@@ -966,8 +968,8 @@ function createBreathGestureClip(sourceClip: AnimationClip, runtime: BreathGestu
   return clip
 }
 
-async function resolveBreathGestureClip(vrm: VRM, runtime: BreathGestureRuntime) {
-  const cacheKey = `${runtime.key}:${runtime.excerptSeconds || 'full'}`
+async function resolveBreathGestureClip(vrm: VRM, runtime: BreathGestureRuntime, mirrored = false) {
+  const cacheKey = `${runtime.key}:${runtime.excerptSeconds || 'full'}:${mirrored ? 'mirror' : 'base'}`
   const cached = gestureClipCache.get(cacheKey)
   if (cached)
     return cached
@@ -981,7 +983,11 @@ async function resolveBreathGestureClip(vrm: VRM, runtime: BreathGestureRuntime)
     if (!sourceClip)
       return null
 
-    const clip = createBreathGestureClip(sourceClip, runtime)
+    const baseClip = createBreathGestureClip(sourceClip, runtime)
+    const clip = mirrored
+      ? createMirroredGestureClip(vrm, baseClip)
+      : baseClip
+    clip.resetDuration()
     gestureClipCache.set(cacheKey, clip)
     return clip
   })().finally(() => {
@@ -1176,6 +1182,7 @@ function initializeBreathGestureState(vrm?: VRM) {
     startedAt: null,
     clipDuration: 0,
     fadeOutStarted: false,
+    mirrorNext: Math.random() >= 0.5,
   }))
 
   for (const runtime of breathGestureRuntimes)
@@ -1194,7 +1201,9 @@ async function triggerBreathGesture(runtime: BreathGestureRuntime) {
   if (!vrm || !mixer || activeAnimationUrl.value !== BREATH_URL)
     return
 
-  const clip = await resolveBreathGestureClip(vrm, runtime)
+  const useMirror = runtime.mirrorNext
+  runtime.mirrorNext = !runtime.mirrorNext
+  const clip = await resolveBreathGestureClip(vrm, runtime, useMirror)
   if (!clip || breathGestureSessionId !== sessionId || activeAnimationUrl.value !== BREATH_URL)
     return
 
