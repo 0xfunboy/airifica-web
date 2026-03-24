@@ -1340,6 +1340,19 @@ function preview(text: string) {
   return true
 }
 
+function speakText(text: string, id = `manual-${Date.now()}`) {
+  const normalized = text.trim()
+  if (!normalized || !state.supported)
+    return false
+
+  void ensureOutputAudioContext()
+  stop('manual-stop')
+  state.error = null
+  state.queue = [{ id, text: normalized }]
+  void processQueue()
+  return true
+}
+
 function setAutoSpeakEnabled(value: boolean) {
   state.autoSpeakEnabled = value
   persistSettings()
@@ -1380,7 +1393,7 @@ function initialize() {
 
   watch(() => conversation.messages.value.map(message => message.id).join('|'), () => {
     for (const message of conversation.messages.value) {
-      if (message.role !== 'assistant' || seenAssistantMessages.has(message.id))
+      if (message.role !== 'assistant' || message.restored || seenAssistantMessages.has(message.id))
         continue
 
       seenAssistantMessages.add(message.id)
@@ -1420,6 +1433,7 @@ export function useSpeechRuntime() {
     responseCompleteRevision: computed(() => state.responseCompleteRevision),
     enqueue,
     preview,
+    speakText,
     stop,
     setAutoSpeakEnabled,
     setLocale,

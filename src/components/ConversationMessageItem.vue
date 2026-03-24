@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import StrategySummaryCard from '@/components/StrategySummaryCard.vue'
 import TradeProposalCard from '@/components/TradeProposalCard.vue'
 import { appConfig } from '@/config/app'
+import { useSpeechRuntime } from '@/modules/speech/runtime'
 import { deriveStrategySummary } from '@/modules/trade/proposalFallback'
 
 import type { ConversationMessage } from '@/modules/conversation/types'
@@ -12,6 +13,7 @@ const props = defineProps<{
   message: ConversationMessage
 }>()
 const chartExpanded = ref(false)
+const speech = useSpeechRuntime()
 
 const chartImageUrl = computed(() => {
   const image = props.message.image
@@ -59,6 +61,13 @@ function toggleChartExpanded() {
 
   chartExpanded.value = !chartExpanded.value
 }
+
+function replayMessage() {
+  if (props.message.role !== 'assistant' || !normalizedContent.value)
+    return
+
+  speech.speakText(normalizedContent.value, `replay:${props.message.id}`)
+}
 </script>
 
 <template>
@@ -72,6 +81,16 @@ function toggleChartExpanded() {
     <div class="conversation-message__bubble">
       <header class="conversation-message__header">
         <span v-if="speakerLabel">{{ speakerLabel }}</span>
+        <button
+          v-if="message.role === 'assistant' && normalizedContent"
+          class="conversation-message__speak"
+          type="button"
+          aria-label="Replay message audio"
+          title="Replay message audio"
+          @click="replayMessage"
+        >
+          <span>◉</span>
+        </button>
         <strong>{{ new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</strong>
       </header>
 
@@ -176,6 +195,25 @@ function toggleChartExpanded() {
   color: rgba(220, 234, 245, 0.7);
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.conversation-message__speak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border: 1px solid rgba(138, 218, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(10, 24, 36, 0.68);
+  color: rgba(165, 243, 252, 0.9);
+  cursor: pointer;
+}
+
+.conversation-message__speak span {
+  font-size: 9px;
+  line-height: 1;
 }
 
 .conversation-message__body {

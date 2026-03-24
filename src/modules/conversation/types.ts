@@ -5,6 +5,7 @@ export interface ConversationMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   createdAt: number
+  restored?: boolean
   conversationId?: string
   action?: string
   image?: string

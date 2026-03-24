@@ -92,6 +92,7 @@ function getStorageKey(identity: string) {
 function sanitizeMessages(messages: ConversationMessage[]) {
   return messages
     .filter(message => message && typeof message.content === 'string')
+    .map(({ restored: _restored, ...message }) => message)
     .slice(-120)
 }
 
@@ -120,7 +121,9 @@ function hydrateForIdentity(identity = wallet.sessionIdentity.value) {
   const stored = readStorage<PersistedConversation | null>(getStorageScope(), getStorageKey(identity), null)
   state.hydratedIdentity = identity
   state.conversationId = stored?.conversationId || ''
-  state.messages = Array.isArray(stored?.messages) ? sanitizeMessages(stored?.messages) : []
+  state.messages = Array.isArray(stored?.messages)
+    ? sanitizeMessages(stored?.messages).map(message => ({ ...message, restored: true }))
+    : []
   state.error = null
 }
 
@@ -128,6 +131,7 @@ function pushMessage(message: Omit<ConversationMessage, 'id' | 'createdAt'> & Pa
   state.messages.push({
     id: message.id || createId('message'),
     createdAt: message.createdAt || Date.now(),
+    restored: false,
     ...message,
   })
   persist()

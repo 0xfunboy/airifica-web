@@ -57,6 +57,7 @@ const AIR3_ALLOWED_ROUTES = [
   { method: 'POST', pattern: /^\/api\/airi3\/proposals\/\d+\/approve$/ },
   { method: 'GET', pattern: /^\/api\/airi3\/health$/ },
   { method: 'GET', pattern: /^\/api\/airi3\/market-context(?:\?|$)/ },
+  { method: 'GET', pattern: /^\/api\/airi3\/market-universe(?:\?|$)/ },
   { method: 'GET', pattern: /^\/api\/airi3\/pacifica\/status$/ },
   { method: 'GET', pattern: /^\/api\/airi3\/pacifica\/overview$/ },
   { method: 'POST', pattern: /^\/api\/airi3\/pacifica\/prepare-agent$/ },
