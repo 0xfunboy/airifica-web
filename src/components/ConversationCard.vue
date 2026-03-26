@@ -366,22 +366,29 @@ onBeforeUnmount(() => {
               <span>{{ emoteDebugStore.lastReceived.value?.name ?? '—' }}</span>
             </div>
 
-            <button
-              :class="['conversation-shell__icon-button', hearing.listening.value ? 'conversation-shell__icon-button--active' : '']"
-              type="button"
-              :title="hearing.listening.value ? 'Stop microphone' : 'Start microphone'"
-              @click="hearing.toggleListening()"
-            >
-              <span v-if="hearing.listening.value" class="conversation-shell__mic-level">
-                <span :style="{ transform: `scaleY(${Math.max(0.18, hearing.volumeLevel.value)})` }" />
-              </span>
-              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
-                <path d="M19 10a7 7 0 0 1-14 0" />
-                <path d="M12 17v4" />
-                <path d="M8 21h8" />
-              </svg>
-            </button>
+            <div class="conversation-shell__mic-monitor">
+              <button
+                :class="['conversation-shell__icon-button', hearing.listening.value ? 'conversation-shell__icon-button--active' : '']"
+                type="button"
+                :title="hearing.listening.value ? 'Stop microphone' : 'Start microphone'"
+                @click="hearing.toggleListening()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+                  <path d="M19 10a7 7 0 0 1-14 0" />
+                  <path d="M12 17v4" />
+                  <path d="M8 21h8" />
+                </svg>
+              </button>
+
+              <div :class="['conversation-shell__vu-meter', hearing.listening.value ? 'conversation-shell__vu-meter--active' : '']" aria-hidden="true">
+                <span class="conversation-shell__vu-meter-track" />
+                <span
+                  class="conversation-shell__vu-meter-fill"
+                  :style="{ transform: `scaleX(${Math.max(0.04, hearing.volumeLevel.value)})` }"
+                />
+              </div>
+            </div>
           </div>
 
           <div class="conversation-shell__right-actions">
@@ -643,20 +650,44 @@ onBeforeUnmount(() => {
   stroke-linejoin: round;
 }
 
-.conversation-shell__mic-level {
+.conversation-shell__mic-monitor {
   display: inline-flex;
-  align-items: flex-end;
-  justify-content: center;
-  width: 10px;
-  height: 16px;
+  align-items: center;
+  gap: 8px;
 }
 
-.conversation-shell__mic-level span {
-  width: 4px;
-  height: 100%;
+.conversation-shell__vu-meter {
+  position: relative;
+  width: 72px;
+  height: 12px;
   border-radius: 999px;
-  background: #74efff;
-  transform-origin: center bottom;
+  overflow: hidden;
+  opacity: 0.62;
+}
+
+.conversation-shell__vu-meter--active {
+  opacity: 1;
+}
+
+.conversation-shell__vu-meter-track,
+.conversation-shell__vu-meter-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.conversation-shell__vu-meter-track {
+  border: 1px solid rgba(138, 218, 255, 0.14);
+  background:
+    linear-gradient(90deg, rgba(91, 214, 255, 0.08), rgba(91, 214, 255, 0.24)),
+    rgba(8, 23, 35, 0.76);
+}
+
+.conversation-shell__vu-meter-fill {
+  background: linear-gradient(90deg, #52d2ff 0%, #7df9ff 55%, #d7fbff 100%);
+  box-shadow: 0 0 16px rgba(91, 214, 255, 0.34);
+  transform-origin: left center;
+  transition: transform 90ms linear;
 }
 
 .conversation-shell__send {
@@ -733,6 +764,15 @@ onBeforeUnmount(() => {
 
   .conversation-shell__right-actions {
     justify-content: space-between;
+  }
+
+  .conversation-shell__mic-monitor {
+    width: 100%;
+  }
+
+  .conversation-shell__vu-meter {
+    flex: 1;
+    width: auto;
   }
 }
 </style>
