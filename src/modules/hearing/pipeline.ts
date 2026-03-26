@@ -3,7 +3,7 @@ import { computed, reactive } from 'vue'
 import { readStorage, writeStorage } from '@/lib/storage'
 import { useAudioSession } from '@/modules/audio/session'
 import { useConversationState } from '@/modules/conversation/state'
-import vadWorkletUrl from '@/workers/vad/process.worklet?url'
+import vadWorkletSource from '@/workers/vad/process.worklet?raw'
 
 const AUTO_SEND_KEY = 'airifica:hearing-auto-send'
 const LOCALE_KEY = 'airifica:hearing-locale'
@@ -34,6 +34,7 @@ let workletNode: AudioWorkletNode | null = null
 let mediaStreamSource: MediaStreamAudioSourceNode | null = null
 let silenceGain: GainNode | null = null
 let finalizeTimer: ReturnType<typeof setTimeout> | undefined
+let vadWorkletUrl: string | null = null
 
 const vadState = {
   speaking: false,
@@ -48,6 +49,16 @@ function browserSpeechSupported() {
 function persistSettings() {
   writeStorage(getStorageScope(), AUTO_SEND_KEY, state.autoSendEnabled)
   writeStorage(getStorageScope(), LOCALE_KEY, state.locale)
+}
+
+function resolveVadWorkletUrl() {
+  if (vadWorkletUrl || typeof URL === 'undefined' || typeof Blob === 'undefined')
+    return vadWorkletUrl
+
+  vadWorkletUrl = URL.createObjectURL(new Blob([vadWorkletSource], {
+    type: 'text/javascript',
+  }))
+  return vadWorkletUrl
 }
 
 function resetTranscriptState() {
@@ -170,12 +181,16 @@ async function ensureVad(stream: MediaStream) {
   if (audioContext && workletNode && mediaStreamSource)
     return
 
+  const workletUrl = resolveVadWorkletUrl()
+  if (!workletUrl)
+    throw new Error('Unable to prepare the voice activity detector module.')
+
   audioContext = new AudioContext({
     sampleRate: 16000,
     latencyHint: 'interactive',
   })
 
-  await audioContext.audioWorklet.addModule(vadWorkletUrl)
+  await audioContext.audioWorklet.addModule(workletUrl)
   workletNode = new AudioWorkletNode(audioContext, 'vad-audio-worklet-processor')
   workletNode.port.onmessage = (event: MessageEvent<{ buffer?: Float32Array }>) => {
     const buffer = event.data?.buffer
