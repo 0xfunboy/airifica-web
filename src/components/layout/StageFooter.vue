@@ -547,12 +547,14 @@ onBeforeUnmount(() => {
   }
 
   .stage-footer__bar {
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    flex-wrap: nowrap;
+    justify-content: space-between;
   }
 
   .stage-footer__bar--open {
     width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .stage-footer__bar-content {

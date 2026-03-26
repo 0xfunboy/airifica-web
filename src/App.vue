@@ -66,9 +66,14 @@ onUnmounted(() => {
           <AvatarStageCard />
         </div>
 
-        <StageMarketSurface v-if="mobileLayout" class="stage-page__mobile-market-surface" />
+        <div v-if="mobileLayout" class="stage-page__mobile-panels">
+          <StageMarketSurface class="stage-page__mobile-market-surface" />
+          <InteractiveArea class="stage-page__mobile-interactive">
+            <ConversationCard />
+          </InteractiveArea>
+        </div>
 
-        <InteractiveArea class="stage-page__interactive">
+        <InteractiveArea v-else class="stage-page__interactive">
           <ConversationCard />
         </InteractiveArea>
       </div>
@@ -131,6 +136,10 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
+.stage-page__mobile-panels {
+  display: none;
+}
+
 :deep(.stage-page__interactive) {
   position: absolute;
   top: 0;
@@ -158,42 +167,52 @@ onUnmounted(() => {
 
 @media (max-width: 980px) {
   .stage-page {
-    height: auto;
+    height: 100dvh;
     min-height: 100dvh;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .stage-page__root {
-    min-height: 100dvh;
-    overflow: visible;
-  }
-
-  .stage-page__header {
-    position: sticky;
-    top: 0;
-    z-index: 24;
+    overflow: hidden;
   }
 
   .stage-page__content {
-    flex-direction: column;
-    gap: 14px;
-    padding: 0 12px calc(var(--stage-footer-bar-height) + 98px);
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0;
   }
 
   .stage-page__scene {
-    flex: none;
-    min-height: min(58dvh, 640px);
-    height: min(58dvh, 640px);
+    min-height: 0;
+    height: 100%;
   }
 
-  :deep(.stage-page__interactive) {
+  .stage-page__mobile-panels {
+    position: absolute;
+    top: 6px;
+    right: 12px;
+    bottom: calc(var(--stage-footer-bar-height) + env(safe-area-inset-bottom) + 18px);
+    z-index: 14;
+    display: grid;
+    grid-template-rows: minmax(220px, 0.88fr) minmax(0, 1.3fr);
+    gap: 12px;
+    width: clamp(220px, 62vw, 320px);
+    max-width: calc(100vw - 24px);
+    pointer-events: none;
+  }
+
+  .stage-page__mobile-market-surface,
+  :deep(.stage-page__mobile-interactive) {
+    min-width: 0;
+    min-height: 0;
+    pointer-events: auto;
+  }
+
+  :deep(.stage-page__mobile-interactive) {
     position: relative;
-    top: auto;
-    bottom: auto;
-    right: auto;
-    z-index: 12;
-    height: auto;
+    width: 100%;
+    height: 100%;
   }
 
   .stage-page__footer {
