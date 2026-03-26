@@ -140,6 +140,13 @@ function formatAssetAmount(value: number) {
   })
 }
 
+function clampLeverage(value: number) {
+  if (!Number.isFinite(value))
+    return minLeverage.value
+
+  return Math.min(Math.max(minLeverage.value, Math.trunc(value)), maxLeverage.value)
+}
+
 async function handleExecute() {
   if (executing.value)
     return
@@ -234,11 +241,17 @@ async function handleExecute() {
 }
 
 watch(() => maxLeverage.value, (value) => {
-  leverage.value = Math.min(Math.max(minLeverage.value, leverage.value), value)
+  leverage.value = clampLeverage(Math.min(value, leverage.value))
 }, { immediate: true })
 
 watch(() => props.proposal.symbol, () => {
   leverage.value = minLeverage.value
+})
+
+watch(leverage, (value) => {
+  const normalized = clampLeverage(value)
+  if (normalized !== value)
+    leverage.value = normalized
 })
 
 function handleExecuteClick() {
@@ -357,17 +370,36 @@ function toggleStrategy() {
 
     <div class="proposal-card__execution">
       <label class="proposal-card__field proposal-card__field--size">
-        <span>Size (USD)</span>
+        <span>Collateral (USD)</span>
         <div class="proposal-card__size-row">
           <input v-model="notionalUsd" type="number" min="0" step="0.1" placeholder="0">
-          <span class="proposal-card__size-asset">{{ formatAssetAmount(estimatedAssetAmount) }} {{ proposal.symbol }}</span>
+          <div class="proposal-card__execution-metrics">
+            <article class="proposal-card__execution-metric">
+              <span>Quantity</span>
+              <strong>{{ formatAssetAmount(estimatedAssetAmount) }} {{ proposal.symbol }}</strong>
+            </article>
+            <article class="proposal-card__execution-metric">
+              <span>Position notional</span>
+              <strong>{{ formatUsd(effectiveNotionalUsd) }} USD</strong>
+            </article>
+          </div>
         </div>
       </label>
 
       <div class="proposal-card__leverage">
         <div class="proposal-card__leverage-head">
           <span>Leverage</span>
-          <strong>{{ leverage }}x</strong>
+          <label class="proposal-card__leverage-input-shell">
+            <input
+              v-model.number="leverage"
+              class="proposal-card__leverage-input"
+              type="number"
+              :min="minLeverage"
+              :max="maxLeverage"
+              step="1"
+            >
+            <strong>x</strong>
+          </label>
         </div>
         <input
           v-model.number="leverage"
@@ -644,7 +676,7 @@ function toggleStrategy() {
 
 .proposal-card__size-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
 }
 
@@ -660,17 +692,64 @@ function toggleStrategy() {
 }
 
 .proposal-card__field--size input {
-  width: min(112px, 50%);
+  width: min(96px, 50%);
   min-width: 0;
 }
 
-.proposal-card__size-asset {
+.proposal-card__execution-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.proposal-card__execution-metric {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.proposal-card__execution-metric span {
+  color: var(--text-2);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.proposal-card__execution-metric strong {
   color: #eefaff;
-  font-size: 0.98rem;
+  font-size: 1.04rem;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
   white-space: nowrap;
+}
+
+.proposal-card__leverage-input-shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proposal-card__leverage-input {
+  width: 52px;
+  min-height: 24px;
+  padding: 0 2px 0 0;
+  border: 0;
+  border-bottom: 1px solid rgba(138, 218, 255, 0.18);
+  background: transparent;
+  color: #8af4ff;
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-align: right;
+  outline: none;
+}
+
+.proposal-card__leverage-input::-webkit-outer-spin-button,
+.proposal-card__leverage-input::-webkit-inner-spin-button {
+  margin: 0;
 }
 
 .proposal-card__leverage {
@@ -858,6 +937,10 @@ function toggleStrategy() {
 
   .proposal-card__field--size input {
     width: 100%;
+  }
+
+  .proposal-card__execution-metrics {
+    grid-template-columns: 1fr;
   }
 }
 </style>
