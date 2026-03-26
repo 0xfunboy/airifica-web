@@ -3,7 +3,7 @@ import { computed, reactive } from 'vue'
 import { readStorage, writeStorage } from '@/lib/storage'
 import { useAudioSession } from '@/modules/audio/session'
 import { useConversationState } from '@/modules/conversation/state'
-import vadWorkletSource from '@/workers/vad/process.worklet?raw'
+import vadWorkletSource from '@/workers/vad/process.worklet.js?raw'
 
 const AUTO_SEND_KEY = 'airifica:hearing-auto-send'
 const LOCALE_KEY = 'airifica:hearing-locale'
