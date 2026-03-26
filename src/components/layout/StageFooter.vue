@@ -527,23 +527,23 @@ onBeforeUnmount(() => {
 
 @media (max-width: 980px) {
   .stage-footer {
-    position: relative;
-    left: auto;
-    right: auto;
-    bottom: auto;
-    padding-top: 12px;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px));
+    padding-top: 0;
   }
 
   .stage-footer__shell {
-    width: 100%;
+    width: min(384px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
   }
 
   .stage-footer__shell--open {
-    width: 100%;
+    width: calc(100vw - 24px);
   }
 
   .stage-footer__drawer--open {
-    max-height: 440px;
+    max-height: min(56dvh, 440px);
   }
 
   .stage-footer__bar {

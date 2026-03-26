@@ -795,8 +795,13 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 980px) {
+  .conversation-shell-wrap {
+    height: auto;
+  }
+
   .conversation-shell {
-    min-height: 720px;
+    height: min(72dvh, 760px);
+    min-height: 540px;
   }
 
   .conversation-shell__reset-fab {
