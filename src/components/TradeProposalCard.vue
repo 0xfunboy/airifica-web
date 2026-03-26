@@ -48,11 +48,19 @@ const effectiveNotionalUsd = computed(() => numericSizeUsd.value * leverage.valu
 const estimatedAssetAmount = computed(() =>
   props.proposal.entry > 0 ? effectiveNotionalUsd.value / props.proposal.entry : 0,
 )
+const availableCollateralUsd = computed(() => {
+  const available = Number(pacifica.account.value?.availableToSpend || 0)
+  return Number.isFinite(available) && available > 0 ? available : 0
+})
+const exceedsAvailableCollateral = computed(() =>
+  availableCollateralUsd.value > 0 && numericSizeUsd.value > availableCollateralUsd.value,
+)
 const minimumOrderHint = computed(() => {
   const minimum = Number(marketMeta.value?.minOrderSize || 0)
   return Number.isFinite(minimum) && minimum > 0 ? minimum : null
 })
 const minLeverage = computed(() => 1)
+const collateralPresets = [10, 20, 30] as const
 const derivedConfidence = computed(() => computeProposalConfidence(props.proposal, { marketPrice: marketPrice.value }))
 const confidencePct = computed(() => Math.round(derivedConfidence.value * 100))
 const riskReward = computed(() => computeRiskReward(props.proposal))
@@ -140,11 +148,33 @@ function formatAssetAmount(value: number) {
   })
 }
 
+function formatInputUsd(value: number) {
+  if (!Number.isFinite(value) || value <= 0)
+    return '0'
+
+  return value
+    .toFixed(2)
+    .replace(/\.00$/, '')
+    .replace(/(\.\d*[1-9])0+$/, '$1')
+}
+
 function clampLeverage(value: number) {
   if (!Number.isFinite(value))
     return minLeverage.value
 
   return Math.min(Math.max(minLeverage.value, Math.trunc(value)), maxLeverage.value)
+}
+
+function clampCollateralInput(value: string) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0)
+    return value === '' ? '' : '0'
+
+  const maxAllowed = availableCollateralUsd.value
+  if (maxAllowed > 0 && numeric > maxAllowed)
+    return formatInputUsd(maxAllowed)
+
+  return value
 }
 
 async function handleExecute() {
@@ -179,6 +209,14 @@ async function handleExecute() {
     result.value = {
       success: false,
       message: 'No funds on Pacifica. Deposit before execution.',
+    }
+    return
+  }
+
+  if (exceedsAvailableCollateral.value) {
+    result.value = {
+      success: false,
+      message: `Collateral exceeds available balance (${formatUsd(availableCollateralUsd.value)} USD).`,
     }
     return
   }
@@ -253,6 +291,24 @@ watch(leverage, (value) => {
   if (normalized !== value)
     leverage.value = normalized
 })
+
+watch(notionalUsd, (value) => {
+  const normalized = clampCollateralInput(value)
+  if (normalized !== value)
+    notionalUsd.value = normalized
+})
+
+watch(availableCollateralUsd, () => {
+  notionalUsd.value = clampCollateralInput(notionalUsd.value)
+})
+
+function applyCollateralPreset(percent: number) {
+  if (availableCollateralUsd.value <= 0)
+    return
+
+  const nextValue = availableCollateralUsd.value * (percent / 100)
+  notionalUsd.value = formatInputUsd(nextValue)
+}
 
 function handleExecuteClick() {
   if (!canExecute.value)
@@ -469,21 +525,6 @@ function toggleStrategy() {
       >
         {{ wallet.authenticating.value ? 'Verifying...' : 'Sign session' }}
       </button>
-      <button
-        v-else-if="!requiresOnboarding && !requiresActivation && !requiresFunding"
-        class="surface-button surface-button--primary proposal-card__action"
-        :disabled="executing || !canExecute"
-        type="button"
-        @click="handleExecuteClick"
-      >
-        {{
-          executing
-            ? 'Executing...'
-            : awaitingConfirmation
-              ? 'Confirm execution'
-              : 'Execute trade'
-        }}
-      </button>
       <a
         v-else-if="requiresActivation || requiresFunding"
         class="surface-button surface-button--primary proposal-card__action"
@@ -499,6 +540,46 @@ function toggleStrategy() {
       <span v-if="requiresFunding" class="proposal-card__note">
         No funds on Pacifica.
       </span>
+    </div>
+
+    <p
+      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding && availableCollateralUsd > 0"
+      class="proposal-card__market-hint"
+    >
+      Available collateral: {{ formatUsd(availableCollateralUsd) }} USD.
+    </p>
+
+    <div
+      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding"
+      class="proposal-card__execution-actions"
+    >
+      <div class="proposal-card__preset-row">
+        <button
+          v-for="preset in collateralPresets"
+          :key="preset"
+          class="proposal-card__preset"
+          type="button"
+          :disabled="availableCollateralUsd <= 0"
+          @click="applyCollateralPreset(preset)"
+        >
+          {{ preset }}%
+        </button>
+      </div>
+
+      <button
+        class="surface-button surface-button--primary proposal-card__action proposal-card__action--execute"
+        :disabled="executing || !canExecute"
+        type="button"
+        @click="handleExecuteClick"
+      >
+        {{
+          executing
+            ? 'Executing...'
+            : awaitingConfirmation
+              ? 'Confirm execution'
+              : 'Execute trade'
+        }}
+      </button>
     </div>
 
     <p v-if="result" :class="['proposal-card__result', result.success ? 'proposal-card__result--success' : 'proposal-card__result--error']">
@@ -786,6 +867,45 @@ function toggleStrategy() {
   padding: 0 12px;
 }
 
+.proposal-card__execution-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.proposal-card__preset-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proposal-card__preset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(8, 20, 33, 0.78);
+  color: rgba(224, 242, 254, 0.88);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.proposal-card__preset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.proposal-card__action--execute {
+  margin-left: auto;
+}
+
 .proposal-card__utility-link,
 .proposal-card__strategy-toggle {
   display: inline-flex;
@@ -918,6 +1038,19 @@ function toggleStrategy() {
   .proposal-card__field,
   .proposal-card__execution-summary {
     grid-template-columns: 1fr;
+  }
+
+  .proposal-card__execution-actions {
+    align-items: stretch;
+  }
+
+  .proposal-card__preset-row {
+    flex-wrap: wrap;
+  }
+
+  .proposal-card__action--execute {
+    width: 100%;
+    margin-left: 0;
   }
 }
 </style>
