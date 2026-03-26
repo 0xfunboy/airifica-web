@@ -32,6 +32,8 @@ const composer = composerState.draft
 const messagesRef = ref<HTMLElement | null>(null)
 const composerRef = ref<HTMLTextAreaElement | null>(null)
 const exampleGuideOpen = ref(false)
+const hearingComposerPreview = ref('')
+const hearingComposerSyncEnabled = ref(false)
 const COMPOSER_MIN_HEIGHT = 56
 const COMPOSER_MAX_HEIGHT = 112
 let scrollAnimationFrame = 0
@@ -172,6 +174,8 @@ async function handleSubmit() {
   if (!text)
     return
 
+  hearingComposerPreview.value = ''
+  hearingComposerSyncEnabled.value = false
   avatar.triggerInteractionGesture('prompt-send')
   composerState.clearDraft()
   syncComposerHeight()
@@ -179,6 +183,8 @@ async function handleSubmit() {
 }
 
 async function handleSendTranscript() {
+  hearingComposerPreview.value = ''
+  hearingComposerSyncEnabled.value = false
   avatar.triggerInteractionGesture('prompt-send')
   await hearing.flushTranscript(true)
 }
@@ -232,6 +238,41 @@ watch(() => conversation.messages.value.at(-1)?.id, (messageId, previousMessageI
 watch(() => conversation.pendingMessage.value?.statusNote, (statusNote) => {
   if (statusNote)
     scrollToBottom()
+})
+
+watch(() => hearing.listening.value, (listening) => {
+  if (listening) {
+    hearingComposerSyncEnabled.value = !composer.value.trim() || composer.value === hearingComposerPreview.value
+    return
+  }
+
+  if (!hearingComposerSyncEnabled.value)
+    return
+
+  const shouldClearPreview = hearing.autoSendEnabled.value && composer.value === hearingComposerPreview.value
+  hearingComposerPreview.value = ''
+  hearingComposerSyncEnabled.value = false
+  if (shouldClearPreview) {
+    composer.value = ''
+    syncComposerHeight()
+  }
+})
+
+watch(() => hearing.combinedTranscript.value, (transcript) => {
+  if (!hearingComposerSyncEnabled.value)
+    return
+
+  const normalized = transcript.trim()
+  const composerMatchesPreview = !composer.value.trim() || composer.value === hearingComposerPreview.value
+  if (!composerMatchesPreview) {
+    hearingComposerSyncEnabled.value = false
+    hearingComposerPreview.value = ''
+    return
+  }
+
+  composer.value = normalized
+  hearingComposerPreview.value = normalized
+  syncComposerHeight()
 })
 
 watch(
