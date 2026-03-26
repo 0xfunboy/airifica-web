@@ -300,6 +300,10 @@ onBeforeUnmount(() => {
         {{ conversation.error.value }}
       </p>
 
+      <p v-if="hearing.error.value" class="conversation-shell__error conversation-shell__error--hearing">
+        {{ hearing.error.value }}
+      </p>
+
       <div v-if="hearing.supported.value && (hearing.committedTranscript.value || hearing.interimTranscript.value)" class="conversation-shell__transcript">
         <div class="conversation-shell__transcript-head">
           <span>Voice transcript</span>
@@ -528,6 +532,10 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 0 16px;
   color: #ffb2bb;
+}
+
+.conversation-shell__error--hearing {
+  color: #ffd78f;
 }
 
 .conversation-shell__transcript {

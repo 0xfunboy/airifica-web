@@ -267,12 +267,12 @@ function buildRecognition() {
 }
 
 async function transcribeForMediaStream(stream: MediaStream) {
-  if (!browserSpeechSupported())
-    throw new Error('Speech recognition is unavailable in this browser.')
-
   await ensureVad(stream)
   if (audioContext?.state === 'suspended')
     await audioContext.resume()
+
+  if (!browserSpeechSupported())
+    return
 
   stopRecognition()
   recognition = buildRecognition()
@@ -293,9 +293,25 @@ async function transcribeForRecording(recording: Blob | null | undefined) {
 async function startListening() {
   state.error = null
   desiredListening = true
-  const stream = await audio.startStream()
-  await transcribeForMediaStream(stream)
-  state.listening = true
+  try {
+    const stream = await audio.startStream()
+    await transcribeForMediaStream(stream)
+    state.listening = true
+
+    if (!browserSpeechSupported()) {
+      state.error = 'Voice capture is active, but this browser has no built-in speech recognition. Add a server STT to transcribe speech here.'
+    }
+  }
+  catch (error) {
+    desiredListening = false
+    state.listening = false
+    state.speechDetected = false
+    vadState.speaking = false
+    vadState.silenceMs = 0
+    disposeVadGraph()
+    audio.stopStream()
+    state.error = error instanceof Error ? error.message : 'Unable to start voice input.'
+  }
 }
 
 async function stopStreamingTranscription(abort = false) {
