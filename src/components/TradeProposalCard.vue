@@ -622,22 +622,23 @@ function toggleStrategy() {
 
 .proposal-card__execution {
   display: grid;
-  grid-template-columns: minmax(78px, 0.34fr) minmax(0, 0.76fr);
+  grid-template-columns: 1fr;
   gap: 8px;
-  align-items: end;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(138, 218, 255, 0.08);
+  background: rgba(8, 20, 33, 0.44);
 }
 
 .proposal-card__field {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
 }
 
 .proposal-card__field--size {
-  grid-template-columns: 1fr;
-  gap: 6px;
-  max-width: 104px;
+  max-width: 112px;
 }
 
 .proposal-card__field--size span {
@@ -660,10 +661,7 @@ function toggleStrategy() {
   display: grid;
   gap: 6px;
   min-width: 0;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(138, 218, 255, 0.08);
-  background: rgba(8, 20, 33, 0.44);
+  padding: 0;
 }
 
 .proposal-card__leverage-head,

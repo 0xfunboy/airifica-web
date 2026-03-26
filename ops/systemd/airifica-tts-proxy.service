@@ -1,0 +1,16 @@
+[Unit]
+Description=Airifica TTS proxy
+After=network.target
+
+[Service]
+Type=simple
+User=funboy
+Group=funboy
+WorkingDirectory=/home/funboy/airifica-stack/airifica-web
+Environment=HOME=/home/funboy
+ExecStart=/home/funboy/.nvm/versions/node/v24.9.0/bin/node /home/funboy/airifica-stack/airifica-web/scripts/tts-proxy.mjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

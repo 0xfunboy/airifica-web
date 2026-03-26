@@ -89,7 +89,7 @@ function replayMessage() {
           title="Replay message audio"
           @click="replayMessage"
         >
-          <span>◉</span>
+          <img src="/audio_icon.png" alt="" class="conversation-message__speak-icon">
         </button>
         <strong>{{ new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</strong>
       </header>
@@ -201,19 +201,21 @@ function replayMessage() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   margin-left: auto;
   border: 1px solid rgba(138, 218, 255, 0.16);
   border-radius: 999px;
   background: rgba(10, 24, 36, 0.68);
-  color: rgba(165, 243, 252, 0.9);
   cursor: pointer;
 }
 
-.conversation-message__speak span {
-  font-size: 9px;
-  line-height: 1;
+.conversation-message__speak-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  filter: brightness(0) saturate(100%) invert(89%) sepia(16%) saturate(1015%) hue-rotate(154deg) brightness(103%) contrast(101%);
 }
 
 .conversation-message__body {
