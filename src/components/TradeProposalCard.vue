@@ -369,22 +369,22 @@ function toggleStrategy() {
     </div>
 
     <div class="proposal-card__execution">
-      <label class="proposal-card__field proposal-card__field--size">
-        <span>Collateral (USD)</span>
-        <div class="proposal-card__size-row">
+      <div class="proposal-card__execution-summary">
+        <label class="proposal-card__field proposal-card__field--size">
+          <span>Collateral</span>
           <input v-model="notionalUsd" type="number" min="0" step="0.1" placeholder="0">
-          <div class="proposal-card__execution-metrics">
-            <article class="proposal-card__execution-metric">
-              <span>Quantity</span>
-              <strong>{{ formatAssetAmount(estimatedAssetAmount) }} {{ proposal.symbol }}</strong>
-            </article>
-            <article class="proposal-card__execution-metric">
-              <span>Position notional</span>
-              <strong>{{ formatUsd(effectiveNotionalUsd) }} USD</strong>
-            </article>
-          </div>
-        </div>
-      </label>
+        </label>
+
+        <article class="proposal-card__execution-metric proposal-card__execution-metric--quantity">
+          <span>Quantity</span>
+          <strong>{{ formatAssetAmount(estimatedAssetAmount) }} {{ proposal.symbol }}</strong>
+        </article>
+
+        <article class="proposal-card__execution-metric">
+          <span>Position size</span>
+          <strong>{{ formatUsd(effectiveNotionalUsd) }} USD</strong>
+        </article>
+      </div>
 
       <div class="proposal-card__leverage">
         <div class="proposal-card__leverage-head">
@@ -665,19 +665,19 @@ function toggleStrategy() {
   gap: 6px;
 }
 
-.proposal-card__field--size {
-  max-width: none;
+.proposal-card__execution-summary {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.56fr) minmax(0, 0.72fr) minmax(0, 0.72fr);
+  gap: 10px;
+  align-items: start;
 }
 
-.proposal-card__field--size span {
+.proposal-card__field--size span,
+.proposal-card__execution-metric span {
+  color: var(--text-2);
   font-size: 10px;
   letter-spacing: 0.14em;
-}
-
-.proposal-card__size-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  text-transform: uppercase;
 }
 
 .proposal-card__field input {
@@ -692,16 +692,8 @@ function toggleStrategy() {
 }
 
 .proposal-card__field--size input {
-  width: min(96px, 50%);
+  width: 100%;
   min-width: 0;
-}
-
-.proposal-card__execution-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
 }
 
 .proposal-card__execution-metric {
@@ -710,11 +702,8 @@ function toggleStrategy() {
   min-width: 0;
 }
 
-.proposal-card__execution-metric span {
-  color: var(--text-2);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.proposal-card__execution-metric--quantity {
+  text-align: center;
 }
 
 .proposal-card__execution-metric strong {
@@ -927,19 +916,7 @@ function toggleStrategy() {
 
   .proposal-card__execution,
   .proposal-card__field,
-  .proposal-card__size-row {
-    grid-template-columns: 1fr;
-  }
-
-  .proposal-card__size-row {
-    display: grid;
-  }
-
-  .proposal-card__field--size input {
-    width: 100%;
-  }
-
-  .proposal-card__execution-metrics {
+  .proposal-card__execution-summary {
     grid-template-columns: 1fr;
   }
 }
