@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 import CommandGuideOverlay from '@/components/layout/CommandGuideOverlay.vue'
 import HeaderLink from '@/components/layout/HeaderLink.vue'
@@ -20,6 +20,11 @@ const marketContext = useMarketContext()
 
 const settingsOpen = ref(false)
 const guideOpen = ref(false)
+const mobileCompact = ref(false)
+
+function syncCompactMode() {
+  mobileCompact.value = window.innerWidth <= 980
+}
 
 function toggleAutoSpeak() {
   speech.setAutoSpeakEnabled(!speech.autoSpeakEnabled.value)
@@ -33,6 +38,15 @@ function handleSelectGuidePrompt(prompt: string) {
   composerState.applyExample(prompt)
   guideOpen.value = false
 }
+
+onMounted(() => {
+  syncCompactMode()
+  window.addEventListener('resize', syncCompactMode)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', syncCompactMode)
+})
 </script>
 
 <template>
@@ -40,9 +54,9 @@ function handleSelectGuidePrompt(prompt: string) {
       <HeaderLink />
 
       <div class="stage-header__controls">
-        <PacificaTradeButton />
+        <PacificaTradeButton :compact="mobileCompact" />
 
-        <WalletConnectButton />
+        <WalletConnectButton :compact="mobileCompact" />
 
         <button
           class="stage-header__settings-button stage-header__settings-button--help"
@@ -396,18 +410,43 @@ function handleSelectGuidePrompt(prompt: string) {
 
 @media (max-width: 1080px) {
   .stage-header {
-    flex-direction: column;
-    align-items: stretch;
+    gap: 8px;
   }
 
   .stage-header__controls {
-    justify-content: flex-start;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 }
 
 @media (max-width: 720px) {
+  .stage-header {
+    align-items: flex-start;
+  }
+
   .stage-header__controls {
     gap: 6px;
+  }
+
+  .stage-header__settings-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 14px;
+  }
+
+  :deep(.pacifica-trade-button),
+  :deep(.wallet-connect__button) {
+    min-height: 34px;
+    border-radius: 14px;
+    padding: 0 10px;
+    font-size: 0.76rem;
+  }
+
+  :deep(.wallet-connect__button--icon) {
+    width: 34px;
+    padding: 0;
   }
 }
 </style>

@@ -28,7 +28,7 @@
     position: relative;
     width: 100%;
     min-width: 0;
-    height: auto;
+    height: 100%;
   }
 
   .interactive-area__inner {

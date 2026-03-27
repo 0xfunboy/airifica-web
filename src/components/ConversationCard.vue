@@ -802,10 +802,12 @@ onBeforeUnmount(() => {
   .conversation-shell {
     height: 100%;
     min-height: 0;
+    border-radius: 24px;
   }
 
   .conversation-shell__reset-fab {
-    bottom: -62px;
+    right: 12px;
+    bottom: 12px;
   }
 }
 

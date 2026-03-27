@@ -13,6 +13,7 @@ import { useWalletSession } from '@/modules/wallet/session'
 
 const wallet = useWalletSession()
 const mobileLayout = ref(false)
+const mobilePanel = ref<'chat' | 'market'>('chat')
 
 function syncLayoutMode() {
   mobileLayout.value = window.innerWidth <= 980
@@ -66,11 +67,30 @@ onUnmounted(() => {
           <AvatarStageCard />
         </div>
 
-        <div v-if="mobileLayout" class="stage-page__mobile-panels">
-          <StageMarketSurface class="stage-page__mobile-market-surface" />
-          <InteractiveArea class="stage-page__mobile-interactive">
-            <ConversationCard />
-          </InteractiveArea>
+        <div v-if="mobileLayout" class="stage-page__mobile-sheet">
+          <div class="stage-page__mobile-sheet-tabs">
+            <button
+              type="button"
+              :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'chat' }]"
+              @click="mobilePanel = 'chat'"
+            >
+              Chat
+            </button>
+            <button
+              type="button"
+              :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'market' }]"
+              @click="mobilePanel = 'market'"
+            >
+              Market
+            </button>
+          </div>
+
+          <div class="stage-page__mobile-sheet-body">
+            <InteractiveArea v-show="mobilePanel === 'chat'" class="stage-page__mobile-interactive">
+              <ConversationCard />
+            </InteractiveArea>
+            <StageMarketSurface v-show="mobilePanel === 'market'" class="stage-page__mobile-market-surface" />
+          </div>
         </div>
 
         <InteractiveArea v-else class="stage-page__interactive">
@@ -136,7 +156,7 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
-.stage-page__mobile-panels {
+.stage-page__mobile-sheet {
   display: none;
 }
 
@@ -188,31 +208,74 @@ onUnmounted(() => {
     height: 100%;
   }
 
-  .stage-page__mobile-panels {
+  .stage-page__mobile-sheet {
     position: absolute;
-    top: 6px;
+    left: 12px;
     right: 12px;
-    bottom: calc(var(--stage-footer-bar-height) + env(safe-area-inset-bottom) + 18px);
+    bottom: calc(env(safe-area-inset-bottom) + 58px);
     z-index: 14;
     display: grid;
-    grid-template-rows: minmax(220px, 0.88fr) minmax(0, 1.3fr);
-    gap: 12px;
-    width: clamp(220px, 62vw, 320px);
-    max-width: calc(100vw - 24px);
-    pointer-events: none;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+    height: min(46dvh, 420px);
+    pointer-events: auto;
+  }
+
+  .stage-page__mobile-sheet-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(5, 20, 31, 0.58);
+    border: 1px solid rgba(103, 232, 249, 0.12);
+    box-shadow: 0 14px 34px rgba(5, 23, 36, 0.24);
+    backdrop-filter: blur(18px);
+  }
+
+  .stage-page__mobile-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(224, 242, 254, 0.7);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stage-page__mobile-tab--active {
+    background: rgba(103, 232, 249, 0.16);
+    color: rgba(240, 249, 255, 0.98);
+    box-shadow: inset 0 0 0 1px rgba(103, 232, 249, 0.12);
+  }
+
+  .stage-page__mobile-sheet-body {
+    position: relative;
+    min-height: 0;
+    border-radius: 24px;
+    background: rgba(6, 22, 34, 0.56);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(18px);
   }
 
   .stage-page__mobile-market-surface,
   :deep(.stage-page__mobile-interactive) {
     min-width: 0;
     min-height: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: auto;
   }
 
   :deep(.stage-page__mobile-interactive) {
     position: relative;
-    width: 100%;
-    height: 100%;
   }
 
   .stage-page__footer {

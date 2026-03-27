@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { useWalletSession } from '@/modules/wallet/session'
 
+const props = withDefaults(defineProps<{
+  compact?: boolean
+}>(), {
+  compact: false,
+})
+
 const wallet = useWalletSession()
 
 async function handleConnect() {
@@ -39,7 +45,7 @@ async function handleDisconnect() {
         <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
         <path d="M16 12h2" />
       </svg>
-      <span>{{ wallet.connecting.value ? 'Connecting…' : 'Connect Solana' }}</span>
+      <span>{{ wallet.connecting.value ? 'Connecting…' : (props.compact ? 'Connect' : 'Connect Solana') }}</span>
     </button>
 
     <template v-else>
@@ -55,7 +61,7 @@ async function handleDisconnect() {
           <path d="M12 10v4" />
           <path d="M12 17h.01" />
         </svg>
-        <span>{{ wallet.authenticating.value ? 'Signing…' : 'Sign Wallet Session' }}</span>
+        <span>{{ wallet.authenticating.value ? 'Signing…' : (props.compact ? 'Sign' : 'Sign Wallet Session') }}</span>
       </button>
 
       <button
