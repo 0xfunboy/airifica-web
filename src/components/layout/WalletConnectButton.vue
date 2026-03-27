@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+
 import { useWalletSession } from '@/modules/wallet/session'
 
 const props = withDefaults(defineProps<{
@@ -8,12 +10,24 @@ const props = withDefaults(defineProps<{
 })
 
 const wallet = useWalletSession()
+const mobileFallbackArmed = ref(false)
+const showMobileFallback = computed(() =>
+  !wallet.isConnected.value && wallet.mobileWalletFallbackAvailable.value && mobileFallbackArmed.value,
+)
 
 async function handleConnect() {
+  if (showMobileFallback.value) {
+    window.location.href = wallet.mobileWalletFallbackHref.value
+    return
+  }
+
   try {
     await wallet.connect()
+    mobileFallbackArmed.value = false
   }
   catch {
+    if (wallet.mobileWalletFallbackAvailable.value)
+      mobileFallbackArmed.value = true
   }
 }
 
@@ -27,7 +41,18 @@ async function handleAuthenticate() {
 
 async function handleDisconnect() {
   await wallet.disconnect()
+  mobileFallbackArmed.value = false
 }
+
+watch(() => wallet.hasWalletProvider.value, (hasProvider) => {
+  if (hasProvider)
+    mobileFallbackArmed.value = false
+})
+
+watch(() => wallet.isConnected.value, (connected) => {
+  if (connected)
+    mobileFallbackArmed.value = false
+})
 </script>
 
 <template>
@@ -36,25 +61,35 @@ async function handleDisconnect() {
 
     <button
       v-if="!wallet.isConnected.value"
-      class="wallet-connect__button wallet-connect__button--base"
+      :class="[
+        'wallet-connect__button',
+        showMobileFallback ? 'wallet-connect__button--fallback' : 'wallet-connect__button--base',
+      ]"
       :disabled="wallet.connecting.value"
       type="button"
       @click="handleConnect"
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
-        <path d="M16 12h2" />
+        <template v-if="showMobileFallback">
+          <path d="M12 4v10" />
+          <path d="m8 10 4 4 4-4" />
+          <path d="M5 18h14" />
+        </template>
+        <template v-else>
+          <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+          <path d="M16 12h2" />
+        </template>
       </svg>
-      <span>{{ wallet.connecting.value ? 'Connecting…' : (props.compact ? 'Connect' : 'Connect Solana') }}</span>
+      <span>
+        {{
+          wallet.connecting.value
+            ? 'Connecting…'
+            : showMobileFallback
+              ? 'Open in Phantom'
+              : (props.compact ? 'Connect' : 'Connect Solana')
+        }}
+      </span>
     </button>
-
-    <a
-      v-if="!wallet.isConnected.value && wallet.mobileWalletFallbackAvailable.value"
-      class="wallet-connect__button wallet-connect__button--fallback"
-      :href="wallet.mobileWalletFallbackHref.value"
-    >
-      <span>Open in Phantom</span>
-    </a>
 
     <template v-else>
       <button

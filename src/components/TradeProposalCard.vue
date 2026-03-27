@@ -1071,27 +1071,237 @@ function toggleStrategy() {
 }
 
 @media (max-width: 760px) {
+  .proposal-card {
+    gap: 6px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .proposal-card__header,
+  .proposal-card__utility-row,
+  .proposal-card__actions {
+    gap: 5px;
+  }
+
+  .proposal-card__symbol-wrap {
+    gap: 5px;
+  }
+
+  .proposal-card__symbol-wrap strong {
+    font-size: 0.78rem;
+  }
+
+  .proposal-card__timeframe {
+    font-size: 0.54rem;
+    letter-spacing: 0.12em;
+  }
+
+  .proposal-card__confidence-label {
+    font-size: 0.46rem;
+    letter-spacing: 0.12em;
+  }
+
+  .proposal-card__side,
+  .proposal-card__risk-reward {
+    min-height: 16px;
+    padding: 0 5px;
+    font-size: 0.46rem;
+    letter-spacing: 0.1em;
+  }
+
   .proposal-card__levels {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
   }
 
-  .proposal-card__execution,
-  .proposal-card__field,
+  .proposal-card__levels article {
+    gap: 2px;
+    padding: 6px;
+    border-radius: 10px;
+  }
+
+  .proposal-card__levels span,
+  .proposal-card__field span,
+  .proposal-card__field--size span,
+  .proposal-card__execution-metric span,
+  .proposal-card__leverage-head span,
+  .proposal-card__leverage-scale span {
+    font-size: 8px;
+    letter-spacing: 0.12em;
+  }
+
+  .proposal-card__levels article strong {
+    font-size: 0.84rem;
+  }
+
+  .proposal-card__execution {
+    gap: 6px;
+    padding: 7px 8px;
+    border-radius: 10px;
+  }
+
   .proposal-card__execution-summary {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(58px, 0.55fr) minmax(0, 0.72fr) minmax(0, 0.82fr);
+    gap: 6px;
   }
 
-  .proposal-card__execution-actions {
-    align-items: stretch;
+  .proposal-card__field {
+    gap: 4px;
+  }
+
+  .proposal-card__field input {
+    min-height: 28px;
+    padding: 0 6px;
+    font-size: 0.74rem;
+    border-radius: 9px;
+  }
+
+  .proposal-card__execution-metric {
+    gap: 2px;
+  }
+
+  .proposal-card__execution-metric strong {
+    font-size: 0.74rem;
+  }
+
+  .proposal-card__leverage {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 6px;
+  }
+
+  .proposal-card__leverage-head {
+    display: contents;
+  }
+
+  .proposal-card__leverage-head span {
+    grid-column: 1;
+  }
+
+  .proposal-card__leverage-input-shell {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .proposal-card__leverage-input {
+    width: 36px;
+    min-height: 18px;
+    font-size: 0.74rem;
+  }
+
+  .proposal-card__leverage-head strong {
+    font-size: 0.76rem;
+  }
+
+  .proposal-card__leverage-slider {
+    grid-column: 2;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .proposal-card__leverage-scale {
+    display: none;
   }
 
   .proposal-card__preset-row {
-    flex-wrap: wrap;
+    gap: 5px;
+    flex-wrap: nowrap;
+  }
+
+  .proposal-card__preset {
+    width: 34px;
+    min-height: 28px;
+    border-radius: 8px;
+    font-size: 0.62rem;
+  }
+
+  .proposal-card__market-hint,
+  .proposal-card__result,
+  .proposal-card__note,
+  .proposal-card__strategy-toggle,
+  .proposal-card__utility-link {
+    font-size: 0.6rem;
+  }
+
+  .proposal-card__market-hint {
+    line-height: 1.35;
+  }
+
+  .proposal-card__action,
+  .proposal-card__utility-link,
+  .proposal-card__strategy-toggle,
+  .proposal-card__note {
+    min-height: 28px;
+    padding: 0 8px;
+  }
+
+  .proposal-card__execution-actions {
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .proposal-card__action--execute {
-    width: 100%;
-    margin-left: 0;
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .proposal-card {
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .proposal-card__header {
+    row-gap: 4px;
+  }
+
+  .proposal-card__confidence-wrap {
+    gap: 4px;
+  }
+
+  .proposal-card__levels {
+    gap: 4px;
+  }
+
+  .proposal-card__levels article {
+    padding: 5px 6px;
+  }
+
+  .proposal-card__levels article strong {
+    font-size: 0.76rem;
+  }
+
+  .proposal-card__execution {
+    gap: 5px;
+    padding: 6px 7px;
+  }
+
+  .proposal-card__execution-summary {
+    grid-template-columns: minmax(52px, 0.52fr) minmax(0, 0.7fr) minmax(0, 0.78fr);
+    gap: 5px;
+  }
+
+  .proposal-card__field input {
+    min-height: 26px;
+    font-size: 0.68rem;
+  }
+
+  .proposal-card__execution-metric strong {
+    font-size: 0.68rem;
+  }
+
+  .proposal-card__action--execute {
+    padding: 0 9px;
+  }
+
+  .proposal-card__market-hint,
+  .proposal-card__note,
+  .proposal-card__result {
+    font-size: 0.56rem;
   }
 }
 </style>

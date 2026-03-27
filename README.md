@@ -1,12 +1,36 @@
-# Airifica Web
+# Airifica Web — AIR3 Agent Interface
 
-`airifica-web` is the AIR3 stage surface for AIRewardrop. It combines the live AIR3 conversation flow, the Pacifica trading path and the avatar runtime in one immersive interface.
+`airifica-web` is the production frontend for **AIR3 Agent** — an AI-powered trading companion for the [AIRewardrop](https://airewardrop.xyz) ecosystem. It combines a real-time 3D VRM avatar, conversational AI (elizaOS + DeepSeek), live Pacifica DEX market data, and one-click trade execution in a single immersive browser interface.
+
+**Live:** https://app.eeess.cyou
+
+The production app is served same-origin through the `5173` port-bridge gateway. Static assets come directly from `dist/`, while `/api/*` and `/api/tts*` are proxied to the AIR3 backend and speech proxy.
+
+## Documentation
+
+Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
+
+| Section | Description |
+|---|---|
+| [Overview](./docs/getting-started/overview.md) | What AIR3 Agent is and how it works |
+| [Quickstart](./docs/getting-started/quickstart.md) | Dev environment setup in minutes |
+| [Configuration](./docs/getting-started/configuration.md) | All environment variables explained |
+| [Architecture](./docs/architecture/overview.md) | System diagram and request flow |
+| [Port-Bridge](./docs/architecture/port-bridge.md) | The production HTTP gateway |
+| [Features](./docs/features/avatar.md) | Avatar, conversation, TTS, market data, Pacifica |
+| [Deployment](./docs/deployment/production.md) | Production deployment with Cloudflare Tunnel |
+| [API Reference](./docs/api/endpoints.md) | All endpoints and TypeScript types |
+| [Iframe Embed](./docs/embed/iframe.md) | Embedding AIR3 Agent in partner sites |
+
+---
+
 
 ## What The App Does
 
 - mounts a fullscreen stage with the AIR3 studio backdrop, VRM avatar and floating market/chat overlays
 - connects to an AIR3 or Eliza runtime and preserves `sessionIdentity` and `conversationId`
 - handles Solana wallet connect, challenge signing, verify and authenticated request headers
+- falls back to `Open in Phantom` on mobile when no injected Solana provider is available in the current browser
 - syncs Pacifica account overview, builder onboarding, agent bind, open trade execution and close position actions
 - renders market context inside the stage and surfaces trade proposals back into the conversation
 - supports voice input, VAD-backed hearing, speech playback and avatar mouth/expression driving
@@ -60,7 +84,6 @@ pnpm dev
 ```bash
 pnpm typecheck
 pnpm build
-pnpm preview
 ```
 
 ## Environment
@@ -69,8 +92,8 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 
 ### Core Runtime
 
-- `VITE_AIR3_ELIZA_BASE_URL`: AIR3 / Eliza host, for example `http://localhost:4040`
-- `VITE_AIR3_SERVICE_API_URL`: explicit API base if it differs from the runtime host
+- `VITE_AIR3_ELIZA_BASE_URL`: leave empty in production for same-origin `/api`; use `http://127.0.0.1:5173` only for local gateway testing
+- `VITE_AIR3_SERVICE_API_URL`: explicit API base override; usually empty in production
 - `VITE_AIR3_RUNTIME_BASE_URL`: optional legacy runtime alias
 - `VITE_AIRIFICA_AVATAR_MODEL_URL`: override for the default VRM model
 - `VITE_AIR3_DEFAULT_MARKET`: initial market symbol
@@ -111,3 +134,4 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - the default stage asset set is already included in `public/brand`
 - no Live2D runtime is included
 - the external TTS path expects an OpenAI-compatible `audio/speech` response and falls back to browser speech when unavailable
+- Pacifica market universe is cached server-side and refreshed on a long interval; account and position state refresh more frequently
