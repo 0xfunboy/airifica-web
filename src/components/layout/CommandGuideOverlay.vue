@@ -233,18 +233,71 @@ function handlePromptClick(prompt: string) {
 
 @media (max-width: 720px) {
   .command-guide {
-    padding: 12px;
+    padding: 10px;
   }
 
   .command-guide__panel {
-    width: calc(100vw - 24px);
-    padding: 16px;
-    border-radius: 24px;
+    width: calc(100vw - 20px);
+    max-height: min(84dvh, 760px);
+    padding: 12px;
+    border-radius: 14px;
   }
 
   .command-guide__item {
     align-items: flex-start;
     flex-direction: column;
+    gap: 6px;
+    padding: 10px 11px;
+    border-radius: 12px;
+    font-size: 0.68rem;
+    line-height: 1.32;
+  }
+
+  .command-guide__header {
+    gap: 10px;
+  }
+
+  .command-guide__eyebrow {
+    margin-bottom: 4px;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+  }
+
+  .command-guide__header h2 {
+    font-size: 1.02rem;
+  }
+
+  .command-guide__copy,
+  .command-guide__note {
+    margin-top: 8px;
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+
+  .command-guide__note {
+    padding: 9px 10px;
+    border-radius: 10px;
+  }
+
+  .command-guide__close {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .command-guide__close svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .command-guide__list {
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .command-guide__hint {
+    font-size: 0.54rem;
+    letter-spacing: 0.12em;
   }
 }
 </style>

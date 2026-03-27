@@ -244,7 +244,7 @@ onUnmounted(() => {
           </div>
 
           <div v-if="mobileResetConfirmOpen" class="stage-page__mobile-reset-confirm">
-            <span>Delete history chat?</span>
+            <span>Delete chat history?</span>
             <div class="stage-page__mobile-reset-confirm-actions">
               <button type="button" class="stage-page__mobile-confirm-button" @click="handleMobileReset">
                 Yes
