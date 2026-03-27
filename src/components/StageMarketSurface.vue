@@ -1289,8 +1289,8 @@ watch(() => wallet.token.value, () => {
   .market-surface-panel {
     gap: 8px;
     padding: 10px;
-    border-radius: 12px;
-    background: rgba(6, 25, 39, 0.16);
+    border-radius: 10px;
+    background: rgba(6, 25, 39, 0.1);
     box-shadow: 0 22px 56px rgba(5, 23, 36, 0.22);
     backdrop-filter: blur(12px);
   }

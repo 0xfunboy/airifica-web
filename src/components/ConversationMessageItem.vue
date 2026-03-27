@@ -360,7 +360,7 @@ function replayMessage() {
   .conversation-message__bubble {
     gap: 6px;
     padding: 8px;
-    border-radius: 10px;
+    border-radius: 8px;
   }
 
   .conversation-message__header {
@@ -387,8 +387,8 @@ function replayMessage() {
   }
 
   .conversation-message__body {
-    font-size: 0.7rem;
-    line-height: 1.38;
+    font-size: 0.64rem;
+    line-height: 1.34;
   }
 
   .conversation-message__activity {
@@ -405,15 +405,15 @@ function replayMessage() {
   }
 
   .conversation-message--assistant .conversation-message__bubble {
-    background: linear-gradient(180deg, rgba(8, 24, 36, 0.38), rgba(6, 17, 28, 0.34));
+    background: linear-gradient(180deg, rgba(8, 24, 36, 0.22), rgba(6, 17, 28, 0.18));
   }
 
   .conversation-message--user .conversation-message__bubble {
-    background: linear-gradient(180deg, rgba(36, 92, 134, 0.54), rgba(22, 60, 97, 0.5));
+    background: linear-gradient(180deg, rgba(36, 92, 134, 0.28), rgba(22, 60, 97, 0.24));
   }
 
   .conversation-message--system .conversation-message__bubble {
-    background: rgba(55, 21, 30, 0.32);
+    background: rgba(55, 21, 30, 0.18);
   }
 }
 

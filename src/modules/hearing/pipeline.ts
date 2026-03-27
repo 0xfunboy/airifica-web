@@ -41,6 +41,13 @@ const vadState = {
   silenceMs: 0,
 }
 
+function isMobileSpeechBrowser() {
+  if (typeof navigator === 'undefined')
+    return false
+
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
+
 function browserSpeechSupported() {
   return typeof window !== 'undefined'
     && Boolean((window as any).webkitSpeechRecognition || (window as any).SpeechRecognition)
@@ -226,7 +233,7 @@ function buildRecognition() {
     throw new Error('Speech recognition is unavailable in this browser.')
 
   const instance = new RecognitionConstructor()
-  instance.continuous = true
+  instance.continuous = !isMobileSpeechBrowser()
   instance.interimResults = true
   instance.maxAlternatives = 1
   instance.lang = state.locale || 'en-US'
@@ -268,7 +275,7 @@ function buildRecognition() {
   }
 
   instance.onend = () => {
-    if (desiredListening) {
+    if (desiredListening && !isMobileSpeechBrowser()) {
       try {
         instance.start()
         return

@@ -802,10 +802,10 @@ onBeforeUnmount(() => {
   .conversation-shell {
     height: 100%;
     min-height: 0;
-    border-radius: 12px;
+    border-radius: 10px;
     gap: 4px;
     border-color: rgba(125, 211, 252, 0.12);
-    background: rgba(6, 22, 34, 0.1);
+    background: rgba(6, 22, 34, 0.06);
     backdrop-filter: blur(12px);
   }
 
@@ -824,7 +824,7 @@ onBeforeUnmount(() => {
     margin: 0 6px;
     padding: 6px;
     border-radius: 10px;
-    background: rgba(9, 27, 40, 0.2);
+    background: rgba(9, 27, 40, 0.1);
     border-color: rgba(138, 218, 255, 0.08);
   }
 
@@ -832,13 +832,13 @@ onBeforeUnmount(() => {
   .conversation-shell__transcript p,
   .conversation-shell__toggle,
   .conversation-shell__select {
-    font-size: 0.58rem;
+    font-size: 0.54rem;
   }
 
   .conversation-shell__select {
     min-height: 24px;
-    border-radius: 9px;
-    background: rgba(7, 18, 30, 0.34);
+    border-radius: 8px;
+    background: rgba(7, 18, 30, 0.18);
   }
 
   .conversation-shell__composer {
@@ -850,10 +850,10 @@ onBeforeUnmount(() => {
     min-height: 30px;
     max-height: 52px;
     padding: 6px 8px 7px;
-    border-radius: 10px 10px 0 0;
-    font-size: 0.56rem;
+    border-radius: 8px 8px 0 0;
+    font-size: 0.5rem;
     line-height: 1.28;
-    background: rgba(17, 42, 60, 0.16);
+    background: rgba(17, 42, 60, 0.08);
   }
 
   .conversation-shell__composer-bar {
@@ -868,15 +868,15 @@ onBeforeUnmount(() => {
   .conversation-shell__control,
   .conversation-shell__icon-button {
     min-height: 24px;
-    border-radius: 8px;
-    font-size: 0.52rem;
+    border-radius: 7px;
+    font-size: 0.48rem;
   }
 
   .conversation-shell__ghost,
   .conversation-shell__secondary,
   .conversation-shell__control {
     padding: 0 6px;
-    background: rgba(8, 23, 35, 0.34);
+    background: rgba(8, 23, 35, 0.16);
   }
 
   .conversation-shell__send {
@@ -888,7 +888,7 @@ onBeforeUnmount(() => {
     min-height: 24px;
     padding: 0 6px;
     font-size: 0.5rem;
-    background: rgba(8, 23, 35, 0.34);
+    background: rgba(8, 23, 35, 0.16);
   }
 
   .conversation-shell__emotion-indicator span:last-child {
@@ -900,7 +900,7 @@ onBeforeUnmount(() => {
 
   .conversation-shell__icon-button {
     width: 24px;
-    background: rgba(8, 23, 35, 0.34);
+    background: rgba(8, 23, 35, 0.16);
   }
 
   .conversation-shell__icon-button svg {

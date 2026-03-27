@@ -81,23 +81,6 @@ onUnmounted(() => {
 
         <div :class="['stage-page__mobile-sheet', { 'stage-page__mobile-sheet--expanded': mobilePanelExpanded }]" v-if="mobileLayout">
           <div :class="['stage-page__mobile-sheet-tabs', { 'stage-page__mobile-sheet-tabs--expanded': mobilePanelExpanded }]">
-            <div class="stage-page__mobile-sheet-tab-group">
-              <button
-                type="button"
-                :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'chat' }]"
-                @click="mobilePanel = 'chat'"
-              >
-                Chat
-              </button>
-              <button
-                type="button"
-                :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'market' }]"
-                @click="mobilePanel = 'market'"
-              >
-                Market
-              </button>
-            </div>
-
             <div class="stage-page__mobile-sheet-actions">
               <button
                 type="button"
@@ -132,6 +115,23 @@ onUnmounted(() => {
                   <path d="M10 11v5" />
                   <path d="M14 11v5" />
                 </svg>
+              </button>
+            </div>
+
+            <div class="stage-page__mobile-sheet-tab-group">
+              <button
+                type="button"
+                :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'chat' }]"
+                @click="mobilePanel = 'chat'"
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'market' }]"
+                @click="mobilePanel = 'market'"
+              >
+                Market
               </button>
             </div>
           </div>
@@ -268,7 +268,7 @@ onUnmounted(() => {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 8px;
-    height: min(58dvh, 520px);
+    height: min(66dvh, 620px);
     pointer-events: auto;
   }
 
@@ -337,8 +337,8 @@ onUnmounted(() => {
   .stage-page__mobile-sheet-body {
     position: relative;
     min-height: 0;
-    border-radius: 12px;
-    background: rgba(6, 22, 34, 0.12);
+    border-radius: 10px;
+    background: rgba(6, 22, 34, 0.08);
     box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(14px);
   }
@@ -350,7 +350,7 @@ onUnmounted(() => {
   }
 
   .stage-page__mobile-sheet-body--expanded {
-    background: rgba(6, 22, 34, 0.08);
+    background: rgba(6, 22, 34, 0.04);
   }
 
   .stage-page__mobile-market-surface,
