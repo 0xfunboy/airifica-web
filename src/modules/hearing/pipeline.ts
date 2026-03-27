@@ -262,7 +262,9 @@ function buildRecognition() {
   instance.onerror = (event: any) => {
     if (event.error === 'aborted' || event.error === 'no-speech')
       return
-    state.error = event.error || 'Speech recognition failed.'
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed')
+      desiredListening = false
+    state.error = describeRecognitionError(event.error)
   }
 
   instance.onend = () => {
@@ -285,13 +287,6 @@ async function transcribeForMediaStream(stream: MediaStream) {
   await ensureVad(stream)
   if (audioContext?.state === 'suspended')
     await audioContext.resume()
-
-  if (!browserSpeechSupported())
-    return
-
-  stopRecognition()
-  recognition = buildRecognition()
-  recognition.start()
 }
 
 async function transcribeForRecording(recording: Blob | null | undefined) {
@@ -308,7 +303,15 @@ async function transcribeForRecording(recording: Blob | null | undefined) {
 async function startListening() {
   state.error = null
   desiredListening = true
+  let recognitionStarted = false
   try {
+    if (browserSpeechSupported()) {
+      stopRecognition()
+      recognition = buildRecognition()
+      recognition.start()
+      recognitionStarted = true
+    }
+
     const stream = await audio.startStream()
     await transcribeForMediaStream(stream)
     state.listening = true
@@ -319,6 +322,8 @@ async function startListening() {
   }
   catch (error) {
     desiredListening = false
+    if (recognitionStarted)
+      stopRecognition()
     state.listening = false
     state.speechDetected = false
     vadState.speaking = false
@@ -326,6 +331,18 @@ async function startListening() {
     disposeVadGraph()
     audio.stopStream()
     state.error = error instanceof Error ? error.message : 'Unable to start voice input.'
+  }
+}
+
+function describeRecognitionError(error: string | null | undefined) {
+  switch (error) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Speech recognition was blocked by this browser. Retry the mic, or open AIR3 inside Chrome or the Phantom in-app browser.'
+    case 'network':
+      return 'Browser speech recognition is unavailable on this network/browser. Voice level still works, but text transcription did not start.'
+    default:
+      return error || 'Speech recognition failed.'
   }
 }
 

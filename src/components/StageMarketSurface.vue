@@ -1287,10 +1287,10 @@ watch(() => wallet.token.value, () => {
 
 @media (max-width: 640px) {
   .market-surface-panel {
-    gap: 10px;
-    padding: 12px;
-    border-radius: 22px;
-    background: rgba(6, 25, 39, 0.28);
+    gap: 8px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(6, 25, 39, 0.16);
     box-shadow: 0 22px 56px rgba(5, 23, 36, 0.22);
     backdrop-filter: blur(12px);
   }

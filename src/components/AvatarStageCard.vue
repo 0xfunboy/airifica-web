@@ -76,11 +76,11 @@ const lighting = useAvatarLighting()
 
 @media (max-width: 980px) {
   .avatar-stage-layer__stage {
-    transform: translateY(-7dvh);
+    transform: translateY(-13dvh);
   }
 
   .avatar-stage-layer__hitbox {
-    top: 47%;
+    top: 41%;
     width: min(54vw, 360px);
     height: min(72dvh, 640px);
     clip-path: ellipse(36% 46% at 50% 52%);

@@ -354,13 +354,13 @@ function replayMessage() {
 
 @media (max-width: 760px) {
   .conversation-message {
-    gap: 6px;
+    gap: 5px;
   }
 
   .conversation-message__bubble {
-    gap: 8px;
-    padding: 10px;
-    border-radius: 16px;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 10px;
   }
 
   .conversation-message__header {
@@ -373,22 +373,22 @@ function replayMessage() {
   }
 
   .conversation-message__header strong {
-    font-size: 0.64rem;
+    font-size: 0.58rem;
   }
 
   .conversation-message__speak {
-    width: 18px;
-    height: 18px;
-  }
-
-  .conversation-message__speak-icon {
     width: 16px;
     height: 16px;
   }
 
+  .conversation-message__speak-icon {
+    width: 15px;
+    height: 15px;
+  }
+
   .conversation-message__body {
-    font-size: 0.78rem;
-    line-height: 1.48;
+    font-size: 0.7rem;
+    line-height: 1.38;
   }
 
   .conversation-message__activity {
@@ -402,6 +402,18 @@ function replayMessage() {
     max-width: 100%;
     margin-left: 0;
     margin-right: 0;
+  }
+
+  .conversation-message--assistant .conversation-message__bubble {
+    background: linear-gradient(180deg, rgba(8, 24, 36, 0.38), rgba(6, 17, 28, 0.34));
+  }
+
+  .conversation-message--user .conversation-message__bubble {
+    background: linear-gradient(180deg, rgba(36, 92, 134, 0.54), rgba(22, 60, 97, 0.5));
+  }
+
+  .conversation-message--system .conversation-message__bubble {
+    background: rgba(55, 21, 30, 0.32);
   }
 }
 
