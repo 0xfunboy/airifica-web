@@ -39,6 +39,8 @@ const state = reactive({
   account: null as Air3PacificaAccountSnapshot | null,
   positions: [] as Air3PacificaPosition[],
   accountMissing: false,
+  betaAccessRequired: false,
+  betaAccessHint: null as string | null,
   minimumDepositUsd: 10,
   onboardingHint: null as string | null,
   loading: false,
@@ -80,6 +82,8 @@ function reset() {
   state.account = null
   state.positions = []
   state.accountMissing = false
+  state.betaAccessRequired = false
+  state.betaAccessHint = null
   state.minimumDepositUsd = 10
   state.onboardingHint = null
   state.error = null
@@ -92,6 +96,16 @@ function getPositionForSymbol(symbol: string | null | undefined) {
     return null
 
   return state.positions.find(position => normalizeSymbol(position.symbol) === normalized) || null
+}
+
+function setBetaAccessRequired(hint?: string | null) {
+  state.betaAccessRequired = true
+  state.betaAccessHint = hint?.trim() || 'Open Pacifica Portfolio, redeem a valid beta code, then retry execution.'
+}
+
+function clearBetaAccessRequired() {
+  state.betaAccessRequired = false
+  state.betaAccessHint = null
 }
 
 async function refreshOverview() {
@@ -149,6 +163,7 @@ export function usePacificaAccount() {
     state.error = null
 
     try {
+      clearBetaAccessRequired()
       const client = createAir3Client({
         token: wallet.token.value,
       })
@@ -234,10 +249,14 @@ export function usePacificaAccount() {
     hasWalletSession: computed(() => Boolean(wallet.address.value && wallet.token.value)),
     readyToExecute: computed(() => state.status.readyToExecute),
     activePositionsCount: computed(() => state.positions.length),
+    betaAccessRequired: computed(() => state.betaAccessRequired),
+    betaAccessHint: computed(() => state.betaAccessHint),
     reset,
     refreshOverview,
     setupBuilderAccess,
     getPositionForSymbol,
     closeSymbolPosition,
+    setBetaAccessRequired,
+    clearBetaAccessRequired,
   }
 }

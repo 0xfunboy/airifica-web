@@ -1,5 +1,19 @@
 import type { Air3ClientConfig } from './types'
 
+export class Air3HttpError<TPayload = unknown> extends Error {
+  status: number
+  requestId: string
+  payload: TPayload
+
+  constructor(message: string, options: { status: number, requestId: string, payload: TPayload }) {
+    super(message)
+    this.name = 'Air3HttpError'
+    this.status = options.status
+    this.requestId = options.requestId
+    this.payload = options.payload
+  }
+}
+
 function createRequestId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
     return `air3_${crypto.randomUUID()}`
@@ -55,12 +69,19 @@ export async function requestJson<T>(
     const data = await readJson<any>(response)
     if (!response.ok) {
       const message = data?.error || data?.message || `${response.status} ${response.statusText}`
-      throw new Error(`${message} [request:${requestId}]`)
+      throw new Air3HttpError(`${message} [request:${requestId}]`, {
+        status: response.status,
+        requestId,
+        payload: data,
+      })
     }
 
     return data as T
   }
   catch (error) {
+    if (error instanceof Air3HttpError)
+      throw error
+
     if (error instanceof Error && error.message.includes(`[request:${requestId}]`))
       throw error
 

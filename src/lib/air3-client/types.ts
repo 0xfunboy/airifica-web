@@ -165,6 +165,8 @@ export interface Air3ApproveTradeProposalResponse {
   error?: string
   hint?: string
   needsOnboarding?: boolean
+  requiresBetaAccess?: boolean
+  redeemUrl?: string
 }
 
 export interface Air3ClosePositionResponse {

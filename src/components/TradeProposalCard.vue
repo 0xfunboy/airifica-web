@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import type { Air3TradeProposal } from '@/lib/air3-client'
 
 import { createAir3Client } from '@/lib/air3'
+import { Air3HttpError } from '@/lib/air3-client/http'
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useTradeExecutionPreferences } from '@/modules/product/execution'
@@ -94,11 +95,16 @@ const requiresActivation = computed(() =>
 const requiresFunding = computed(() =>
   wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0),
 )
+const requiresBetaAccess = computed(() =>
+  wallet.isAuthenticated.value && pacifica.betaAccessRequired.value,
+)
 const canExecute = computed(() =>
   wallet.isAuthenticated.value && pacifica.readyToExecute.value && !requiresActivation.value && !requiresFunding.value,
 )
 const pacificaTradeUrl = computed(() => marketContext.buildPacificaTradeUrl(props.proposal.symbol))
 const pacificaFundingUrl = computed(() => requiresActivation.value ? pacificaTradeUrl.value : marketContext.pacificaDepositUrl.value)
+const pacificaBetaAccessUrl = computed(() => marketContext.pacificaPortfolioUrl.value)
+const betaAccessHint = computed(() => pacifica.betaAccessHint.value || 'Open Pacifica Portfolio, redeem a valid beta code, then retry execution.')
 const hasStrategy = computed(() => Boolean(props.proposal.thesis?.trim()))
 const sideTone = computed(() => props.proposal.side === 'LONG'
   ? {
@@ -175,6 +181,23 @@ function clampCollateralInput(value: string) {
     return formatInputUsd(maxAllowed)
 
   return value
+}
+
+function isBetaAccessError(error: unknown) {
+  if (error instanceof Air3HttpError)
+    return Boolean(error.payload?.requiresBetaAccess) || /beta access required/i.test(error.message)
+
+  return error instanceof Error && /beta access required|redeem a valid beta code/i.test(error.message)
+}
+
+function resolveBetaAccessHint(error: unknown) {
+  if (error instanceof Air3HttpError) {
+    const payloadHint = typeof error.payload?.hint === 'string' ? error.payload.hint.trim() : ''
+    if (payloadHint)
+      return payloadHint
+  }
+
+  return betaAccessHint.value
 }
 
 async function handleExecute() {
@@ -256,6 +279,7 @@ async function handleExecute() {
       success: true,
       message: `Order submitted${approval.orderId ? ` (${approval.orderId})` : ''}.`,
     }
+    pacifica.clearBetaAccessRequired()
 
     notifyEmbeddedTradeExecuted({
       conversationId: props.conversationId,
@@ -268,9 +292,14 @@ async function handleExecute() {
     await pacifica.refreshOverview()
   }
   catch (error) {
+    if (isBetaAccessError(error))
+      pacifica.setBetaAccessRequired(resolveBetaAccessHint(error))
+
     result.value = {
       success: false,
-      message: error instanceof Error ? error.message : 'Execution failed.',
+      message: isBetaAccessError(error)
+        ? resolveBetaAccessHint(error)
+        : error instanceof Error ? error.message : 'Execution failed.',
     }
   }
   finally {
@@ -534,23 +563,35 @@ function toggleStrategy() {
       >
         Deposit
       </a>
+      <a
+        v-else-if="requiresBetaAccess"
+        class="surface-button surface-button--primary proposal-card__action"
+        :href="pacificaBetaAccessUrl"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Redeem beta code
+      </a>
       <span v-if="requiresActivation" class="proposal-card__note">
         Activate Pacifica with AIRewardrop, then deposit at least {{ pacifica.minimumDepositUsd.value }} USDC.
       </span>
       <span v-if="requiresFunding" class="proposal-card__note">
         No funds on Pacifica.
       </span>
+      <span v-if="requiresBetaAccess" class="proposal-card__note">
+        {{ betaAccessHint }}
+      </span>
     </div>
 
     <p
-      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding && availableCollateralUsd > 0"
+      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding && !requiresBetaAccess && availableCollateralUsd > 0"
       class="proposal-card__market-hint"
     >
       Available collateral: {{ formatUsd(availableCollateralUsd) }} USD.
     </p>
 
     <div
-      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding"
+      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding && !requiresBetaAccess"
       class="proposal-card__execution-actions"
     >
       <div class="proposal-card__preset-row">

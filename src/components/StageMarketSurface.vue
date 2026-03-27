@@ -58,6 +58,9 @@ const canCloseCurrentPosition = computed(() =>
 const requiresFunding = computed(() =>
   Boolean(wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0)),
 )
+const requiresBetaAccess = computed(() =>
+  Boolean(wallet.isAuthenticated.value && pacifica.betaAccessRequired.value),
+)
 
 const accountMetrics = computed(() => {
   if (!pacifica.account.value)
@@ -80,6 +83,8 @@ const executionStateTitle = computed(() => {
     return 'Sign session'
   if (!pacifica.readyToExecute.value)
     return 'Complete onboarding'
+  if (requiresBetaAccess.value)
+    return 'Redeem beta code'
   if (requiresPacificaActivation.value)
     return 'Activate Pacifica'
   if (requiresFunding.value)
@@ -94,6 +99,8 @@ const surfaceStatusLabel = computed(() => {
     return 'Session unsigned'
   if (!pacifica.readyToExecute.value)
     return 'Builder setup'
+  if (requiresBetaAccess.value)
+    return 'Beta required'
   if (requiresPacificaActivation.value)
     return 'Activation needed'
   if (requiresFunding.value)
@@ -108,6 +115,8 @@ const onboardingHint = computed(() => {
     return 'Sign once to sync your Pacifica state.'
   if (!pacifica.readyToExecute.value)
     return 'Approve AIRewardrop and bind AIR3.'
+  if (requiresBetaAccess.value)
+    return pacifica.betaAccessHint.value || 'Redeem a valid Pacifica beta code before executing trades.'
   if (requiresPacificaActivation.value)
     return pacifica.onboardingHint.value || `Open Pacifica once and deposit at least ${formatPrice(pacifica.minimumDepositUsd.value)}.`
   if (requiresFunding.value)
@@ -543,6 +552,16 @@ watch(() => wallet.token.value, () => {
             >
               {{ pacifica.setupLoading.value ? 'Connecting…' : 'Complete Pacifica onboarding' }}
             </button>
+
+            <a
+              v-else-if="requiresBetaAccess"
+              :href="pacificaPortfolioUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="stage-backdrop__primary-action"
+            >
+              Redeem beta code
+            </a>
 
             <a
               v-else-if="requiresPacificaActivation || requiresFunding"
