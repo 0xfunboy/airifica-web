@@ -54,11 +54,12 @@ onUnmounted(() => {
       <HeaderLink />
 
       <div class="stage-header__controls">
-        <PacificaTradeButton :compact="mobileCompact" />
+        <PacificaTradeButton v-if="!mobileCompact" :compact="mobileCompact" />
 
         <WalletConnectButton :compact="mobileCompact" />
 
         <button
+          v-if="!mobileCompact"
           class="stage-header__settings-button stage-header__settings-button--help"
           type="button"
           title="Prompt guide"
@@ -76,17 +77,70 @@ onUnmounted(() => {
           <button
             class="stage-header__settings-button"
             type="button"
-            title="Settings"
-            aria-label="Settings"
+            :title="mobileCompact ? 'Menu' : 'Settings'"
+            :aria-label="mobileCompact ? 'Menu' : 'Settings'"
             @click="settingsOpen = !settingsOpen"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+            <svg v-if="!mobileCompact" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
               <path d="m19.4 15-.8 1.4 1 1.8-1.6 1.6-1.8-1-.1.1-1.4.8-.5 2.1h-2.2l-.5-2.1-1.4-.8-.1-.1-1.8 1-1.6-1.6 1-1.8L4.6 15 2.5 14.5v-2.2l2.1-.5.8-1.4-1-1.8 1.6-1.6 1.8 1 .1-.1 1.4-.8.5-2.1h2.2l.5 2.1 1.4.8.1.1 1.8-1 1.6 1.6-1 1.8.8 1.4 2.1.5v2.2z" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
             </svg>
           </button>
 
           <div v-if="settingsOpen" class="stage-header__settings-popover">
+            <button v-if="mobileCompact" class="stage-header__utility" type="button" @click="guideOpen = true">
+              <span>Prompt guide</span>
+            </button>
+            <a
+              v-if="mobileCompact"
+              class="stage-header__utility"
+              :href="marketContext.pacificaTradeUrl.value"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>Open Pacifica</span>
+            </a>
+            <a
+              v-if="mobileCompact"
+              class="stage-header__utility"
+              href="https://airewardrop.xyz"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>AIRewardrop site</span>
+            </a>
+            <a
+              v-if="mobileCompact"
+              class="stage-header__utility"
+              href="https://t.me/AIR3Community"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>Telegram</span>
+            </a>
+            <a
+              v-if="mobileCompact"
+              class="stage-header__utility"
+              href="https://discord.gg/S4f87VdsHt"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>Discord</span>
+            </a>
+            <a
+              v-if="mobileCompact"
+              class="stage-header__utility"
+              href="https://x.com/AIRewardrop"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>X / Twitter</span>
+            </a>
             <button class="stage-header__utility" type="button" @click="marketContext.refreshMarketContext()">
               <span>Refresh market</span>
             </button>
@@ -427,7 +481,10 @@ onUnmounted(() => {
   }
 
   .stage-header__controls {
+    width: 100%;
     gap: 6px;
+    justify-content: flex-end;
+    overflow: visible;
   }
 
   .stage-header__settings-button {
@@ -447,6 +504,10 @@ onUnmounted(() => {
   :deep(.wallet-connect__button--icon) {
     width: 34px;
     padding: 0;
+  }
+
+  .stage-header__settings-popover {
+    width: min(280px, calc(100vw - 24px));
   }
 }
 </style>

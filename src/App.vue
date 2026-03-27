@@ -212,12 +212,12 @@ onUnmounted(() => {
     position: absolute;
     left: 12px;
     right: 12px;
-    bottom: calc(env(safe-area-inset-bottom) + 58px);
+    bottom: max(10px, env(safe-area-inset-bottom));
     z-index: 14;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 10px;
-    height: min(46dvh, 420px);
+    height: min(38dvh, 340px);
     pointer-events: auto;
   }
 
@@ -260,9 +260,9 @@ onUnmounted(() => {
     position: relative;
     min-height: 0;
     border-radius: 24px;
-    background: rgba(6, 22, 34, 0.56);
+    background: rgba(6, 22, 34, 0.28);
     box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(14px);
   }
 
   .stage-page__mobile-market-surface,

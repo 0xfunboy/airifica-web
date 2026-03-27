@@ -527,77 +527,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 980px) {
   .stage-footer {
-    left: 12px;
-    right: auto;
-    bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px));
-    padding-top: 0;
-  }
-
-  .stage-footer__shell {
-    width: 40px;
-    max-width: 40px;
-  }
-
-  .stage-footer__shell--open {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-  }
-
-  .stage-footer__drawer--open {
-    max-height: min(38dvh, 280px);
-  }
-
-  .stage-footer__bar {
-    width: 40px;
-    min-height: 40px;
-    padding: 0;
-    gap: 0;
-    flex-wrap: nowrap;
-    justify-content: center;
-    border-radius: 999px;
-  }
-
-  .stage-footer__bar--open {
-    width: 100%;
-    min-height: 44px;
-    padding: 8px 12px;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-
-  .stage-footer__toggle {
-    width: 40px;
-    height: 40px;
-    min-height: 40px;
-  }
-
-  .stage-footer__bar-content {
-    width: 0;
-    max-width: 0;
-    opacity: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .stage-footer__bar-content--open {
-    width: auto;
-    max-width: calc(100% - 44px);
-    opacity: 1;
-    flex-wrap: wrap;
-    pointer-events: auto;
-  }
-
-  .stage-footer__disclaimer {
     display: none;
-  }
-
-  .stage-footer__socials {
-    gap: 10px;
-  }
-
-  .stage-footer__socials svg {
-    width: 18px;
-    height: 18px;
   }
 }
 </style>

@@ -1269,8 +1269,11 @@ watch(() => wallet.token.value, () => {
 @media (max-width: 640px) {
   .market-surface-panel {
     gap: 10px;
-    padding: 14px;
+    padding: 12px;
     border-radius: 22px;
+    background: rgba(6, 25, 39, 0.46);
+    box-shadow: 0 22px 56px rgba(5, 23, 36, 0.22);
+    backdrop-filter: blur(16px);
   }
 
   .stage-backdrop__surface-head,
@@ -1285,7 +1288,7 @@ watch(() => wallet.token.value, () => {
   }
 
   .stage-backdrop__chart {
-    height: 136px;
+    height: 118px;
   }
 
   .stage-backdrop__status-line--meta {
@@ -1295,6 +1298,27 @@ watch(() => wallet.token.value, () => {
 
   .stage-backdrop__position-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stage-backdrop__surface-description,
+  .stage-backdrop__status-line,
+  .stage-backdrop__account-hint {
+    font-size: 0.7rem;
+  }
+
+  .stage-backdrop__metric {
+    padding: 10px;
+  }
+
+  .stage-backdrop__metric-value {
+    font-size: 0.96rem;
+  }
+
+  .stage-backdrop__metric-subvalue,
+  .stage-backdrop__account-metric strong,
+  .stage-backdrop__position-table-row strong,
+  .stage-backdrop__position-detail strong {
+    font-size: 0.78rem;
   }
 }
 </style>

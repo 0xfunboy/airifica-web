@@ -162,4 +162,10 @@ async function handleDisconnect() {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+@media (max-width: 720px) {
+  .wallet-connect__error {
+    display: none;
+  }
+}
 </style>

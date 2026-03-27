@@ -803,11 +803,66 @@ onBeforeUnmount(() => {
     height: 100%;
     min-height: 0;
     border-radius: 24px;
+    gap: 8px;
+    border-color: rgba(125, 211, 252, 0.12);
+    background: rgba(6, 22, 34, 0.42);
+    backdrop-filter: blur(14px);
+  }
+
+  .conversation-shell__history {
+    gap: 8px;
+    padding: 12px 12px 0;
+  }
+
+  .conversation-shell__error {
+    padding: 0 12px;
+    font-size: 0.88rem;
+  }
+
+  .conversation-shell__composer {
+    gap: 8px;
+    padding: 0 12px 8px;
+  }
+
+  .conversation-shell__textarea {
+    min-height: 48px;
+    max-height: 92px;
+    padding: 10px 12px 12px;
+    font-size: 0.95rem;
+  }
+
+  .conversation-shell__composer-bar {
+    padding-inline: 0;
+    min-height: 32px;
+  }
+
+  .conversation-shell__emotion-indicator,
+  .conversation-shell__ghost,
+  .conversation-shell__secondary,
+  .conversation-shell__send,
+  .conversation-shell__control,
+  .conversation-shell__icon-button {
+    min-height: 32px;
+    border-radius: 11px;
+    font-size: 0.74rem;
+  }
+
+  .conversation-shell__ghost,
+  .conversation-shell__secondary,
+  .conversation-shell__control {
+    padding: 0 10px;
+  }
+
+  .conversation-shell__send {
+    padding: 0 12px;
   }
 
   .conversation-shell__reset-fab {
     right: 12px;
     bottom: 12px;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
   }
 }
 
