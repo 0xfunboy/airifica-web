@@ -805,8 +805,8 @@ onBeforeUnmount(() => {
     border-radius: 24px;
     gap: 8px;
     border-color: rgba(125, 211, 252, 0.12);
-    background: rgba(6, 22, 34, 0.42);
-    backdrop-filter: blur(14px);
+    background: rgba(6, 22, 34, 0.28);
+    backdrop-filter: blur(10px);
   }
 
   .conversation-shell__history {
@@ -816,7 +816,7 @@ onBeforeUnmount(() => {
 
   .conversation-shell__error {
     padding: 0 12px;
-    font-size: 0.88rem;
+    font-size: 0.8rem;
   }
 
   .conversation-shell__composer {
@@ -828,7 +828,7 @@ onBeforeUnmount(() => {
     min-height: 48px;
     max-height: 92px;
     padding: 10px 12px 12px;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
   }
 
   .conversation-shell__composer-bar {
@@ -844,7 +844,7 @@ onBeforeUnmount(() => {
   .conversation-shell__icon-button {
     min-height: 32px;
     border-radius: 11px;
-    font-size: 0.74rem;
+    font-size: 0.68rem;
   }
 
   .conversation-shell__ghost,
@@ -858,11 +858,7 @@ onBeforeUnmount(() => {
   }
 
   .conversation-shell__reset-fab {
-    right: 12px;
-    bottom: 12px;
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
+    display: none;
   }
 }
 

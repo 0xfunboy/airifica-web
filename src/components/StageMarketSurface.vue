@@ -1271,9 +1271,9 @@ watch(() => wallet.token.value, () => {
     gap: 10px;
     padding: 12px;
     border-radius: 22px;
-    background: rgba(6, 25, 39, 0.46);
+    background: rgba(6, 25, 39, 0.28);
     box-shadow: 0 22px 56px rgba(5, 23, 36, 0.22);
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(12px);
   }
 
   .stage-backdrop__surface-head,
@@ -1303,7 +1303,7 @@ watch(() => wallet.token.value, () => {
   .stage-backdrop__surface-description,
   .stage-backdrop__status-line,
   .stage-backdrop__account-hint {
-    font-size: 0.7rem;
+    font-size: 0.66rem;
   }
 
   .stage-backdrop__metric {
@@ -1311,14 +1311,14 @@ watch(() => wallet.token.value, () => {
   }
 
   .stage-backdrop__metric-value {
-    font-size: 0.96rem;
+    font-size: 0.88rem;
   }
 
   .stage-backdrop__metric-subvalue,
   .stage-backdrop__account-metric strong,
   .stage-backdrop__position-table-row strong,
   .stage-backdrop__position-detail strong {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
   }
 }
 </style>

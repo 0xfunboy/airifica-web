@@ -8,15 +8,24 @@ import StageMarketSurface from '@/components/StageMarketSurface.vue'
 import InteractiveArea from '@/components/layout/InteractiveArea.vue'
 import StageFooter from '@/components/layout/StageFooter.vue'
 import StageHeader from '@/components/layout/StageHeader.vue'
+import { useAvatarPresence } from '@/modules/avatar/presence'
+import { useConversationState } from '@/modules/conversation/state'
 import { appConfig } from '@/config/app'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const wallet = useWalletSession()
+const avatar = useAvatarPresence()
+const conversation = useConversationState()
 const mobileLayout = ref(false)
 const mobilePanel = ref<'chat' | 'market'>('chat')
 
 function syncLayoutMode() {
   mobileLayout.value = window.innerWidth <= 980
+}
+
+function handleMobileReset() {
+  avatar.triggerInteractionGesture('reset')
+  conversation.resetConversation()
 }
 
 function handleEmbeddedBootstrap(event: MessageEvent) {
@@ -82,6 +91,21 @@ onUnmounted(() => {
               @click="mobilePanel = 'market'"
             >
               Market
+            </button>
+            <button
+              type="button"
+              class="stage-page__mobile-tab stage-page__mobile-tab--icon"
+              title="Reset conversation"
+              aria-label="Reset conversation"
+              @click="handleMobileReset"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16" />
+                <path d="M9.5 3h5l1 2H8.5l1-2Z" />
+                <path d="M7 7l.8 11.2A2 2 0 0 0 9.8 20h4.4a2 2 0 0 0 2-1.8L17 7" />
+                <path d="M10 11v5" />
+                <path d="M14 11v5" />
+              </svg>
             </button>
           </div>
 
@@ -217,7 +241,7 @@ onUnmounted(() => {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 10px;
-    height: min(38dvh, 340px);
+    height: min(46dvh, 408px);
     pointer-events: auto;
   }
 
@@ -228,26 +252,41 @@ onUnmounted(() => {
     width: fit-content;
     padding: 4px;
     border-radius: 999px;
-    background: rgba(5, 20, 31, 0.58);
+    background: rgba(5, 20, 31, 0.42);
     border: 1px solid rgba(103, 232, 249, 0.12);
     box-shadow: 0 14px 34px rgba(5, 23, 36, 0.24);
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(14px);
   }
 
   .stage-page__mobile-tab {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 32px;
+    min-height: 30px;
     padding: 0 14px;
     border: 0;
     border-radius: 999px;
     background: transparent;
     color: rgba(224, 242, 254, 0.7);
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+
+  .stage-page__mobile-tab--icon {
+    width: 30px;
+    padding: 0;
+  }
+
+  .stage-page__mobile-tab--icon svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .stage-page__mobile-tab--active {
@@ -260,9 +299,9 @@ onUnmounted(() => {
     position: relative;
     min-height: 0;
     border-radius: 24px;
-    background: rgba(6, 22, 34, 0.28);
+    background: rgba(6, 22, 34, 0.18);
     box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(14px);
+    backdrop-filter: blur(10px);
   }
 
   .stage-page__mobile-market-surface,
