@@ -19,6 +19,7 @@ const conversation = useConversationState()
 const mobileLayout = ref(false)
 const mobilePanel = ref<'chat' | 'market'>('chat')
 const mobilePanelExpanded = ref(false)
+const mobileResetConfirmOpen = ref(false)
 const mobileSheetHeight = ref(0)
 const mobileSheetDragging = ref(false)
 const mobileSheetPointerId = ref<number | null>(null)
@@ -65,6 +66,7 @@ function syncLayoutMode() {
 }
 
 function handleMobileReset() {
+  mobileResetConfirmOpen.value = false
   avatar.triggerInteractionGesture('reset')
   conversation.resetConversation()
 }
@@ -204,7 +206,7 @@ onUnmounted(() => {
                 class="stage-page__mobile-tab stage-page__mobile-tab--icon stage-page__mobile-tab--reset"
                 title="Reset conversation"
                 aria-label="Reset conversation"
-                @click="handleMobileReset"
+                @click="mobileResetConfirmOpen = !mobileResetConfirmOpen"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M4 7h16" />
@@ -239,6 +241,18 @@ onUnmounted(() => {
               <ConversationCard />
             </InteractiveArea>
             <StageMarketSurface v-show="mobilePanel === 'market'" class="stage-page__mobile-market-surface" />
+          </div>
+
+          <div v-if="mobileResetConfirmOpen" class="stage-page__mobile-reset-confirm">
+            <span>Delete history chat?</span>
+            <div class="stage-page__mobile-reset-confirm-actions">
+              <button type="button" class="stage-page__mobile-confirm-button" @click="handleMobileReset">
+                Yes
+              </button>
+              <button type="button" class="stage-page__mobile-confirm-button stage-page__mobile-confirm-button--ghost" @click="mobileResetConfirmOpen = false">
+                No
+              </button>
+            </div>
           </div>
         </div>
 
@@ -418,8 +432,18 @@ onUnmounted(() => {
   }
 
   .stage-page__mobile-tab--expand {
+    width: 36px;
     cursor: ns-resize;
     touch-action: none;
+    color: rgba(167, 243, 208, 0.96);
+    background: rgba(16, 185, 129, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.18);
+  }
+
+  .stage-page__mobile-tab--reset {
+    color: rgba(254, 202, 202, 0.94);
+    background: rgba(239, 68, 68, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.16);
   }
 
   .stage-page__mobile-tab--icon svg {
@@ -449,6 +473,48 @@ onUnmounted(() => {
 
   .stage-page__mobile-sheet-body--expanded {
     background: rgba(6, 22, 34, 0.04);
+  }
+
+  .stage-page__mobile-reset-confirm {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    display: grid;
+    gap: 8px;
+    width: min(180px, 56vw);
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(22, 12, 15, 0.82);
+    border: 1px solid rgba(248, 113, 113, 0.22);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(16px);
+    color: rgba(255, 236, 236, 0.94);
+    font-size: 0.58rem;
+    letter-spacing: 0.04em;
+    pointer-events: auto;
+  }
+
+  .stage-page__mobile-reset-confirm-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .stage-page__mobile-confirm-button {
+    flex: 1 1 0;
+    min-height: 24px;
+    border: 0;
+    border-radius: 7px;
+    background: rgba(248, 113, 113, 0.24);
+    color: rgba(255, 240, 240, 0.96);
+    font-size: 0.54rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .stage-page__mobile-confirm-button--ghost {
+    background: rgba(148, 163, 184, 0.14);
+    color: rgba(226, 232, 240, 0.92);
   }
 
   .stage-page__mobile-market-surface,
