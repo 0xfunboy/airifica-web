@@ -2,6 +2,7 @@ import { computed, reactive } from 'vue'
 
 import type { Air3PacificaUnsignedPayload } from '@/lib/air3-client'
 
+import { appConfig } from '@/config/app'
 import { createGuestIdentity } from '@/lib/ids'
 import { createAir3Client } from '@/lib/air3'
 import {
@@ -77,7 +78,12 @@ const hasWalletProvider = computed(() => Boolean(getSolanaProvider()))
 const mobileWalletFallbackAvailable = computed(() =>
   isMobileBrowser() && !state.embedded && !hasWalletProvider.value,
 )
-const mobileWalletFallbackHref = computed(() => buildPhantomBrowseUrl())
+const mobileWalletFallbackHref = computed(() => {
+  const targetUrl = appConfig.publicAppUrl
+    || (typeof window !== 'undefined' ? window.location.href : '')
+
+  return buildPhantomBrowseUrl(targetUrl, appConfig.publicAppUrl || targetUrl)
+})
 
 function buildRequestHeaders() {
   return {

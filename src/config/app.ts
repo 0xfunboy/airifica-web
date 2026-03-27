@@ -92,6 +92,7 @@ const normalizedTtsProvider = rawTtsProvider === 'chatterbox'
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
   productName: (import.meta.env.VITE_AIRIFICA_PRODUCT_NAME || 'AIR3').trim(),
+  publicAppUrl: normalizeUrl(import.meta.env.VITE_AIRIFICA_PUBLIC_APP_URL || '', ''),
   runtimeBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_ELIZA_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '', '', {
     sameOriginFallback: '/',
   }),

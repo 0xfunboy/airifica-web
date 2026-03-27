@@ -39,12 +39,27 @@ export function getSolanaProvider() {
     || null
 }
 
-export function buildPhantomBrowseUrl(targetUrl = typeof window !== 'undefined' ? window.location.href : '') {
+export function buildPhantomBrowseUrl(
+  targetUrl = typeof window !== 'undefined' ? window.location.href : '',
+  refSource = targetUrl,
+) {
   if (!targetUrl)
     return 'https://phantom.app/'
 
   const encodedUrl = encodeURIComponent(targetUrl)
-  const ref = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : ''
+  let ref = ''
+  try {
+    const parsed = new URL(
+      refSource || targetUrl,
+      typeof window !== 'undefined' ? window.location.origin : 'https://phantom.app',
+    )
+    ref = encodeURIComponent(parsed.origin)
+  }
+  catch {
+    if (typeof window !== 'undefined')
+      ref = encodeURIComponent(window.location.origin)
+  }
+
   return `https://phantom.app/ul/browse/${encodedUrl}${ref ? `?ref=${ref}` : ''}`
 }
 

@@ -135,6 +135,16 @@ function resolveTarget(pathname = '/') {
 
 function normalizeHeaders(headers, target) {
   const nextHeaders = { ...headers }
+  const forwardedHost = String(headers.host || '').trim()
+  let forwardedProto = String(headers['x-forwarded-proto'] || '').trim()
+  if (!forwardedProto && headers.origin) {
+    try {
+      forwardedProto = new URL(String(headers.origin)).protocol.replace(/:$/, '')
+    }
+    catch {
+    }
+  }
+
   delete nextHeaders.host
   delete nextHeaders.connection
   delete nextHeaders.origin
@@ -146,6 +156,8 @@ function normalizeHeaders(headers, target) {
     ...nextHeaders,
     host: `${target.host}:${target.port}`,
     connection: 'close',
+    ...(forwardedHost ? { 'x-forwarded-host': forwardedHost } : {}),
+    ...(forwardedProto ? { 'x-forwarded-proto': forwardedProto } : {}),
   }
 }
 
