@@ -19,16 +19,109 @@ const conversation = useConversationState()
 const mobileLayout = ref(false)
 const mobilePanel = ref<'chat' | 'market'>('chat')
 const mobilePanelExpanded = ref(false)
+const mobileSheetHeight = ref(0)
+const mobileSheetDragging = ref(false)
+const mobileSheetPointerId = ref<number | null>(null)
+const mobileSheetDragMoved = ref(false)
+
+function getMobileSheetMinHeight() {
+  if (typeof window === 'undefined')
+    return 232
+  return Math.min(300, Math.max(208, Math.round(window.innerHeight * 0.24)))
+}
+
+function getMobileSheetMaxHeight() {
+  if (typeof window === 'undefined')
+    return 640
+  return Math.max(getMobileSheetMinHeight() + 120, Math.round(window.innerHeight - 84))
+}
+
+function clampMobileSheetHeight(height: number) {
+  return Math.min(getMobileSheetMaxHeight(), Math.max(getMobileSheetMinHeight(), Math.round(height)))
+}
+
+function syncMobileSheetHeight(targetHeight?: number) {
+  if (!mobileLayout.value) {
+    mobileSheetHeight.value = 0
+    mobilePanelExpanded.value = false
+    return
+  }
+
+  const nextHeight = clampMobileSheetHeight(targetHeight ?? (mobileSheetHeight.value || getMobileSheetMinHeight()))
+  mobileSheetHeight.value = nextHeight
+  const threshold = getMobileSheetMinHeight() + (getMobileSheetMaxHeight() - getMobileSheetMinHeight()) * 0.72
+  mobilePanelExpanded.value = nextHeight >= threshold
+}
 
 function syncLayoutMode() {
   mobileLayout.value = window.innerWidth <= 980
-  if (!mobileLayout.value)
+  if (!mobileLayout.value) {
     mobilePanelExpanded.value = false
+    mobileSheetHeight.value = 0
+    return
+  }
+
+  syncMobileSheetHeight(mobileSheetHeight.value || getMobileSheetMinHeight())
 }
 
 function handleMobileReset() {
   avatar.triggerInteractionGesture('reset')
   conversation.resetConversation()
+}
+
+function handleMobileSheetToggle() {
+  syncMobileSheetHeight(mobilePanelExpanded.value ? getMobileSheetMinHeight() : getMobileSheetMaxHeight())
+}
+
+function updateMobileSheetHeightFromPointer(clientY: number) {
+  if (!mobileLayout.value || typeof window === 'undefined')
+    return
+
+  const bottomInset = 10
+  const nextHeight = window.innerHeight - clientY - bottomInset
+  syncMobileSheetHeight(nextHeight)
+}
+
+function handleMobileSheetPointerDown(event: PointerEvent) {
+  if (!mobileLayout.value)
+    return
+
+  mobileSheetDragging.value = true
+  mobileSheetPointerId.value = event.pointerId
+  mobileSheetDragMoved.value = false
+  ;(event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId)
+}
+
+function handleWindowPointerMove(event: PointerEvent) {
+  if (!mobileSheetDragging.value)
+    return
+
+  mobileSheetDragMoved.value = true
+  updateMobileSheetHeightFromPointer(event.clientY)
+}
+
+function stopMobileSheetDrag() {
+  mobileSheetDragging.value = false
+  mobileSheetPointerId.value = null
+}
+
+function handleWindowPointerUp(event: PointerEvent) {
+  if (!mobileSheetDragging.value)
+    return
+
+  if (mobileSheetPointerId.value !== null && event.pointerId !== mobileSheetPointerId.value)
+    return
+
+  stopMobileSheetDrag()
+}
+
+function handleMobileSheetHandleClick() {
+  if (mobileSheetDragMoved.value) {
+    mobileSheetDragMoved.value = false
+    return
+  }
+
+  handleMobileSheetToggle()
 }
 
 function handleEmbeddedBootstrap(event: MessageEvent) {
@@ -57,11 +150,17 @@ onMounted(() => {
   syncLayoutMode()
   window.addEventListener('message', handleEmbeddedBootstrap)
   window.addEventListener('resize', syncLayoutMode)
+  window.addEventListener('pointermove', handleWindowPointerMove)
+  window.addEventListener('pointerup', handleWindowPointerUp)
+  window.addEventListener('pointercancel', handleWindowPointerUp)
 })
 
 onUnmounted(() => {
   window.removeEventListener('message', handleEmbeddedBootstrap)
   window.removeEventListener('resize', syncLayoutMode)
+  window.removeEventListener('pointermove', handleWindowPointerMove)
+  window.removeEventListener('pointerup', handleWindowPointerUp)
+  window.removeEventListener('pointercancel', handleWindowPointerUp)
 })
 </script>
 
@@ -79,7 +178,11 @@ onUnmounted(() => {
           <AvatarStageCard />
         </div>
 
-        <div :class="['stage-page__mobile-sheet', { 'stage-page__mobile-sheet--expanded': mobilePanelExpanded }]" v-if="mobileLayout">
+        <div
+          v-if="mobileLayout"
+          :class="['stage-page__mobile-sheet', { 'stage-page__mobile-sheet--expanded': mobilePanelExpanded }]"
+          :style="{ height: `${mobileSheetHeight}px` }"
+        >
           <div :class="['stage-page__mobile-sheet-tabs', { 'stage-page__mobile-sheet-tabs--expanded': mobilePanelExpanded }]">
             <div class="stage-page__mobile-sheet-actions">
               <button
@@ -87,17 +190,12 @@ onUnmounted(() => {
                 class="stage-page__mobile-tab stage-page__mobile-tab--icon stage-page__mobile-tab--expand"
                 :title="mobilePanelExpanded ? 'Collapse panel' : 'Expand panel'"
                 :aria-label="mobilePanelExpanded ? 'Collapse panel' : 'Expand panel'"
-                @click="mobilePanelExpanded = !mobilePanelExpanded"
+                @pointerdown="handleMobileSheetPointerDown"
+                @click="handleMobileSheetHandleClick"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    v-if="mobilePanelExpanded"
-                    d="M7 9.5 12 14.5l5-5"
-                  />
-                  <path
-                    v-else
-                    d="M7 14.5 12 9.5l5 5"
-                  />
+                  <path d="M7 10.5 12 5.5l5 5" />
+                  <path d="M7 13.5 12 18.5l5-5" />
                 </svg>
               </button>
 
@@ -270,6 +368,7 @@ onUnmounted(() => {
     gap: 8px;
     height: min(66dvh, 620px);
     pointer-events: auto;
+    touch-action: none;
   }
 
   .stage-page__mobile-sheet-tabs {
@@ -318,6 +417,11 @@ onUnmounted(() => {
     flex: 0 0 auto;
   }
 
+  .stage-page__mobile-tab--expand {
+    cursor: ns-resize;
+    touch-action: none;
+  }
+
   .stage-page__mobile-tab--icon svg {
     width: 13px;
     height: 13px;
@@ -341,12 +445,6 @@ onUnmounted(() => {
     background: rgba(6, 22, 34, 0.08);
     box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(14px);
-  }
-
-  .stage-page__mobile-sheet--expanded {
-    top: calc(env(safe-area-inset-top) + 66px);
-    bottom: max(8px, env(safe-area-inset-bottom));
-    height: auto;
   }
 
   .stage-page__mobile-sheet-body--expanded {
