@@ -16,6 +16,13 @@ export interface SolanaProvider {
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
+export function isMobileBrowser() {
+  if (typeof navigator === 'undefined')
+    return false
+
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|Mobile/i.test(navigator.userAgent)
+}
+
 export function getSolanaProvider() {
   if (typeof window === 'undefined')
     return null
@@ -30,6 +37,15 @@ export function getSolanaProvider() {
     || scopedWindow.backpack?.solana
     || scopedWindow.solana
     || null
+}
+
+export function buildPhantomBrowseUrl(targetUrl = typeof window !== 'undefined' ? window.location.href : '') {
+  if (!targetUrl)
+    return 'https://phantom.app/'
+
+  const encodedUrl = encodeURIComponent(targetUrl)
+  const ref = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : ''
+  return `https://phantom.app/ul/browse/${encodedUrl}${ref ? `?ref=${ref}` : ''}`
 }
 
 export function readProviderAddress(provider: SolanaProvider, response?: SolanaProviderConnectResponse) {

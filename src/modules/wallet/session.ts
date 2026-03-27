@@ -5,7 +5,9 @@ import type { Air3PacificaUnsignedPayload } from '@/lib/air3-client'
 import { createGuestIdentity } from '@/lib/ids'
 import { createAir3Client } from '@/lib/air3'
 import {
+  buildPhantomBrowseUrl,
   getSolanaProvider,
+  isMobileBrowser,
   normalizeSignedPayload,
   readProviderAddress,
   signMessageBase58,
@@ -72,6 +74,10 @@ const shortAddress = computed(() =>
 const isConnected = computed(() => Boolean(state.address))
 const isAuthenticated = computed(() => Boolean(state.address && state.token))
 const hasWalletProvider = computed(() => Boolean(getSolanaProvider()))
+const mobileWalletFallbackAvailable = computed(() =>
+  isMobileBrowser() && !state.embedded && !hasWalletProvider.value,
+)
+const mobileWalletFallbackHref = computed(() => buildPhantomBrowseUrl())
 
 function buildRequestHeaders() {
   return {
@@ -259,6 +265,8 @@ export function useWalletSession() {
     isConnected,
     isAuthenticated,
     hasWalletProvider,
+    mobileWalletFallbackAvailable,
+    mobileWalletFallbackHref,
     buildRequestHeaders,
     hydrateExternalSession,
     bootstrapFromSearch,

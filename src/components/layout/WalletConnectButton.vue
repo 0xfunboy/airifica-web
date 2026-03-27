@@ -48,6 +48,14 @@ async function handleDisconnect() {
       <span>{{ wallet.connecting.value ? 'Connecting…' : (props.compact ? 'Connect' : 'Connect Solana') }}</span>
     </button>
 
+    <a
+      v-if="!wallet.isConnected.value && wallet.mobileWalletFallbackAvailable.value"
+      class="wallet-connect__button wallet-connect__button--fallback"
+      :href="wallet.mobileWalletFallbackHref.value"
+    >
+      <span>Open in Phantom</span>
+    </a>
+
     <template v-else>
       <button
         v-if="!wallet.isAuthenticated.value"
@@ -138,6 +146,11 @@ async function handleDisconnect() {
   background: rgba(255, 193, 94, 0.22);
   border-color: rgba(255, 193, 94, 0.34);
   color: #ffe3ac;
+}
+
+.wallet-connect__button--fallback {
+  background: rgba(8, 23, 35, 0.72);
+  color: rgba(223, 236, 247, 0.92);
 }
 
 .wallet-connect__button--ready {
