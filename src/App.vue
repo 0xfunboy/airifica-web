@@ -80,21 +80,7 @@ onUnmounted(() => {
           <div class="stage-page__mobile-sheet-tabs">
             <button
               type="button"
-              :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'chat' }]"
-              @click="mobilePanel = 'chat'"
-            >
-              Chat
-            </button>
-            <button
-              type="button"
-              :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'market' }]"
-              @click="mobilePanel = 'market'"
-            >
-              Market
-            </button>
-            <button
-              type="button"
-              class="stage-page__mobile-tab stage-page__mobile-tab--icon"
+              class="stage-page__mobile-tab stage-page__mobile-tab--icon stage-page__mobile-tab--reset"
               title="Reset conversation"
               aria-label="Reset conversation"
               @click="handleMobileReset"
@@ -107,6 +93,23 @@ onUnmounted(() => {
                 <path d="M14 11v5" />
               </svg>
             </button>
+
+            <div class="stage-page__mobile-sheet-tab-group">
+              <button
+                type="button"
+                :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'chat' }]"
+                @click="mobilePanel = 'chat'"
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                :class="['stage-page__mobile-tab', { 'stage-page__mobile-tab--active': mobilePanel === 'market' }]"
+                @click="mobilePanel = 'market'"
+              >
+                Market
+              </button>
+            </div>
           </div>
 
           <div class="stage-page__mobile-sheet-body">
@@ -246,10 +249,18 @@ onUnmounted(() => {
   }
 
   .stage-page__mobile-sheet-tabs {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .stage-page__mobile-sheet-tab-group,
+  .stage-page__mobile-tab--reset {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    width: fit-content;
     padding: 4px;
     border-radius: 999px;
     background: rgba(5, 20, 31, 0.42);
@@ -277,6 +288,10 @@ onUnmounted(() => {
   .stage-page__mobile-tab--icon {
     width: 30px;
     padding: 0;
+  }
+
+  .stage-page__mobile-tab--reset {
+    flex: 0 0 auto;
   }
 
   .stage-page__mobile-tab--icon svg {

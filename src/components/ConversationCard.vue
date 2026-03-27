@@ -803,37 +803,57 @@ onBeforeUnmount(() => {
     height: 100%;
     min-height: 0;
     border-radius: 24px;
-    gap: 8px;
+    gap: 6px;
     border-color: rgba(125, 211, 252, 0.12);
-    background: rgba(6, 22, 34, 0.28);
-    backdrop-filter: blur(10px);
+    background: rgba(6, 22, 34, 0.18);
+    backdrop-filter: blur(8px);
   }
 
   .conversation-shell__history {
-    gap: 8px;
-    padding: 12px 12px 0;
+    gap: 6px;
+    padding: 8px 8px 0;
   }
 
   .conversation-shell__error {
-    padding: 0 12px;
-    font-size: 0.8rem;
+    padding: 0 8px;
+    font-size: 0.64rem;
+  }
+
+  .conversation-shell__transcript {
+    gap: 6px;
+    margin: 0 8px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .conversation-shell__transcript-head,
+  .conversation-shell__transcript p,
+  .conversation-shell__toggle,
+  .conversation-shell__select {
+    font-size: 0.62rem;
+  }
+
+  .conversation-shell__select {
+    min-height: 28px;
   }
 
   .conversation-shell__composer {
-    gap: 8px;
-    padding: 0 12px 8px;
+    gap: 6px;
+    padding: 0 8px 6px;
   }
 
   .conversation-shell__textarea {
-    min-height: 48px;
-    max-height: 92px;
-    padding: 10px 12px 12px;
-    font-size: 0.88rem;
+    min-height: 34px;
+    max-height: 58px;
+    padding: 7px 9px 8px;
+    border-radius: 14px 14px 0 0;
+    font-size: 0.68rem;
+    line-height: 1.35;
   }
 
   .conversation-shell__composer-bar {
     padding-inline: 0;
-    min-height: 32px;
+    min-height: 28px;
   }
 
   .conversation-shell__emotion-indicator,
@@ -842,19 +862,51 @@ onBeforeUnmount(() => {
   .conversation-shell__send,
   .conversation-shell__control,
   .conversation-shell__icon-button {
-    min-height: 32px;
-    border-radius: 11px;
-    font-size: 0.68rem;
+    min-height: 28px;
+    border-radius: 10px;
+    font-size: 0.58rem;
   }
 
   .conversation-shell__ghost,
   .conversation-shell__secondary,
   .conversation-shell__control {
-    padding: 0 10px;
+    padding: 0 8px;
   }
 
   .conversation-shell__send {
-    padding: 0 12px;
+    padding: 0 10px;
+  }
+
+  .conversation-shell__emotion-indicator {
+    gap: 4px;
+    min-height: 28px;
+    padding: 0 7px;
+    font-size: 0.54rem;
+  }
+
+  .conversation-shell__emotion-indicator span:last-child {
+    max-width: 34px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .conversation-shell__icon-button {
+    width: 28px;
+  }
+
+  .conversation-shell__icon-button svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .conversation-shell__mic-monitor {
+    gap: 6px;
+  }
+
+  .conversation-shell__vu-meter {
+    width: 42px;
+    height: 7px;
   }
 
   .conversation-shell__reset-fab {
@@ -863,23 +915,45 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 720px) {
-  .conversation-shell__transcript-actions,
   .conversation-shell__composer-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .conversation-shell__transcript-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .conversation-shell__left-actions,
+  .conversation-shell__right-actions {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .conversation-shell__left-actions {
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   .conversation-shell__right-actions {
-    justify-content: space-between;
+    flex: 0 0 auto;
   }
 
   .conversation-shell__mic-monitor {
-    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   .conversation-shell__vu-meter {
-    flex: 1;
+    flex: 1 1 auto;
     width: auto;
+  }
+
+  .conversation-shell__ghost--example,
+  .conversation-shell__send {
+    min-width: 0;
   }
 }
 </style>

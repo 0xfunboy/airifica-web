@@ -353,6 +353,49 @@ function replayMessage() {
 }
 
 @media (max-width: 760px) {
+  .conversation-message {
+    gap: 6px;
+  }
+
+  .conversation-message__bubble {
+    gap: 8px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .conversation-message__header {
+    gap: 6px;
+  }
+
+  .conversation-message__header span {
+    font-size: 8px;
+    letter-spacing: 0.16em;
+  }
+
+  .conversation-message__header strong {
+    font-size: 0.64rem;
+  }
+
+  .conversation-message__speak {
+    width: 18px;
+    height: 18px;
+  }
+
+  .conversation-message__speak-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .conversation-message__body {
+    font-size: 0.78rem;
+    line-height: 1.48;
+  }
+
+  .conversation-message__activity {
+    margin: 0 8px;
+    font-size: 8px;
+  }
+
   .conversation-message,
   .conversation-message--assistant .conversation-message__bubble,
   .conversation-message--user .conversation-message__bubble {
