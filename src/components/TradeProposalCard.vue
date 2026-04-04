@@ -60,6 +60,9 @@ const minimumOrderHint = computed(() => {
   const minimum = Number(marketMeta.value?.minOrderSize || 0)
   return Number.isFinite(minimum) && minimum > 0 ? minimum : null
 })
+const belowMinimumOrderRequirement = computed(() =>
+  minimumOrderHint.value != null && effectiveNotionalUsd.value > 0 && effectiveNotionalUsd.value < minimumOrderHint.value,
+)
 const minLeverage = computed(() => 1)
 const collateralPresets = [10, 20, 30] as const
 const derivedConfidence = computed(() => computeProposalConfidence(props.proposal, { marketPrice: marketPrice.value }))
@@ -200,6 +203,90 @@ function resolveBetaAccessHint(error: unknown) {
   return betaAccessHint.value
 }
 
+function stripRequestSuffix(raw: string) {
+  return raw.replace(/\s*\[request:[^\]]+\]\s*$/i, '').trim()
+}
+
+function extractPacificaErrorMessage(raw: string) {
+  const normalized = stripRequestSuffix(raw)
+  const jsonStart = normalized.indexOf('{')
+
+  if (jsonStart >= 0) {
+    const jsonSlice = normalized.slice(jsonStart)
+    try {
+      const parsed = JSON.parse(jsonSlice) as { error?: string, message?: string }
+      const payloadMessage = typeof parsed.error === 'string'
+        ? parsed.error
+        : typeof parsed.message === 'string'
+          ? parsed.message
+          : ''
+      if (payloadMessage.trim())
+        return payloadMessage.trim()
+    }
+    catch {
+    }
+  }
+
+  return normalized
+    .replace(/^Pacifica\s+(?:GET|POST)\s+\S+\s+\d+:\s*/i, '')
+    .trim()
+}
+
+function buildExecutionErrorMessage(error: unknown) {
+  if (isBetaAccessError(error))
+    return resolveBetaAccessHint(error)
+
+  const rawMessage = error instanceof Error ? error.message : 'Execution failed.'
+  const message = extractPacificaErrorMessage(rawMessage)
+
+  const amountTooLowMatch = message.match(/order amount too low.*?:\s*([0-9]+(?:\.[0-9]+)?)\s*<\s*([0-9]+(?:\.[0-9]+)?)/i)
+  if (amountTooLowMatch) {
+    const minimumSize = Number(amountTooLowMatch[2]) || minimumOrderHint.value || 0
+    return buildMinimumOrderMessage(minimumSize)
+  }
+
+  if (/builder code .*not approved|approve builder/i.test(message))
+    return 'Builder approval is missing. Run Complete onboarding again, then retry the trade.'
+
+  if (/account not found|activation required/i.test(message))
+    return `Pacifica account not active yet. Open Pacifica with AIRewardrop and deposit at least ${pacifica.minimumDepositUsd.value} USDC.`
+
+  if (/insufficient|not enough|available collateral|available balance/i.test(message))
+    return availableCollateralUsd.value > 0
+      ? `Not enough available collateral. Reduce collateral below ${formatUsd(availableCollateralUsd.value)} USD or deposit more funds.`
+      : 'Not enough available collateral. Deposit more funds on Pacifica before executing.'
+
+  if (/lot size/i.test(message))
+    return `Quantity does not match Pacifica lot size (${marketMeta.value?.lotSize ?? 'n/a'}). Adjust collateral or leverage and retry.`
+
+  return message || 'Execution failed.'
+}
+
+function buildMinimumOrderMessage(minimumSize: number) {
+  const currentLeverage = Math.max(1, leverage.value)
+  const requiredCollateral = minimumSize > 0 ? minimumSize / currentLeverage : 0
+  const additionalCollateral = Math.max(0, requiredCollateral - numericSizeUsd.value)
+  const suggestedLeverage = numericSizeUsd.value > 0 ? Math.ceil(minimumSize / numericSizeUsd.value) : null
+  const canRaiseLeverageInstead = suggestedLeverage != null && suggestedLeverage > currentLeverage && suggestedLeverage <= maxLeverage.value
+
+  let friendly = `${props.proposal.symbol} requires at least ${formatUsd(minimumSize)} USD position size on Pacifica.`
+  if (requiredCollateral > 0) {
+    friendly += ` At ${currentLeverage}x leverage, set collateral to at least ${formatInputUsd(requiredCollateral)} USD`
+    if (additionalCollateral > 0.009)
+      friendly += ` (+${formatInputUsd(additionalCollateral)} USD).`
+    else
+      friendly += '.'
+  }
+
+  if (canRaiseLeverageInstead)
+    friendly += ` You can also keep the same collateral and raise leverage to ${suggestedLeverage}x.`
+
+  if (availableCollateralUsd.value > 0 && requiredCollateral > availableCollateralUsd.value)
+    friendly += ` Available collateral is ${formatUsd(availableCollateralUsd.value)} USD, so you need to deposit more funds first.`
+
+  return friendly
+}
+
 async function handleExecute() {
   if (executing.value)
     return
@@ -232,6 +319,14 @@ async function handleExecute() {
     result.value = {
       success: false,
       message: 'No funds on Pacifica. Deposit before execution.',
+    }
+    return
+  }
+
+  if (minimumOrderHint.value && belowMinimumOrderRequirement.value) {
+    result.value = {
+      success: false,
+      message: buildMinimumOrderMessage(minimumOrderHint.value),
     }
     return
   }
@@ -297,9 +392,7 @@ async function handleExecute() {
 
     result.value = {
       success: false,
-      message: isBetaAccessError(error)
-        ? resolveBetaAccessHint(error)
-        : error instanceof Error ? error.message : 'Execution failed.',
+      message: buildExecutionErrorMessage(error),
     }
   }
   finally {
@@ -503,6 +596,12 @@ function toggleStrategy() {
 
     <p v-if="minimumOrderHint" class="proposal-card__market-hint">
       Pacifica {{ proposal.symbol }} currently reports lot {{ marketMeta?.lotSize ?? 'n/a' }} and minimum order {{ minimumOrderHint }} USD.
+    </p>
+    <p
+      v-if="belowMinimumOrderRequirement && minimumOrderHint"
+      class="proposal-card__market-hint proposal-card__market-hint--warning"
+    >
+      {{ buildMinimumOrderMessage(minimumOrderHint) }}
     </p>
 
     <div class="proposal-card__utility-row">
@@ -901,6 +1000,10 @@ function toggleStrategy() {
   color: rgba(186, 230, 253, 0.56);
   font-size: 0.72rem;
   line-height: 1.5;
+}
+
+.proposal-card__market-hint--warning {
+  color: rgba(255, 214, 102, 0.92);
 }
 
 .proposal-card__action {
