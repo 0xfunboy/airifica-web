@@ -36,6 +36,11 @@ function normalizeApiBase(raw: string | undefined, fallback: string) {
   return value.endsWith('/api') ? value : `${value}/api`
 }
 
+function normalizeWebSocketBase(raw: string | undefined, fallback: string) {
+  const value = normalizeUrl(raw, fallback, { sameOriginFallback: '/api/stt/ws' })
+  return value.trim()
+}
+
 function normalizeNumber(raw: string | undefined, fallback: number) {
   const numeric = Number(raw)
   return Number.isFinite(numeric) ? numeric : fallback
@@ -88,6 +93,13 @@ const normalizedTtsProvider = rawTtsProvider === 'chatterbox'
   : rawTtsProvider === 'external'
     ? 'openai-compatible'
     : rawTtsProvider
+const rawSttProvider = (import.meta.env.VITE_AIR3_STT_PROVIDER || 'auto').trim().toLowerCase()
+const normalizedSttProvider = rawSttProvider === 'webspeech'
+  ? 'browser'
+  : rawSttProvider === 'sherpa'
+    ? 'server'
+    : rawSttProvider
+const sttWsUrl = normalizeWebSocketBase(import.meta.env.VITE_AIR3_STT_WS_URL || '', '/api/stt/ws')
 
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
@@ -138,6 +150,14 @@ export const appConfig = {
   ttsChunkSize: normalizeNumber(import.meta.env.VITE_AIR3_TTS_CHUNK_SIZE, 120),
   ttsSpeedFactor: normalizeNumber(import.meta.env.VITE_AIR3_TTS_SPEED_FACTOR, 1),
   ttsSeed: (import.meta.env.VITE_AIR3_TTS_SEED || '').trim(),
+  sttProvider: normalizedSttProvider === 'browser'
+    ? 'browser'
+    : normalizedSttProvider === 'server'
+      ? 'server'
+      : 'auto',
+  sttWebSocketUrl: sttWsUrl,
+  sttConnectTimeoutMs: normalizeNumber(import.meta.env.VITE_AIR3_STT_CONNECT_TIMEOUT_MS, 8000),
+  sttResponseTimeoutMs: normalizeNumber(import.meta.env.VITE_AIR3_STT_RESPONSE_TIMEOUT_MS, 20000),
   stageBrightness: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_BRIGHTNESS, 1),
   stageContrast: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_CONTRAST, 1),
   stageSaturation: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_SATURATION, 1),

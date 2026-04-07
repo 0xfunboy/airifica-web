@@ -34,6 +34,7 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 - syncs Pacifica account overview, builder onboarding, agent bind, open trade execution and close position actions
 - renders market context inside the stage and surfaces trade proposals back into the conversation
 - supports voice input, VAD-backed hearing, speech playback and avatar mouth/expression driving
+- keeps browser speech recognition where it works and falls back to sherpa-onnx websocket STT where it does not
 
 ## Runtime Areas
 
@@ -104,6 +105,10 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - `VITE_AIR3_TTS_VOICE`
 - `VITE_AIR3_TTS_API_KEY`
 - `VITE_AIR3_TTS_RESPONSE_FORMAT`
+- `VITE_AIR3_STT_PROVIDER`: `auto`, `browser` or `server`
+- `VITE_AIR3_STT_WS_URL`: websocket endpoint for server STT; prefer `/api/stt/ws` in HTTPS deployments
+- `VITE_AIR3_STT_CONNECT_TIMEOUT_MS`
+- `VITE_AIR3_STT_RESPONSE_TIMEOUT_MS`
 - `VITE_AIR3_STAGE_BRIGHTNESS`
 - `VITE_AIR3_STAGE_CONTRAST`
 - `VITE_AIR3_STAGE_SATURATION`
@@ -134,4 +139,5 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - the default stage asset set is already included in `public/brand`
 - no Live2D runtime is included
 - the external TTS path expects an OpenAI-compatible `audio/speech` response and falls back to browser speech when unavailable
+- the STT fallback expects a sherpa-onnx offline websocket server behind the same-origin `/api/stt/ws` bridge or an explicitly configured websocket URL
 - Pacifica market universe is cached server-side and refreshed on a long interval; account and position state refresh more frequently

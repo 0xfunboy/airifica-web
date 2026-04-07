@@ -65,6 +65,30 @@ All configuration is driven by environment variables. In development, use `.env.
 
 ---
 
+## Speech-to-Text (STT)
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_AIR3_STT_PROVIDER` | `auto` | `auto` \| `browser` \| `server` |
+| `VITE_AIR3_STT_WS_URL` | `/api/stt/ws` | Browser-facing websocket URL for server STT |
+| `VITE_AIR3_STT_CONNECT_TIMEOUT_MS` | `8000` | WebSocket connection timeout |
+| `VITE_AIR3_STT_RESPONSE_TIMEOUT_MS` | `20000` | Per-utterance transcription timeout |
+| `AIRIFICA_STT_PROXY_TARGET_WS_URL` | _(empty)_ | Bridge/dev upstream target for sherpa-onnx websocket, e.g. `ws://192.168.178.87:6006` |
+
+### Recommended mode
+
+For production behind HTTPS, prefer:
+
+```bash
+VITE_AIR3_STT_PROVIDER=auto
+VITE_AIR3_STT_WS_URL=/api/stt/ws
+AIRIFICA_STT_PROXY_TARGET_WS_URL=ws://192.168.178.87:6006
+```
+
+This keeps the browser same-origin while the local bridge proxies websocket traffic to the LAN STT server.
+
+---
+
 ## Stage Lighting (Three.js)
 
 Fine-tune the avatar's visual appearance. These are passed to the Three.js lighting rig at runtime.

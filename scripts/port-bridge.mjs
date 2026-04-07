@@ -3,6 +3,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
+import net from 'node:net'
+import tls from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { createReadStream, statSync } from 'node:fs'
 
@@ -37,14 +39,40 @@ const AIR3_TARGET_HOST = '127.0.0.1'
 const AIR3_TARGET_PORT = 4040
 const TTS_TARGET_HOST = '127.0.0.1'
 const TTS_TARGET_PORT = 4041
+const STT_PROXY_PATH = '/api/stt/ws'
 const LISTEN_HOST = process.env.AIRIFICA_BRIDGE_HOST || '127.0.0.1'
 const LISTEN_PORT = Number(process.env.AIRIFICA_BRIDGE_PORT || 5173)
+const STT_PROXY_TARGET = (process.env.AIRIFICA_STT_PROXY_TARGET_WS_URL || '').trim()
 
 const TTS_PROXY_PATHS = new Set([
   '/api/tts',
   '/api/tts/captioned',
   '/api/tts/phonemes',
 ])
+
+function parseWebSocketTarget(raw) {
+  if (!raw)
+    return null
+
+  try {
+    const url = new URL(raw)
+    if (!['ws:', 'wss:', 'http:', 'https:'].includes(url.protocol))
+      return null
+
+    return {
+      host: url.hostname,
+      port: Number(url.port || ((url.protocol === 'wss:' || url.protocol === 'https:') ? 443 : 80)),
+      path: `${url.pathname || '/'}${url.search || ''}`,
+      hostHeader: url.host,
+      secure: url.protocol === 'wss:' || url.protocol === 'https:',
+    }
+  }
+  catch {
+    return null
+  }
+}
+
+const STT_WS_TARGET = parseWebSocketTarget(STT_PROXY_TARGET)
 
 const AIR3_ALLOWED_ROUTES = [
   { method: 'POST', pattern: /^\/api\/auth\/challenge$/ },
@@ -127,6 +155,9 @@ function resolveTarget(pathname = '/') {
   if (TTS_PROXY_PATHS.has(pathname))
     return { kind: 'proxy', host: TTS_TARGET_HOST, port: TTS_TARGET_PORT }
 
+  if (pathname === STT_PROXY_PATH && STT_WS_TARGET)
+    return { kind: 'websocket', ...STT_WS_TARGET }
+
   if (pathname.startsWith('/api/'))
     return { kind: 'proxy', host: AIR3_TARGET_HOST, port: AIR3_TARGET_PORT }
 
@@ -156,6 +187,34 @@ function normalizeHeaders(headers, target) {
     ...nextHeaders,
     host: `${target.host}:${target.port}`,
     connection: 'close',
+    ...(forwardedHost ? { 'x-forwarded-host': forwardedHost } : {}),
+    ...(forwardedProto ? { 'x-forwarded-proto': forwardedProto } : {}),
+  }
+}
+
+function buildWebSocketHeaders(req, target) {
+  const headers = { ...req.headers }
+  delete headers.host
+  delete headers.connection
+  delete headers.origin
+  delete headers.referer
+
+  const forwardedHost = String(req.headers.host || '').trim()
+  let forwardedProto = String(req.headers['x-forwarded-proto'] || '').trim()
+
+  if (!forwardedProto && req.headers.origin) {
+    try {
+      forwardedProto = new URL(String(req.headers.origin)).protocol.replace(/:$/, '')
+    }
+    catch {
+    }
+  }
+
+  return {
+    ...headers,
+    host: target.hostHeader || `${target.host}:${target.port}`,
+    connection: 'Upgrade',
+    upgrade: 'websocket',
     ...(forwardedHost ? { 'x-forwarded-host': forwardedHost } : {}),
     ...(forwardedProto ? { 'x-forwarded-proto': forwardedProto } : {}),
   }
@@ -247,6 +306,57 @@ const server = http.createServer((req, res) => {
 
 server.on('clientError', (_error, socket) => {
   socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
+})
+
+server.on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url || '/', `http://${LISTEN_HOST}:${LISTEN_PORT}`)
+  const target = resolveTarget(url.pathname)
+
+  if (target.kind !== 'websocket') {
+    socket.write('HTTP/1.1 404 Not Found\r\n\r\n')
+    socket.destroy()
+    return
+  }
+
+  const upstream = (target.secure
+    ? tls.connect({
+        host: target.host,
+        port: target.port,
+        servername: target.host,
+      })
+    : net.connect(target.port, target.host))
+
+  upstream.on(target.secure ? 'secureConnect' : 'connect', () => {
+    const headers = buildWebSocketHeaders(req, target)
+    const headerLines = Object.entries(headers)
+      .filter(([, value]) => value != null)
+      .map(([key, value]) => `${key}: ${value}`)
+
+    upstream.write(
+      `GET ${target.path} HTTP/1.1\r\n${headerLines.join('\r\n')}\r\n\r\n`,
+    )
+
+    if (head?.length)
+      upstream.write(head)
+  })
+
+  const destroyBoth = () => {
+    socket.destroy()
+    upstream.destroy()
+  }
+
+  upstream.on('error', () => {
+    if (!socket.destroyed)
+      socket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n')
+    destroyBoth()
+  })
+
+  socket.on('error', destroyBoth)
+  socket.on('close', () => upstream.end())
+  upstream.on('close', () => socket.end())
+
+  socket.pipe(upstream)
+  upstream.pipe(socket)
 })
 
 server.listen(LISTEN_PORT, LISTEN_HOST)

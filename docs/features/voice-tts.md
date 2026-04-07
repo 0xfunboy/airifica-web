@@ -147,32 +147,93 @@ Available Kokoro voices (examples):
 
 ---
 
-## Voice Input (VAD)
+## Voice Input (VAD + STT Fallback)
 
-In addition to TTS output, users can speak to Bairbi directly. Voice input uses the **Web Audio API** with a **Voice Activity Detection (VAD) Web Worker**:
+Voice input keeps the current low-latency mic and VU meter pipeline, but transcription is no longer tied only to the browser Web Speech API.
+
+### Modes
+
+| Mode | Behaviour |
+|---|---|
+| `auto` | uses browser speech recognition where reliable, otherwise falls back to sherpa-onnx websocket STT |
+| `browser` | forces Web Speech API only |
+| `server` | forces sherpa-onnx websocket STT even on Chrome |
+
+Configured with:
+
+```bash
+VITE_AIR3_STT_PROVIDER=auto
+VITE_AIR3_STT_WS_URL=/api/stt/ws
+```
+
+### Runtime flow
 
 ```
 Browser microphone
       │
       ▼
-AudioWorklet (workers/vad/process.worklet.ts)
-      │  Runs in separate thread for non-blocking audio processing
-      ├─ Detects speech start (VAD threshold)
-      ├─ Buffers audio while speaking
-      └─ Detects speech end (silence timeout)
+AudioWorklet (workers/vad/process.worklet.js)
+      │
+      ├─ measures live volume → VU meter
+      ├─ detects speech start / speech end
+      └─ emits 16 kHz mono Float32 PCM chunks
              │
              ▼
         modules/hearing/pipeline.ts
-             │  Assembles audio buffer
-             └─ Sends to Web Speech API or Whisper endpoint for STT
-                    │
-                    ▼
-               ConversationCard
-                    │
-                    └─ Inserts transcribed text → sends as message
+             │
+             ├─ browser mode:
+             │    └─ Web Speech API continues to drive interim/final transcript
+             │
+             └─ server mode or fallback:
+                  ├─ accumulates utterance PCM
+                  ├─ encodes mono 16-bit WAV
+                  ├─ hands WAV to serverStt.ts
+                  └─ serverStt.ts replays official sherpa framing over websocket
+                         │
+                         ▼
+                    /api/stt/ws
+                         │
+                         ▼
+               sherpa-onnx offline websocket server
 ```
 
-Voice input is toggled via the microphone button in `StageFooter.vue`.
+### Why the server path is utterance-based
+
+The app does **not** stream every microphone frame to the backend in this first phase. Instead it:
+
+1. starts the mic and VAD immediately
+2. buffers only the current utterance while speech is detected
+3. closes the utterance after silence
+4. sends the completed utterance for transcription
+
+This preserves the current UX and keeps resource usage low on browsers such as Opera or Phantom where browser STT is missing or unreliable.
+
+### Recommended deployment setup
+
+When the app is served over HTTPS, do **not** point the browser directly at `ws://192.168...`.
+Prefer:
+
+```bash
+VITE_AIR3_STT_WS_URL=/api/stt/ws
+AIRIFICA_STT_PROXY_TARGET_WS_URL=ws://192.168.178.87:6006
+```
+
+This keeps the browser same-origin while the local bridge proxies websocket traffic to sherpa on the LAN.
+
+### Manual test checklist
+
+- Chrome desktop, `VITE_AIR3_STT_PROVIDER=auto`
+  - transcript populates live as before
+  - composer sync works
+  - auto-send works
+- Chrome desktop, `VITE_AIR3_STT_PROVIDER=server`
+  - VU meter still works
+  - transcript arrives after each utterance via sherpa
+  - auto-send still works
+- Opera / Phantom / browsers without reliable Web Speech API
+  - mic starts without immediate “browser unsupported” error
+  - transcript arrives through server fallback
+  - stop/start mic does not duplicate transcript or leave listening stuck
 
 ---
 
