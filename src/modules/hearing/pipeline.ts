@@ -16,6 +16,7 @@ const SPEECH_THRESHOLD = 0.05
 const EXIT_THRESHOLD = 0.025
 const SPEECH_END_SILENCE_MS = 420
 const BROWSER_RESULT_GRACE_MS = 720
+const STT_DEBUG_PREFIX = '[hearing:stt]'
 
 type BrowserRecognition = {
   continuous: boolean
@@ -42,6 +43,16 @@ type PendingBrowserFallback = {
 
 function getStorageScope() {
   return typeof window === 'undefined' ? null : window.localStorage
+}
+
+function logSttDebug(message: string, details?: Record<string, unknown>) {
+  if (!import.meta.env.DEV)
+    return
+
+  if (details)
+    console.debug(STT_DEBUG_PREFIX, message, details)
+  else
+    console.debug(STT_DEBUG_PREFIX, message)
 }
 
 const state = reactive({
@@ -206,6 +217,19 @@ function clearPendingBrowserFallback() {
   pendingBrowserFallback = null
 }
 
+function getMinimumUtteranceSamples() {
+  return Math.max(1, Math.round(VAD_SAMPLE_RATE * (appConfig.sttMinUtteranceMs / 1000)))
+}
+
+function measureUtterance(chunks: readonly Float32Array[]) {
+  const sampleCount = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  return {
+    sampleCount,
+    durationMs: Math.round((sampleCount / VAD_SAMPLE_RATE) * 1000),
+    minimumSamples: getMinimumUtteranceSamples(),
+  }
+}
+
 function trackPendingServerRequest<T>(promise: Promise<T>, controller: AbortController) {
   pendingServerControllers.add(controller)
   pendingServerRequests.add(promise)
@@ -347,8 +371,16 @@ function bufferUtteranceChunk(chunk: Float32Array) {
 
 async function transcribeBufferedChunks(chunks: readonly Float32Array[], options?: { markFallback?: boolean, signal?: AbortSignal }) {
   const samples = concatFloat32Chunks(chunks)
-  if (!samples.length)
+  const minimumSamples = getMinimumUtteranceSamples()
+  if (!samples.length || samples.length < minimumSamples) {
+    logSttDebug('Skipped server STT before websocket open because the utterance is too short.', {
+      provider: state.activeProvider,
+      samples: samples.length,
+      durationMs: Math.round((samples.length / VAD_SAMPLE_RATE) * 1000),
+      minimumSamples,
+    })
     return ''
+  }
 
   const recording = encodeMono16BitWav(samples, VAD_SAMPLE_RATE)
   const transcript = await serverStt.transcribeRecording(recording, { signal: options?.signal })
@@ -361,6 +393,17 @@ async function transcribeBufferedChunks(chunks: readonly Float32Array[], options
 async function submitUtteranceToServer(chunks: readonly Float32Array[], options?: { markFallback?: boolean }) {
   if (!chunks.length || !serverConfigured())
     return ''
+
+  const metrics = measureUtterance(chunks)
+  if (metrics.sampleCount < metrics.minimumSamples) {
+    logSttDebug('Dropped utterance before sherpa send because it is below the minimum duration.', {
+      provider: state.activeProvider,
+      samples: metrics.sampleCount,
+      durationMs: metrics.durationMs,
+      minimumSamples: metrics.minimumSamples,
+    })
+    return ''
+  }
 
   const controller = new AbortController()
   const request = trackPendingServerRequest(
@@ -396,6 +439,17 @@ async function submitUtteranceToServer(chunks: readonly Float32Array[], options?
 function scheduleBrowserFallback(sequence: number, baselineRevision: number, chunks: Float32Array[]) {
   if (!canFallbackToServer() || !chunks.length)
     return
+
+  const metrics = measureUtterance(chunks)
+  if (metrics.sampleCount < metrics.minimumSamples) {
+    logSttDebug('Skipped browser fallback because the buffered utterance is too short.', {
+      provider: state.activeProvider,
+      samples: metrics.sampleCount,
+      durationMs: metrics.durationMs,
+      minimumSamples: metrics.minimumSamples,
+    })
+    return
+  }
 
   clearPendingBrowserFallback()
   pendingBrowserFallback = {
@@ -433,6 +487,7 @@ function finalizeCurrentUtterance() {
   const chunks = utteranceState.chunks.map(chunk => chunk.slice())
   const baselineRevision = utteranceState.browserTranscriptBaseline
   resetUtteranceState()
+  const metrics = measureUtterance(chunks)
 
   if (!chunks.length) {
     if (state.activeProvider === 'browser')
@@ -441,6 +496,15 @@ function finalizeCurrentUtterance() {
   }
 
   if (state.activeProvider === 'server') {
+    if (metrics.sampleCount < metrics.minimumSamples) {
+      logSttDebug('Dropped server-mode utterance because it is below the minimum duration.', {
+        provider: state.activeProvider,
+        samples: metrics.sampleCount,
+        durationMs: metrics.durationMs,
+        minimumSamples: metrics.minimumSamples,
+      })
+      return
+    }
     void submitUtteranceToServer(chunks)
     return
   }
@@ -662,6 +726,10 @@ function prepareProviderForListening() {
 
   setActiveProvider(initialProvider, {
     fallbackActive: appConfig.sttProvider === 'auto' && initialProvider === 'server',
+  })
+  logSttDebug('Listening session started with provider.', {
+    provider: initialProvider,
+    mode: appConfig.sttProvider,
   })
 }
 

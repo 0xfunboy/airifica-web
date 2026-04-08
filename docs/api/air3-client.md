@@ -266,7 +266,7 @@ normalizeUrl(
 
 **Example:**
 ```typescript
-// In production (served from https://app.eeess.cyou):
+// In production (served from https://airi.airewardrop.xyz):
 normalizeUrl('http://127.0.0.1:5173', '', { sameOriginFallback: '/' })
 // → '' (same-origin: use relative paths)
 

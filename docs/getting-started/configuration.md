@@ -13,8 +13,9 @@ All configuration is driven by environment variables. In development, use `.env.
 | `VITE_AIR3_ELIZA_BASE_URL` | _(empty)_ | AIR3 runtime host. Leave empty in production so calls use same-origin (`/api/...`). Set to `http://127.0.0.1:5173` only when intentionally testing through the local gateway. |
 | `VITE_AIR3_SERVICE_API_URL` | _(same as above)_ | Explicit API base URL override. Usually left empty in production. |
 | `VITE_AIR3_RUNTIME_BASE_URL` | _(same as above)_ | Legacy alias for `VITE_AIR3_ELIZA_BASE_URL` |
+| `VITE_AIRIFICA_PUBLIC_APP_URL` | _(empty)_ | Public browser origin used for wallet/deep-link flows. Set this in production to `https://airi.airewardrop.xyz`. |
 
-> **Why leave it empty?** In production behind Cloudflare Tunnel, the frontend is served at `https://app.eeess.cyou` by the port-bridge. When `VITE_AIR3_ELIZA_BASE_URL` is empty, `normalizeUrl()` triggers `sameOriginFallback: '/'`, resulting in relative paths (`/api/...`) — fully same-origin, no CORS needed.
+> **Why leave it empty?** In production behind Cloudflare Tunnel, the frontend is served at `https://airi.airewardrop.xyz` by the port-bridge. When `VITE_AIR3_ELIZA_BASE_URL` is empty, `normalizeUrl()` triggers `sameOriginFallback: '/'`, resulting in relative paths (`/api/...`) — fully same-origin, no CORS needed.
 
 ---
 
@@ -73,6 +74,7 @@ All configuration is driven by environment variables. In development, use `.env.
 | `VITE_AIR3_STT_WS_URL` | `/api/stt/ws` | Browser-facing websocket URL for server STT |
 | `VITE_AIR3_STT_CONNECT_TIMEOUT_MS` | `8000` | WebSocket connection timeout |
 | `VITE_AIR3_STT_RESPONSE_TIMEOUT_MS` | `20000` | Per-utterance transcription timeout |
+| `VITE_AIR3_STT_MIN_UTTERANCE_MS` | `200` | Minimum utterance duration buffered by the VAD before the client sends audio to sherpa |
 | `AIRIFICA_STT_PROXY_TARGET_WS_URL` | _(empty)_ | Bridge/dev upstream target for sherpa-onnx websocket, e.g. `ws://192.168.178.87:6006` |
 
 ### Recommended mode
@@ -82,6 +84,7 @@ For production behind HTTPS, prefer:
 ```bash
 VITE_AIR3_STT_PROVIDER=auto
 VITE_AIR3_STT_WS_URL=/api/stt/ws
+VITE_AIR3_STT_MIN_UTTERANCE_MS=200
 AIRIFICA_STT_PROXY_TARGET_WS_URL=ws://192.168.178.87:6006
 ```
 
@@ -160,7 +163,7 @@ VITE_AIR3_TTS_PROVIDER=openai-compatible
 
 # Backend (elizaOS reads these at runtime)
 AIRI3_AUTH_SECRET=change-me
-AIRI3_CORS_ORIGIN=https://app.eeess.cyou
+AIRI3_CORS_ORIGIN=https://airi.airewardrop.xyz
 PACIFICA_API_BASE=https://api.pacifica.fi
 AIRI3_PACIFICA_PUBLIC_API_BASE=https://api.pacifica.fi/api/v1
 ```

@@ -158,6 +158,7 @@ export const appConfig = {
   sttWebSocketUrl: sttWsUrl,
   sttConnectTimeoutMs: normalizeNumber(import.meta.env.VITE_AIR3_STT_CONNECT_TIMEOUT_MS, 8000),
   sttResponseTimeoutMs: normalizeNumber(import.meta.env.VITE_AIR3_STT_RESPONSE_TIMEOUT_MS, 20000),
+  sttMinUtteranceMs: normalizeNumber(import.meta.env.VITE_AIR3_STT_MIN_UTTERANCE_MS, 200),
   stageBrightness: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_BRIGHTNESS, 1),
   stageContrast: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_CONTRAST, 1),
   stageSaturation: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_SATURATION, 1),
@@ -169,7 +170,7 @@ export const appConfig = {
   stageFillIntensity: normalizeNumber(import.meta.env.VITE_AIR3_STAGE_FILL_INTENSITY, 0.22),
   brandLogoUrl: '/brand/AIRewardrop_orizzontal.png',
   brandIconUrl: '/brand/airtrading_icon.png',
-  brandSiteUrl: 'https://airewrdrop.xyz',
+  brandSiteUrl: 'https://airewardrop.xyz',
   stageBackgroundUrl: '/brand/AIR3-extended-Studio.webp',
   socialPreviewUrl: '/open-graph.png',
 } as const

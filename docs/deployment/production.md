@@ -10,11 +10,12 @@ This guide covers deploying Airifica Web to a Linux server using Cloudflare Tunn
 Internet
   └─ Cloudflare (TLS, DDoS, CDN)
        └─ Cloudflare Tunnel
-            └─ https://app.eeess.cyou → http://127.0.0.1:5173
+            └─ https://airi.airewardrop.xyz → http://127.0.0.1:5173
                  └─ port-bridge.mjs (port 5173)
                       ├─ dist/        (Vue SPA static files)
                       ├─ :4040        (elizaOS backend)
-                      └─ :4041        (TTS proxy, optional)
+                      ├─ :4041        (TTS proxy, optional)
+                      └─ /api/stt/ws  (sherpa websocket proxy, optional)
 ```
 
 ---
@@ -34,6 +35,7 @@ nvm use 24.9.0
 cp .env.example .env.local
 # Edit .env.local:
 #   VITE_AIR3_ELIZA_BASE_URL=  (empty — same-origin)
+#   VITE_AIRIFICA_PUBLIC_APP_URL=https://airi.airewardrop.xyz
 #   VITE_AIR3_PACIFICA_BUILDER_CODE=AIRewardrop
 #   VITE_AIR3_TTS_PROVIDER=openai-compatible
 
@@ -64,7 +66,16 @@ AIRIFICA_TTS_PROXY_TARGET_URL=http://your-tts-host:8880 \
 node scripts/tts-proxy.mjs
 ```
 
-### 4. Start Port-Bridge
+### 4. Configure Server STT Fallback (optional)
+
+```bash
+cd /home/funboy/airifica-stack/airifica-web
+export AIRIFICA_STT_PROXY_TARGET_WS_URL=ws://your-stt-host:6006
+```
+
+This keeps browsers on same-origin `/api/stt/ws` while the bridge proxies websocket traffic to sherpa-onnx.
+
+### 5. Start Port-Bridge
 
 ```bash
 cd /home/funboy/airifica-stack/airifica-web
@@ -77,7 +88,7 @@ curl http://127.0.0.1:5173/
 curl http://127.0.0.1:5173/api/airi3/health
 ```
 
-### 5. Configure Cloudflare Tunnel
+### 6. Configure Cloudflare Tunnel
 
 See [Cloudflare Tunnel](./cloudflare-tunnel.md).
 
@@ -103,6 +114,7 @@ module.exports = {
       env: {
         AIRIFICA_BRIDGE_PORT: '5173',
         AIRIFICA_BRIDGE_HOST: '127.0.0.1',
+        AIRIFICA_STT_PROXY_TARGET_WS_URL: 'ws://127.0.0.1:6006',
       },
     },
     {
@@ -133,12 +145,13 @@ pm2 startup  # auto-start on system boot
 Before each production deployment:
 
 - [ ] `.env.local` has `VITE_AIR3_ELIZA_BASE_URL=` (empty — not localhost!)
+- [ ] `.env.local` has `VITE_AIRIFICA_PUBLIC_APP_URL=https://airi.airewardrop.xyz`
 - [ ] `pnpm build` completed without TypeScript errors
 - [ ] `dist/` directory exists and contains `index.html`
 - [ ] elizaOS is running on port 4040 (`curl :4040/api/airi3/health → 200`)
 - [ ] port-bridge restarted after build (`kill <old-pid> && node scripts/port-bridge.mjs &`)
 - [ ] Cloudflare Tunnel is connected (green in dashboard)
-- [ ] Production smoke test: visit `https://app.eeess.cyou`, send a test message
+- [ ] Production smoke test: visit `https://airi.airewardrop.xyz`, send a test message
 
 ---
 
@@ -184,4 +197,4 @@ tail -f /home/funboy/airifica-stack/airifica-web/.logs/tts-proxy.log
 | API proxy | `curl -s http://127.0.0.1:5173/api/airi3/health` | `{"ok":true}` |
 | elizaOS direct | `curl -s http://127.0.0.1:4040/api/airi3/health` | `{"ok":true}` |
 | TTS proxy | `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4041/` | `200` |
-| Public URL | `curl -s https://app.eeess.cyou/api/airi3/health` | `{"ok":true}` |
+| Public URL | `curl -s https://airi.airewardrop.xyz/api/airi3/health` | `{"ok":true}` |

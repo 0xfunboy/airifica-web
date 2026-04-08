@@ -3,6 +3,7 @@ import { appConfig } from '@/config/app'
 import { buildSherpaOfflinePayload, decodeMono16BitWav } from './wav'
 
 const SHERPA_CHUNK_BYTES = 10240
+const STT_DEBUG_PREFIX = '[hearing:stt]'
 
 type PendingSocket = {
   promise: Promise<WebSocket>
@@ -66,6 +67,20 @@ function normalizeTranscript(raw: string) {
   return value
 }
 
+function logSttDebug(message: string, details?: Record<string, unknown>) {
+  if (!import.meta.env.DEV)
+    return
+
+  if (details)
+    console.debug(STT_DEBUG_PREFIX, message, details)
+  else
+    console.debug(STT_DEBUG_PREFIX, message)
+}
+
+function getMinimumSamples(sampleRate: number) {
+  return Math.max(1, Math.round(sampleRate * (appConfig.sttMinUtteranceMs / 1000)))
+}
+
 class SherpaOfflineSocketClient {
   private socket: WebSocket | null = null
   private pendingSocket: PendingSocket | null = null
@@ -84,7 +99,17 @@ class SherpaOfflineSocketClient {
       throw new Error('Server STT is not configured.')
 
     const { sampleRate, samples } = await decodeMono16BitWav(recording)
+    const minimumSamples = getMinimumSamples(sampleRate)
     const signal = options?.signal
+
+    if (sampleRate <= 0 || samples.length < minimumSamples) {
+      logSttDebug('Skipped sherpa request before queueing invalid utterance.', {
+        sampleRate,
+        samples: samples.length,
+        minimumSamples,
+      })
+      return ''
+    }
 
     const queued = this.requestQueue.then(async () => this.transcribeSamples(samples, sampleRate, signal))
     this.requestQueue = queued.catch(() => undefined)
@@ -120,11 +145,23 @@ class SherpaOfflineSocketClient {
     if (signal?.aborted)
       throw createAbortError()
 
-    if (!samples.length)
+    const minimumSamples = getMinimumSamples(sampleRate)
+    if (sampleRate <= 0 || samples.length < minimumSamples)
       return ''
 
-    const socket = await this.ensureSocket(signal)
     const payload = buildSherpaOfflinePayload(samples, sampleRate)
+    if (payload.byteLength <= 8)
+      return ''
+
+    const durationMs = Math.round((samples.length / sampleRate) * 1000)
+    logSttDebug('Sending utterance to sherpa.', {
+      sampleRate,
+      samples: samples.length,
+      durationMs,
+      provider: 'server',
+    })
+
+    const socket = await this.ensureSocket(signal)
 
     for (let offset = 0; offset < payload.byteLength; offset += SHERPA_CHUNK_BYTES) {
       if (signal?.aborted)
@@ -134,7 +171,13 @@ class SherpaOfflineSocketClient {
     }
 
     const response = await this.waitForResponse(socket, signal)
-    return normalizeTranscript(response)
+    const transcript = normalizeTranscript(response)
+    logSttDebug(transcript ? 'Received transcript from sherpa.' : 'Received empty transcript from sherpa.', {
+      durationMs,
+      samples: samples.length,
+      transcriptLength: transcript.length,
+    })
+    return transcript
   }
 
   private async ensureSocket(signal?: AbortSignal) {

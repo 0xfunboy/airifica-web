@@ -26,6 +26,7 @@ Complete reference for all environment variables used across the Airifica Web st
 | `VITE_AIR3_ELIZA_BASE_URL` | `''` | elizaOS host. **Must be empty in production** for same-origin routing. |
 | `VITE_AIR3_SERVICE_API_URL` | Same as above | Explicit API base URL |
 | `VITE_AIR3_RUNTIME_BASE_URL` | Same as above | Legacy alias |
+| `VITE_AIRIFICA_PUBLIC_APP_URL` | `''` | Public browser origin used by wallet/deep-link flows |
 
 ### Market
 
@@ -74,6 +75,17 @@ Complete reference for all environment variables used across the Airifica Web st
 | `VITE_AIR3_TTS_SPEED_FACTOR` | `1` | Playback speed multiplier |
 | `VITE_AIR3_TTS_PHONEME_LANGUAGE` | `a` | Phoneme language code |
 
+### STT
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_AIR3_STT_PROVIDER` | `auto` | `auto`, `browser`, or `server` |
+| `VITE_AIR3_STT_WS_URL` | `/api/stt/ws` | Browser-facing websocket URL for sherpa fallback |
+| `VITE_AIR3_STT_CONNECT_TIMEOUT_MS` | `8000` | STT websocket connect timeout |
+| `VITE_AIR3_STT_RESPONSE_TIMEOUT_MS` | `20000` | Per-utterance STT response timeout |
+| `VITE_AIR3_STT_MIN_UTTERANCE_MS` | `200` | Minimum utterance duration before the client sends audio to sherpa |
+| `AIRIFICA_STT_PROXY_TARGET_WS_URL` | `''` | Upstream sherpa websocket for bridge/dev proxying |
+
 ### Stage Lighting
 
 | Variable | Default | Description |
@@ -109,7 +121,7 @@ Complete reference for all environment variables used across the Airifica Web st
 |---|---|
 | `AIRI3_AUTH_SECRET` | JWT signing secret (min 32 chars) |
 | `AIRI3_ENCRYPTION_KEY` | Encryption key for sensitive data |
-| `AIRI3_CORS_ORIGIN` | Public origin for CORS (e.g., `https://app.eeess.cyou`) |
+| `AIRI3_CORS_ORIGIN` | Public origin for CORS (e.g., `https://airi.airewardrop.xyz`) |
 | `PACIFICA_BUILDER_CODE` | Server-side builder code for Pacifica API |
 | `PACIFICA_API_BASE` | Pacifica REST API base (`https://api.pacifica.fi`) |
 | `AIRI3_PACIFICA_PUBLIC_API_BASE` | Public API base (`https://api.pacifica.fi/api/v1`) |
@@ -148,6 +160,7 @@ Complete reference for all environment variables used across the Airifica Web st
 
 # Runtime — leave empty in production for same-origin routing
 VITE_AIR3_ELIZA_BASE_URL=
+VITE_AIRIFICA_PUBLIC_APP_URL=https://airi.airewardrop.xyz
 
 # Market
 VITE_AIR3_DEFAULT_MARKET=SOL
@@ -175,6 +188,14 @@ VITE_AIR3_TTS_CHUNK_SIZE=120
 VITE_AIR3_TTS_SPEED_FACTOR=1
 VITE_AIR3_TTS_PHONEME_LANGUAGE=a
 
+# STT
+VITE_AIR3_STT_PROVIDER=auto
+VITE_AIR3_STT_WS_URL=/api/stt/ws
+VITE_AIR3_STT_CONNECT_TIMEOUT_MS=8000
+VITE_AIR3_STT_RESPONSE_TIMEOUT_MS=20000
+VITE_AIR3_STT_MIN_UTTERANCE_MS=200
+AIRIFICA_STT_PROXY_TARGET_WS_URL=ws://192.168.178.87:6006
+
 # Stage lighting
 VITE_AIR3_STAGE_BRIGHTNESS=0.80
 VITE_AIR3_STAGE_CONTRAST=1.05
@@ -192,7 +213,7 @@ VITE_AIRIFICA_BRAND_NAME=Airifica
 # ─── BACKEND (elizaOS reads at runtime) ─────────────────────
 
 AIRI3_AUTH_SECRET=your-secret-here-min-32-chars
-AIRI3_CORS_ORIGIN=https://app.eeess.cyou
+AIRI3_CORS_ORIGIN=https://airi.airewardrop.xyz
 PACIFICA_API_BASE=https://api.pacifica.fi
 AIRI3_PACIFICA_PUBLIC_API_BASE=https://api.pacifica.fi/api/v1
 AUTO_PACIFICA_API_KEY=your-pacifica-api-key

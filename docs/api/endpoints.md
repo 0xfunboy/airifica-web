@@ -1,6 +1,6 @@
 # API Endpoints
 
-All endpoints are served through the port-bridge at `https://app.eeess.cyou` (production) or `http://127.0.0.1:5173` (local). The elizaOS backend handles them on port 4040.
+All endpoints are served through the port-bridge at `https://airi.airewardrop.xyz` (production) or `http://127.0.0.1:5173` (local). The elizaOS backend handles them on port 4040.
 
 ---
 

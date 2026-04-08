@@ -27,7 +27,7 @@ It combines a real-time 3D avatar, conversational AI (powered by [elizaOS](https
 The production instance is live at:
 
 ```
-https://app.eeess.cyou
+https://airi.airewardrop.xyz
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 `airifica-web` is the production frontend for **AIR3 Agent** — an AI-powered trading companion for the [AIRewardrop](https://airewardrop.xyz) ecosystem. It combines a real-time 3D VRM avatar, conversational AI (elizaOS + DeepSeek), live Pacifica DEX market data, and one-click trade execution in a single immersive browser interface.
 
-**Live:** https://app.eeess.cyou
+**Live:** https://airi.airewardrop.xyz
 
 The production app is served same-origin through the `5173` port-bridge gateway. Static assets come directly from `dist/`, while `/api/*` and `/api/tts*` are proxied to the AIR3 backend and speech proxy.
 
@@ -96,6 +96,7 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - `VITE_AIR3_ELIZA_BASE_URL`: leave empty in production for same-origin `/api`; use `http://127.0.0.1:5173` only for local gateway testing
 - `VITE_AIR3_SERVICE_API_URL`: explicit API base override; usually empty in production
 - `VITE_AIR3_RUNTIME_BASE_URL`: optional legacy runtime alias
+- `VITE_AIRIFICA_PUBLIC_APP_URL`: public app origin used for wallet/deep-link flows
 - `VITE_AIRIFICA_AVATAR_MODEL_URL`: override for the default VRM model
 - `VITE_AIR3_DEFAULT_MARKET`: initial market symbol
 - `VITE_AIR3_TTS_PROVIDER`: `browser` or `openai-compatible`
@@ -109,6 +110,7 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - `VITE_AIR3_STT_WS_URL`: websocket endpoint for server STT; prefer `/api/stt/ws` in HTTPS deployments
 - `VITE_AIR3_STT_CONNECT_TIMEOUT_MS`
 - `VITE_AIR3_STT_RESPONSE_TIMEOUT_MS`
+- `VITE_AIR3_STT_MIN_UTTERANCE_MS`: minimum buffered speech duration before an utterance is sent to sherpa
 - `VITE_AIR3_STAGE_BRIGHTNESS`
 - `VITE_AIR3_STAGE_CONTRAST`
 - `VITE_AIR3_STAGE_SATURATION`

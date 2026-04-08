@@ -10,7 +10,7 @@ Cloudflare Tunnel (formerly Argo Tunnel) creates a secure outbound connection fr
 User Browser
     │  HTTPS (443)
     ▼
-Cloudflare Edge (app.eeess.cyou)
+Cloudflare Edge (airi.airewardrop.xyz)
     │  Encrypted tunnel (outbound from server)
     ▼
 cloudflared daemon (on your server)
@@ -19,7 +19,7 @@ cloudflared daemon (on your server)
 http://127.0.0.1:5173 (port-bridge)
 ```
 
-The `cloudflared` daemon runs on your server and maintains a persistent outbound connection to Cloudflare. Incoming requests to `app.eeess.cyou` are forwarded through this tunnel to port-bridge.
+The `cloudflared` daemon runs on your server and maintains a persistent outbound connection to Cloudflare. Incoming requests to `airi.airewardrop.xyz` are forwarded through this tunnel to port-bridge.
 
 **Key benefit:** Your server never needs to open port 80/443. The only exposed port is a local `127.0.0.1:5173` — not reachable from the internet.
 
@@ -51,7 +51,7 @@ This opens a browser window to authenticate with your Cloudflare account. A cert
 ## Create the Tunnel
 
 ```bash
-cloudflared tunnel create airifica
+cloudflared tunnel create airi
 ```
 
 This creates a tunnel and saves credentials to `~/.cloudflared/<tunnel-uuid>.json`.
@@ -69,7 +69,7 @@ tunnel: <tunnel-uuid>
 credentials-file: /home/funboy/.cloudflared/<tunnel-uuid>.json
 
 ingress:
-  - hostname: app.eeess.cyou
+  - hostname: airi.airewardrop.xyz
     service: http://127.0.0.1:5173
   - service: http_status:404
 ```
@@ -81,17 +81,17 @@ ingress:
 Route the subdomain through Cloudflare DNS to the tunnel:
 
 ```bash
-cloudflared tunnel route dns airifica app.eeess.cyou
+cloudflared tunnel route dns airi airi.airewardrop.xyz
 ```
 
-This creates a CNAME record: `app.eeess.cyou → <tunnel-uuid>.cfargotunnel.com`
+This creates a CNAME record: `airi.airewardrop.xyz → <tunnel-uuid>.cfargotunnel.com`
 
 ---
 
 ## Start the Tunnel
 
 ```bash
-cloudflared tunnel run airifica
+cloudflared tunnel run airi
 ```
 
 Or run as a system service:
@@ -108,10 +108,10 @@ sudo systemctl enable cloudflared
 
 ```bash
 # Check tunnel status
-cloudflared tunnel info airifica
+cloudflared tunnel info airi
 
 # Test from outside
-curl https://app.eeess.cyou/api/airi3/health
+curl https://airi.airewardrop.xyz/api/airi3/health
 ```
 
 ---

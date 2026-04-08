@@ -8,7 +8,7 @@ AIR3 Agent can be embedded in any website via an `<iframe>`. A `postMessage` pro
 
 ```html
 <iframe
-  src="https://app.eeess.cyou"
+  src="https://airi.airewardrop.xyz"
   width="400"
   height="700"
   allow="microphone; autoplay"
@@ -38,7 +38,7 @@ iframe.addEventListener('load', () => {
       token: 'eyJ...',          // JWT token (optional)
       guestId: 'uuid-...',      // guest ID (optional)
     },
-    'https://app.eeess.cyou'    // target origin — must match VITE_AIR3_EMBED_ALLOWED_ORIGIN
+    'https://airi.airewardrop.xyz'    // target origin — must match VITE_AIR3_EMBED_ALLOWED_ORIGIN
   )
 })
 ```
@@ -94,7 +94,7 @@ For a sidebar embed (narrow):
 
 ```html
 <iframe
-  src="https://app.eeess.cyou"
+  src="https://airi.airewardrop.xyz"
   width="380"
   height="800"
   allow="microphone; autoplay"
@@ -106,7 +106,7 @@ For a full-page embed:
 
 ```html
 <iframe
-  src="https://app.eeess.cyou"
+  src="https://airi.airewardrop.xyz"
   style="width: 100%; height: 100vh; border: none;"
   allow="microphone; autoplay"
 ></iframe>
@@ -119,7 +119,7 @@ For a full-page embed:
 Some browsers require explicit Permissions-Policy headers to allow microphone access in iframes. On your parent page's server, add:
 
 ```http
-Permissions-Policy: microphone=(self "https://app.eeess.cyou")
+Permissions-Policy: microphone=(self "https://airi.airewardrop.xyz")
 ```
 
 ---
@@ -132,9 +132,9 @@ If you are building a partner integration (e.g., embedding AIR3 Agent in your DE
 // 1. User connects their wallet on your site
 const address = wallet.publicKey.toString()
 
-// 2. Get a token from your own AIR3 Agent instance (or use eeess.cyou)
+// 2. Get a token from your own AIR3 Agent instance
 //    This step requires your own elizaOS backend with the user's address
-const { token } = await fetch('https://app.eeess.cyou/api/auth/verify', {
+const { token } = await fetch('https://airi.airewardrop.xyz/api/auth/verify', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ address, signature, message }),
@@ -143,7 +143,7 @@ const { token } = await fetch('https://app.eeess.cyou/api/auth/verify', {
 // 3. Inject into iframe
 iframe.contentWindow.postMessage(
   { type: 'AIRI3_BOOTSTRAP', address, token },
-  'https://app.eeess.cyou'
+  'https://airi.airewardrop.xyz'
 )
 ```
 
@@ -154,7 +154,7 @@ iframe.contentWindow.postMessage(
 If your parent site uses CSP, add the iframe origin to `frame-src`:
 
 ```http
-Content-Security-Policy: frame-src https://app.eeess.cyou
+Content-Security-Policy: frame-src https://airi.airewardrop.xyz
 ```
 
 ---

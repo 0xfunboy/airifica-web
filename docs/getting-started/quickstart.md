@@ -44,6 +44,7 @@ Edit `.env.local` with the minimum required values:
 ```bash
 # Point to your elizaOS backend (leave empty for same-origin in production)
 VITE_AIR3_ELIZA_BASE_URL=
+VITE_AIRIFICA_PUBLIC_APP_URL=https://airi.airewardrop.xyz
 
 # Pacifica builder code (provided by AIRewardrop)
 VITE_AIR3_PACIFICA_BUILDER_CODE=AIRewardrop
@@ -51,6 +52,11 @@ VITE_AIR3_PACIFICA_REFERRAL_CODE=AIRewardrop
 
 # TTS provider: 'browser' (free) or 'openai-compatible' (needs backend)
 VITE_AIR3_TTS_PROVIDER=browser
+
+# Optional STT fallback
+VITE_AIR3_STT_PROVIDER=auto
+VITE_AIR3_STT_WS_URL=/api/stt/ws
+AIRIFICA_STT_PROXY_TARGET_WS_URL=ws://192.168.178.87:6006
 ```
 
 See [Environment Configuration](./configuration.md) for the full reference.
@@ -89,7 +95,7 @@ This spawns two processes in parallel:
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-> **Note:** In dev mode, `/api/*` requests are proxied by Vite's built-in proxy to `http://127.0.0.1:4040`. The TTS proxy is handled by `scripts/tts-proxy.mjs` on port 4041.
+> **Note:** In dev mode, `/api/*` requests are proxied by Vite's built-in proxy to `http://127.0.0.1:4040`. `/api/stt/ws` is proxied as websocket traffic to the sherpa target configured by `AIRIFICA_STT_PROXY_TARGET_WS_URL`. The TTS proxy is handled by `scripts/tts-proxy.mjs` on port 4041.
 
 ---
 
@@ -115,6 +121,7 @@ The port-bridge listens on **port 5173** and:
 - Serves `dist/` static files directly (no Vite preview needed)
 - Proxies `/api/*` to elizaOS on port 4040
 - Proxies `/api/tts*` to TTS proxy on port 4041
+- Proxies `/api/stt/ws` to the sherpa websocket target when configured
 
 If you also need TTS:
 

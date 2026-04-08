@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Cloudflare Tunnel                           │
-│              app.eeess.cyou → http://127.0.0.1:5173             │
+│          airi.airewardrop.xyz → http://127.0.0.1:5173            │
 └─────────────────────────────┬───────────────────────────────────┘
                               │ HTTPS
                               ▼
@@ -17,7 +17,8 @@
 │  GET /assets/*   →  serve dist/assets/* (immutable cache)       │
 │  GET /brand/*    →  serve dist/brand/*                          │
 │  POST /api/*     →  proxy → elizaOS (port 4040)                 │
-│  POST /api/tts*  →  proxy → TTS Proxy (port 4041)               │
+│  /api/tts*       →  proxy → TTS Proxy (port 4041)               │
+│  /api/stt/ws     →  proxy → sherpa websocket (optional)         │
 └──────────┬──────────────────────────┬───────────────────────────┘
            │                          │
            ▼                          ▼
@@ -48,8 +49,8 @@
 
 The **port-bridge** is the single HTTP entrypoint for everything. The browser never makes cross-origin requests in production:
 
-- All pages are served from `https://app.eeess.cyou` (via port-bridge)
-- All API calls go to `https://app.eeess.cyou/api/*` (same origin)
+- All pages are served from `https://airi.airewardrop.xyz` (via port-bridge)
+- All API calls go to `https://airi.airewardrop.xyz/api/*` (same origin)
 - No CORS preflight is ever needed
 
 This was a deliberate design decision to eliminate the CORS complexity that arises when a SPA and its API live on different ports/domains.
@@ -76,6 +77,7 @@ elizaOS on port 4040 is never exposed to the public internet. It only accepts co
 | Port-Bridge | 5173 | `scripts/port-bridge.mjs` | systemd / manual |
 | elizaOS backend | 4040 | `eliza-air3/...` | systemd / manual |
 | TTS Proxy | 4041 | `scripts/tts-proxy.mjs` | systemd / manual |
+| sherpa STT upstream | external WS | proxied via `/api/stt/ws` | optional |
 | Vite dev server | 5173 | `pnpm dev` | dev only |
 
 ---
@@ -126,3 +128,4 @@ elizaOS on port 4040 is never exposed to the public internet. It only accepts co
 | Auth | JWT signed with `AIRI3_AUTH_SECRET` |
 | Wallet verification | Solana message signing (ed25519) |
 | Static assets | Path traversal prevention (`path.normalize` + strip `../`) |
+| STT transport | same-origin websocket proxy or explicitly configured secure websocket URL |

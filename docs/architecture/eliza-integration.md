@@ -38,7 +38,7 @@ elizaOS accepts requests from:
 - Origins matching `isAllowedCorsOrigin()` (private networks, configured origins)
 - Requests with **no Origin header** — this is how port-bridge requests arrive, since the proxy strips the `Origin` header before forwarding
 
-The `AIRI3_CORS_ORIGIN` environment variable sets the allowed public origin (e.g., `https://app.eeess.cyou`).
+The `AIRI3_CORS_ORIGIN` environment variable sets the allowed public origin (e.g., `https://airi.airewardrop.xyz`).
 
 ---
 

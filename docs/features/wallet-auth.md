@@ -133,7 +133,7 @@ iframe.contentWindow.postMessage({
   address: '0xABC...',
   token: 'eyJ...',
   guestId: 'uuid-...'
-}, 'https://app.eeess.cyou')
+}, 'https://airi.airewardrop.xyz')
 ```
 
 `App.vue` listens for this event and hydrates the wallet session without requiring the user to connect their wallet again inside the iframe.
