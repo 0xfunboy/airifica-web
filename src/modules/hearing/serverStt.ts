@@ -67,6 +67,26 @@ function normalizeTranscript(raw: string) {
   return value
 }
 
+function extractTranscriptFromServerMessage(raw: string) {
+  const normalized = normalizeTranscript(raw)
+  if (!normalized)
+    return ''
+
+  try {
+    const parsed = JSON.parse(normalized) as Record<string, unknown>
+    if (typeof parsed.text === 'string')
+      return normalizeTranscript(parsed.text)
+    if (typeof parsed.transcript === 'string')
+      return normalizeTranscript(parsed.transcript)
+    if (typeof parsed.result === 'string')
+      return normalizeTranscript(parsed.result)
+  }
+  catch {
+  }
+
+  return normalized
+}
+
 function logSttDebug(message: string, details?: Record<string, unknown>) {
   if (!import.meta.env.DEV)
     return
@@ -126,14 +146,6 @@ class SherpaOfflineSocketClient {
     const socket = this.socket
     this.socket = null
 
-    if (socket.readyState === WebSocket.OPEN) {
-      try {
-        socket.send('Done')
-      }
-      catch {
-      }
-    }
-
     try {
       socket.close(1000, 'session-ended')
     }
@@ -171,7 +183,7 @@ class SherpaOfflineSocketClient {
     }
 
     const response = await this.waitForResponse(socket, signal)
-    const transcript = normalizeTranscript(response)
+    const transcript = extractTranscriptFromServerMessage(response)
     logSttDebug(transcript ? 'Received transcript from sherpa.' : 'Received empty transcript from sherpa.', {
       durationMs,
       samples: samples.length,
