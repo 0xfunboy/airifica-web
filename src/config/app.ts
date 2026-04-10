@@ -118,6 +118,7 @@ export const appConfig = {
   pacificaPortfolioBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_PORTFOLIO_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaDepositBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_DEPOSIT_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaWithdrawBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
+  jupiterSwapBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_JUPITER_SWAP_BASE_URL || '', 'https://jup.ag/swap'),
   pacificaBuilderCode: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_CODE || 'AIRewardrop').trim(),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || 'AIRewardrop').trim(),
   pacificaBuilderMaxFeeRate: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_MAX_FEE_RATE || '0.001').trim(),

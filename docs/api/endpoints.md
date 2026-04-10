@@ -142,7 +142,7 @@ Fetch live market data for a symbol.
   "symbol": "SOL",
   "tf": "15m",
   "provider": "pacifica",
-  "venue": "pacifica",
+  "venue": "perp",
   "marketSymbol": "SOL-PERP",
   "quote": "USDC",
   "price": 90.12,
@@ -153,6 +153,13 @@ Fetch live market data for a symbol.
   "funding": 0.0012,
   "openInterest": 142000000,
   "supportedOnPacifica": true,
+  "supportedOnJupiter": false,
+  "executionVenue": "pacifica",
+  "chainId": null,
+  "baseTokenAddress": null,
+  "pairAddress": null,
+  "liquidityUsd": null,
+  "volume24h": 421000000,
   "tickSize": 0.001,
   "lotSize": 0.01,
   "minOrderSize": 10,
@@ -160,6 +167,41 @@ Fetch live market data for a symbol.
   "data": [
     { "open": 89.5, "high": 90.0, "low": 89.1, "close": 89.8, "volume": 12500, "timestamp": 1711015200000, "time": 1711015200 },
     ...
+  ]
+}
+```
+
+For non-Pacifica assets, the same endpoint can return external context instead of an error:
+
+```json
+{
+  "symbol": "AIR3",
+  "tf": "15m",
+  "provider": "geckoterminal",
+  "venue": "spot",
+  "marketSymbol": "AIR3",
+  "quote": "SOL",
+  "price": 0.0001433,
+  "changePct": -0.05,
+  "high": 0.0001466,
+  "low": 0.0001366,
+  "updatedAt": 1775801776899,
+  "funding": null,
+  "openInterest": null,
+  "supportedOnPacifica": false,
+  "supportedOnJupiter": true,
+  "executionVenue": "jupiter",
+  "chainId": "solana",
+  "baseTokenAddress": "2jvsWRkT17ofmv9pkW7ofqAFWSCNyJYdykJ7kPKbmoon",
+  "pairAddress": "52utUc1BdCp8iYtNfHTj2UUBrAWEkrDuVVR2vGgcoRJE",
+  "liquidityUsd": 28177.32,
+  "volume24h": 357.53,
+  "tickSize": null,
+  "lotSize": null,
+  "minOrderSize": null,
+  "maxLeverage": null,
+  "data": [
+    { "open": 0.000143, "high": 0.000145, "low": 0.000142, "close": 0.000144, "volume": 54.01, "time": 1775674800000 }
   ]
 }
 ```

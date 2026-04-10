@@ -10,16 +10,35 @@ const props = withDefaults(defineProps<{
 })
 
 const marketContext = useMarketContext()
-const label = computed(() => props.compact ? marketContext.currentSymbol.value : `Pacifica ${marketContext.currentSymbol.value}`)
+const executionVenue = computed(() => marketContext.market.value?.executionVenue === 'jupiter' ? 'jupiter' : 'pacifica')
+const href = computed(() => executionVenue.value === 'jupiter'
+  ? marketContext.jupiterTradeUrl.value
+  : marketContext.pacificaTradeUrl.value)
+const label = computed(() => {
+  if (props.compact)
+    return marketContext.currentSymbol.value
+  return `${executionVenue.value === 'jupiter' ? 'Jupiter' : 'Pacifica'} ${marketContext.currentSymbol.value}`
+})
+const visible = computed(() => executionVenue.value === 'jupiter'
+  ? Boolean(marketContext.jupiterTradeUrl.value)
+  : marketContext.market.value?.supportedOnPacifica !== false)
+const title = computed(() => executionVenue.value === 'jupiter'
+  ? `Open ${marketContext.currentSymbol.value} on Jupiter`
+  : `Open ${marketContext.currentSymbol.value} on Pacifica`)
 </script>
 
 <template>
   <a
-    :href="marketContext.pacificaTradeUrl.value"
+    v-if="visible"
+    :href="href"
     target="_blank"
     rel="noopener noreferrer"
-    :class="['pacifica-trade-button', compact ? 'pacifica-trade-button--compact' : '']"
-    :title="`Open ${marketContext.currentSymbol.value} on Pacifica`"
+    :class="[
+      'pacifica-trade-button',
+      compact ? 'pacifica-trade-button--compact' : '',
+      executionVenue === 'jupiter' ? 'pacifica-trade-button--jupiter' : '',
+    ]"
+    :title="title"
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 16 9.5 10.5l3 3L20 6" />
@@ -54,6 +73,15 @@ const label = computed(() => props.compact ? marketContext.currentSymbol.value :
 
 .pacifica-trade-button--compact {
   padding: 0 12px;
+}
+
+.pacifica-trade-button--jupiter {
+  border-color: rgba(127, 246, 165, 0.2);
+  background: rgba(9, 28, 28, 0.78);
+}
+
+.pacifica-trade-button--jupiter:hover {
+  background: rgba(12, 38, 34, 0.9);
 }
 
 .pacifica-trade-button svg {

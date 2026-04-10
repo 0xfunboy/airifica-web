@@ -30,10 +30,12 @@ const MARKET_ALIASES: Record<string, string> = {
   hype: 'HYPE',
 }
 
-const STORAGE_KEY = 'airifica:market-symbol'
+const STORAGE_KEY = 'airifica:market-query'
+const SOLANA_ADDRESS_PATTERN = /\b[1-9A-HJ-NP-Za-km-z]{25,60}\b/
+const EVM_ADDRESS_PATTERN = /\b0x[a-fA-F0-9]{40}\b/
 
 const state = reactive({
-  currentSymbol: readStorage<string | null>(
+  currentQuery: readStorage<string | null>(
     typeof window === 'undefined' ? null : window.localStorage,
     STORAGE_KEY,
     appConfig.defaultMarket,
@@ -52,9 +54,9 @@ const conversation = useConversationState()
 let initialized = false
 let universeRefreshTimer: ReturnType<typeof setInterval> | undefined
 
-function persistSymbol(symbol: string) {
-  state.currentSymbol = symbol
-  writeStorage(typeof window === 'undefined' ? null : window.localStorage, STORAGE_KEY, symbol)
+function persistQuery(query: string) {
+  state.currentQuery = query
+  writeStorage(typeof window === 'undefined' ? null : window.localStorage, STORAGE_KEY, query)
 }
 
 function normalizeSymbol(raw: string | null | undefined) {
@@ -76,6 +78,35 @@ function normalizeSymbol(raw: string | null | undefined) {
     return null
 
   return candidate.toUpperCase()
+}
+
+function normalizeAddress(raw: string | null | undefined) {
+  if (!raw)
+    return null
+
+  const trimmed = raw.trim()
+  if (!trimmed)
+    return null
+
+  if (EVM_ADDRESS_PATTERN.test(trimmed))
+    return trimmed.match(EVM_ADDRESS_PATTERN)?.[0] || null
+  if (SOLANA_ADDRESS_PATTERN.test(trimmed))
+    return trimmed.match(SOLANA_ADDRESS_PATTERN)?.[0] || null
+
+  return null
+}
+
+function normalizeMarketQuery(raw: string | null | undefined) {
+  return normalizeAddress(raw) || normalizeSymbol(raw)
+}
+
+function extractContractAddressFromText(content: string | undefined) {
+  if (!content)
+    return null
+
+  return content.match(EVM_ADDRESS_PATTERN)?.[0]
+    || content.match(SOLANA_ADDRESS_PATTERN)?.[0]
+    || null
 }
 
 function extractSymbolFromText(content: string | undefined) {
@@ -106,11 +137,18 @@ function extractSymbolFromText(content: string | undefined) {
   return null
 }
 
-function resolveSymbolFromMessages() {
+function resolveTargetFromMessages() {
   for (let index = conversation.messages.value.length - 1; index >= 0; index -= 1) {
     const message = conversation.messages.value[index]
-    if (message.proposal?.symbol)
-      return normalizeSymbol(message.proposal.symbol)
+    if (message.proposal?.symbol) {
+      const proposalTarget = normalizeMarketQuery(message.proposal.symbol)
+      if (proposalTarget)
+        return proposalTarget
+    }
+
+    const address = extractContractAddressFromText(message.content)
+    if (address)
+      return address
 
     const symbol = extractSymbolFromText(message.content)
     if (symbol)
@@ -133,10 +171,18 @@ function buildPacificaTradeUrl(symbol: string) {
     : undefined)
 }
 
+function buildJupiterTradeUrl(tokenAddress: string) {
+  const normalizedBase = appConfig.jupiterSwapBaseUrl.replace(/\/+$/, '')
+  const normalizedToken = tokenAddress.trim()
+  if (!normalizedBase || !normalizedToken)
+    return ''
+  return `${normalizedBase}/SOL-${normalizedToken}`
+}
+
 function refreshFromConversation() {
-  const symbol = resolveSymbolFromMessages()
-  if (symbol && symbol !== state.currentSymbol)
-    persistSymbol(symbol)
+  const target = resolveTargetFromMessages()
+  if (target && target !== state.currentQuery)
+    persistQuery(target)
 }
 
 async function refreshMarketContext() {
@@ -148,7 +194,7 @@ async function refreshMarketContext() {
       token: wallet.token.value || undefined,
     })
     state.market = await client.fetchMarketContext({
-      symbol: state.currentSymbol,
+      symbol: state.currentQuery,
       timeframe: '15m',
       limit: 96,
       headers: wallet.buildRequestHeaders(),
@@ -181,11 +227,11 @@ async function refreshMarketUniverse() {
 }
 
 function setSymbol(symbol: string | null | undefined) {
-  const normalized = normalizeSymbol(symbol)
+  const normalized = normalizeMarketQuery(symbol)
   if (!normalized)
     return
 
-  persistSymbol(normalized)
+  persistQuery(normalized)
 }
 
 function initializeSync() {
@@ -198,7 +244,7 @@ function initializeSync() {
     refreshFromConversation()
   }, { immediate: true })
 
-  watch(() => state.currentSymbol, () => {
+  watch(() => state.currentQuery, () => {
     void refreshMarketContext()
   }, { immediate: true })
 
@@ -211,8 +257,15 @@ function initializeSync() {
 export function useMarketContext() {
   initializeSync()
 
+  const currentSymbol = computed(() =>
+    state.market?.symbol
+    || normalizeSymbol(state.currentQuery)
+    || appConfig.defaultMarket,
+  )
+
   return {
-    currentSymbol: computed(() => state.currentSymbol),
+    currentQuery: computed(() => state.currentQuery),
+    currentSymbol,
     market: computed(() => state.market),
     universe: computed(() => state.universe),
     universeLoading: computed(() => state.universeLoading),
@@ -220,11 +273,15 @@ export function useMarketContext() {
     error: computed(() => state.error),
     lastSyncedAt: computed(() => state.lastSyncedAt),
     lastUniverseSyncedAt: computed(() => state.lastUniverseSyncedAt),
-    pacificaTradeUrl: computed(() => buildPacificaTradeUrl(state.currentSymbol)),
+    pacificaTradeUrl: computed(() => buildPacificaTradeUrl(currentSymbol.value)),
+    jupiterTradeUrl: computed(() => state.market?.executionVenue === 'jupiter' && state.market?.baseTokenAddress
+      ? buildJupiterTradeUrl(state.market.baseTokenAddress)
+      : ''),
     pacificaPortfolioUrl: computed(() => appConfig.pacificaPortfolioBaseUrl),
     pacificaDepositUrl: computed(() => appConfig.pacificaDepositBaseUrl),
     pacificaWithdrawUrl: computed(() => appConfig.pacificaWithdrawBaseUrl),
     buildPacificaTradeUrl,
+    buildJupiterTradeUrl,
     setSymbol,
     refreshMarketContext,
     refreshMarketUniverse,

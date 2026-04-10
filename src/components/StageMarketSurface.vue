@@ -13,6 +13,7 @@ const wallet = useWalletSession()
 
 const market = computed(() => marketContext.market.value)
 const pacificaTradeUrl = computed(() => marketContext.pacificaTradeUrl.value)
+const jupiterTradeUrl = computed(() => marketContext.jupiterTradeUrl.value)
 const pacificaPortfolioUrl = computed(() => marketContext.pacificaPortfolioUrl.value)
 const pacificaDepositUrl = computed(() => marketContext.pacificaDepositUrl.value)
 const marketUniverse = computed(() => marketContext.universe.value)
@@ -31,7 +32,7 @@ const trendToneClass = computed(() => {
 })
 
 const currentPacificaPosition = computed(() =>
-  pacifica.getPositionForSymbol(marketContext.currentSymbol.value),
+  market.value?.supportedOnPacifica === false ? null : pacifica.getPositionForSymbol(marketContext.currentSymbol.value),
 )
 const otherPacificaPositions = computed(() =>
   pacifica.positions.value.filter(position =>
@@ -61,8 +62,13 @@ const requiresFunding = computed(() =>
 const requiresBetaAccess = computed(() =>
   Boolean(wallet.isAuthenticated.value && pacifica.betaAccessRequired.value),
 )
+const usesExternalExecution = computed(() => market.value?.supportedOnPacifica === false)
+const usesJupiterExecution = computed(() => market.value?.executionVenue === 'jupiter' && Boolean(jupiterTradeUrl.value))
 
 const accountMetrics = computed(() => {
+  if (usesExternalExecution.value)
+    return []
+
   if (!pacifica.account.value)
     return []
 
@@ -77,6 +83,10 @@ const accountMetrics = computed(() => {
 const expandedPositionKeys = reactive(new Set<string>())
 
 const executionStateTitle = computed(() => {
+  if (usesJupiterExecution.value)
+    return 'Spot execution'
+  if (usesExternalExecution.value)
+    return 'External market'
   if (!wallet.isConnected.value)
     return 'Connect wallet'
   if (!wallet.isAuthenticated.value)
@@ -93,6 +103,11 @@ const executionStateTitle = computed(() => {
 })
 
 const surfaceStatusLabel = computed(() => {
+  if (market.value?.supportedOnPacifica === false) {
+    if (market.value?.executionVenue === 'jupiter')
+      return 'Spot via Jupiter'
+    return 'Tracked off-Pacifica'
+  }
   if (!wallet.isConnected.value)
     return 'Wallet offline'
   if (!wallet.isAuthenticated.value)
@@ -108,7 +123,41 @@ const surfaceStatusLabel = computed(() => {
   return 'Ready'
 })
 
+const surfaceDescription = computed(() => {
+  if (market.value?.supportedOnPacifica === false) {
+    if (market.value?.executionVenue === 'jupiter')
+      return 'Spot market context is live. Perpetual execution is not on Pacifica for this asset.'
+    return 'External market context is live for assets not listed on Pacifica.'
+  }
+
+  return 'Live market context and account state.'
+})
+
+const marketCoverageLabel = computed(() => {
+  if (!market.value)
+    return null
+  if (market.value.supportedOnPacifica)
+    return 'Perp available on Pacifica'
+  if (market.value.executionVenue === 'jupiter')
+    return 'Spot available on Jupiter'
+  return 'Not tradable on Pacifica'
+})
+
+const marketCoverageClass = computed(() => {
+  if (!market.value)
+    return 'stage-backdrop__surface-coverage'
+  if (market.value.supportedOnPacifica)
+    return 'stage-backdrop__surface-coverage stage-backdrop__surface-coverage--pacifica'
+  if (market.value.executionVenue === 'jupiter')
+    return 'stage-backdrop__surface-coverage stage-backdrop__surface-coverage--jupiter'
+  return 'stage-backdrop__surface-coverage stage-backdrop__surface-coverage--external'
+})
+
 const onboardingHint = computed(() => {
+  if (usesJupiterExecution.value)
+    return 'Spot execution is available on Jupiter for this Solana asset.'
+  if (usesExternalExecution.value)
+    return 'This asset is not listed on Pacifica. AIR3 is showing external market data only.'
   if (!wallet.isConnected.value)
     return 'Use your Solana wallet to enable Pacifica actions.'
   if (!wallet.isAuthenticated.value)
@@ -423,12 +472,15 @@ watch(() => wallet.token.value, () => {
           </div>
         </div>
         <span class="stage-backdrop__surface-description">
-          Live market context and account state.
+          {{ surfaceDescription }}
         </span>
         <div class="stage-backdrop__surface-meta">
           <span class="stage-backdrop__surface-status-label">Status</span>
           <span class="stage-backdrop__surface-status">{{ surfaceStatusLabel }}</span>
         </div>
+        <span v-if="marketCoverageLabel" :class="marketCoverageClass">
+          {{ marketCoverageLabel }}
+        </span>
       </div>
     </div>
 
@@ -503,14 +555,14 @@ watch(() => wallet.token.value, () => {
     </div>
 
     <div v-if="market" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
-      <span>Data provider: {{ market.provider }}</span>
+      <span>Data provider: {{ market.provider }}<template v-if="market.chainId"> · {{ market.chainId }}</template></span>
       <span>Range: {{ formatCompact(market.data?.length || 0) }} candles</span>
     </div>
 
     <div class="stage-backdrop__account-stack">
       <div class="stage-backdrop__account-card">
         <div class="stage-backdrop__metric-label">
-          Pacifica account
+          {{ usesExternalExecution ? 'Execution venue' : 'Pacifica account' }}
         </div>
         <div class="stage-backdrop__account-row">
           <div>
@@ -523,8 +575,18 @@ watch(() => wallet.token.value, () => {
           </div>
 
           <div class="stage-backdrop__account-actions">
+            <a
+              v-if="usesJupiterExecution"
+              :href="jupiterTradeUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="stage-backdrop__primary-action stage-backdrop__primary-action--jupiter"
+            >
+              Open on Jupiter
+            </a>
+
             <button
-              v-if="!wallet.isConnected.value"
+              v-else-if="!usesExternalExecution && !wallet.isConnected.value"
               :disabled="wallet.connecting.value || wallet.authenticating.value"
               class="stage-backdrop__primary-action"
               type="button"
@@ -534,7 +596,7 @@ watch(() => wallet.token.value, () => {
             </button>
 
             <button
-              v-else-if="requiresSessionSignature"
+              v-else-if="!usesExternalExecution && requiresSessionSignature"
               :disabled="wallet.authenticating.value"
               class="stage-backdrop__primary-action"
               type="button"
@@ -544,7 +606,7 @@ watch(() => wallet.token.value, () => {
             </button>
 
             <button
-              v-if="canConnectPacifica"
+              v-if="!usesExternalExecution && canConnectPacifica"
               :disabled="pacifica.setupLoading.value"
               class="stage-backdrop__primary-action"
               type="button"
@@ -554,7 +616,7 @@ watch(() => wallet.token.value, () => {
             </button>
 
             <a
-              v-else-if="requiresBetaAccess"
+              v-else-if="!usesExternalExecution && requiresBetaAccess"
               :href="pacificaPortfolioUrl"
               target="_blank"
               rel="noopener noreferrer"
@@ -564,7 +626,7 @@ watch(() => wallet.token.value, () => {
             </a>
 
             <a
-              v-else-if="requiresPacificaActivation || requiresFunding"
+              v-else-if="!usesExternalExecution && (requiresPacificaActivation || requiresFunding)"
               :href="requiresPacificaActivation ? pacificaTradeUrl : pacificaDepositUrl"
               target="_blank"
               rel="noopener noreferrer"
@@ -574,7 +636,7 @@ watch(() => wallet.token.value, () => {
             </a>
 
             <a
-              v-if="wallet.isAuthenticated.value"
+              v-if="!usesExternalExecution && wallet.isAuthenticated.value"
               :href="requiresPacificaActivation ? pacificaDepositUrl : pacificaPortfolioUrl"
               target="_blank"
               rel="noopener noreferrer"
@@ -594,7 +656,7 @@ watch(() => wallet.token.value, () => {
       </div>
 
       <a
-        v-if="wallet.isAuthenticated.value && !requiresPacificaActivation"
+        v-if="!usesExternalExecution && wallet.isAuthenticated.value && !requiresPacificaActivation"
         :href="pacificaPortfolioUrl"
         target="_blank"
         rel="noopener noreferrer"
@@ -903,6 +965,39 @@ watch(() => wallet.token.value, () => {
   font-weight: 600;
 }
 
+.stage-backdrop__surface-coverage {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 24px;
+  margin-top: 4px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.38);
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.stage-backdrop__surface-coverage--pacifica {
+  border-color: rgba(34, 197, 94, 0.24);
+  background: rgba(13, 66, 42, 0.34);
+  color: #bbf7d0;
+}
+
+.stage-backdrop__surface-coverage--jupiter {
+  border-color: rgba(96, 165, 250, 0.24);
+  background: rgba(15, 53, 92, 0.34);
+  color: #bfdbfe;
+}
+
+.stage-backdrop__surface-coverage--external {
+  border-color: rgba(250, 204, 21, 0.22);
+  background: rgba(73, 53, 10, 0.34);
+  color: #fde68a;
+}
+
 .stage-backdrop__metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1084,6 +1179,11 @@ watch(() => wallet.token.value, () => {
   border: 0;
   background: #67e8f9;
   color: #0f172a;
+}
+
+.stage-backdrop__primary-action--jupiter {
+  background: linear-gradient(135deg, rgba(85, 232, 170, 0.92), rgba(110, 231, 255, 0.86));
+  color: #062018;
 }
 
 .stage-backdrop__secondary-action {

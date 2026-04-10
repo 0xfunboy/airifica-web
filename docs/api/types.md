@@ -118,14 +118,23 @@ interface Air3MarketContext {
   changePct: number             // 24h change %
   high: number                  // session high
   low: number                   // session low
-  updatedAt: string             // ISO timestamp
+  updatedAt: number             // Unix ms
   funding?: number              // funding rate
   openInterest?: number         // USD
   supportedOnPacifica: boolean
-  tickSize: number
-  lotSize: number
-  minOrderSize: number
-  maxLeverage: number
+  supportedOnJupiter?: boolean
+  executionVenue?: 'pacifica' | 'jupiter' | null
+  chainId?: string | null
+  baseTokenAddress?: string | null
+  baseTokenName?: string | null
+  pairAddress?: string | null
+  liquidityUsd?: number | null
+  volume24h?: number | null
+  requestQuery?: string | null
+  tickSize?: number | null
+  lotSize?: number | null
+  minOrderSize?: number | null
+  maxLeverage?: number | null
   data: Air3MarketContextCandle[]
 }
 

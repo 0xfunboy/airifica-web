@@ -205,6 +205,15 @@ export interface Air3MarketContext {
   funding?: number | null
   openInterest?: number | null
   supportedOnPacifica?: boolean
+  supportedOnJupiter?: boolean
+  executionVenue?: 'pacifica' | 'jupiter' | null
+  chainId?: string | null
+  baseTokenAddress?: string | null
+  baseTokenName?: string | null
+  pairAddress?: string | null
+  liquidityUsd?: number | null
+  volume24h?: number | null
+  requestQuery?: string | null
   tickSize?: number | null
   lotSize?: number | null
   minOrderSize?: number | null

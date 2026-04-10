@@ -1,6 +1,6 @@
 # Market Context
 
-The market context system fetches live price data and injects it into every AI conversation. The `MarketContextCard` component displays a mini candlestick chart with key metrics.
+The market context system fetches live price data and injects it into every AI conversation. The stage surface can resolve both Pacifica-listed perp markets and assets that only exist off-Pacifica through contract address or ticker lookup.
 
 ---
 
@@ -25,28 +25,43 @@ The market context system fetches live price data and injects it into every AI c
 
 ---
 
+## Coverage Rules
+
+- If the symbol is listed on Pacifica, AIR3 uses Pacifica price and candle data and marks the asset as `Perp available on Pacifica`.
+- If the symbol or contract address is not listed on Pacifica, AIR3 resolves market data through DexScreener and GeckoTerminal instead of throwing a surface error.
+- If the resolved asset is a Solana spot token with a valid mint, AIR3 marks it as `Spot available on Jupiter`.
+
 ## Data Structure
 
 ```typescript
 interface Air3MarketContext {
   symbol: string          // e.g., "SOL"
   tf: string              // timeframe: "15m", "1h", "4h"
-  provider: string        // "pacifica"
-  venue: string           // trading venue identifier
-  marketSymbol: string    // full market symbol (e.g., "SOL-PERP")
-  quote: string           // quote currency ("USDC")
+  provider: string        // "pacifica" | "geckoterminal" | "dexscreener"
+  venue: string           // "perp" | "spot"
+  marketSymbol: string    // e.g., "SOL-PERP" or "AIR3"
+  quote: string           // quote currency ("USD", "SOL")
   price: number           // current mark price
   changePct: number       // 24h change percentage
   high: number            // session high
   low: number             // session low
-  updatedAt: string       // ISO timestamp
+  updatedAt: number       // Unix ms
   funding?: number        // funding rate (perps)
   openInterest?: number   // open interest in USD
   supportedOnPacifica: boolean
-  tickSize: number        // minimum price increment
-  lotSize: number         // minimum quantity increment
-  minOrderSize: number    // minimum order size
-  maxLeverage: number     // maximum available leverage
+  supportedOnJupiter?: boolean
+  executionVenue?: 'pacifica' | 'jupiter' | null
+  chainId?: string | null
+  baseTokenAddress?: string | null
+  baseTokenName?: string | null
+  pairAddress?: string | null
+  liquidityUsd?: number | null
+  volume24h?: number | null
+  requestQuery?: string | null
+  tickSize?: number | null
+  lotSize?: number | null
+  minOrderSize?: number | null
+  maxLeverage?: number | null
   data: Air3MarketContextCandle[]  // OHLCV candles
 }
 
@@ -70,6 +85,11 @@ Market context is fetched via:
 ```
 GET /api/airi3/market-context?symbol=SOL&tf=15m
 ```
+
+`symbol` accepts:
+- Pacifica ticker, e.g. `BTC`
+- off-Pacifica ticker, e.g. `AIR3`
+- contract address, e.g. a Solana mint or EVM token address
 
 Polling interval: every 30 seconds (configurable in `modules/market/context.ts`).
 
@@ -103,7 +123,7 @@ Before every AI response, the current market context is formatted and prepended 
 [OHLCV data table follows...]
 ```
 
-This gives the LLM the same data the user sees, enabling accurate technical analysis.
+This gives the LLM the same data the user sees, enabling accurate technical analysis even when the asset is not supported for Pacifica execution.
 
 ---
 
@@ -115,5 +135,7 @@ The mini chart in `MarketContextCard` is a lightweight candlestick renderer buil
 - Volume bars (semi-transparent, bottom)
 - Price line overlay
 - Auto-scaling Y-axis
+
+For off-Pacifica assets, candles are sourced from GeckoTerminal where possible. If a pool resolves but OHLCV is unavailable, AIR3 falls back to a synthetic flat series so the surface still renders context instead of an error state.
 
 The chart width adapts to the card container. On mobile, it collapses to a single-line price display.

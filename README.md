@@ -1,6 +1,6 @@
 # Airifica Web — AIR3 Agent Interface
 
-`airifica-web` is the production frontend for **AIR3 Agent** — an AI-powered trading companion for the [AIRewardrop](https://airewardrop.xyz) ecosystem. It combines a real-time 3D VRM avatar, conversational AI (elizaOS + DeepSeek), live Pacifica DEX market data, and one-click trade execution in a single immersive browser interface.
+`airifica-web` is the production frontend for **AIR3 Agent** — an AI-powered trading companion for the [AIRewardrop](https://airewardrop.xyz) ecosystem. It combines a real-time 3D VRM avatar, conversational AI (elizaOS + DeepSeek), live Pacifica market data, external token discovery for off-Pacifica assets, and venue-aware execution links in a single immersive browser interface.
 
 **Live:** https://airi.airewardrop.xyz
 
@@ -33,6 +33,8 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 - falls back to `Open in Phantom` on mobile when no injected Solana provider is available in the current browser
 - syncs Pacifica account overview, builder onboarding, agent bind, open trade execution and close position actions
 - renders market context inside the stage and surfaces trade proposals back into the conversation
+- falls back to DexScreener + GeckoTerminal market data when a ticker or contract address is not listed on Pacifica
+- distinguishes execution venue per asset, including spot handoff to Jupiter for supported Solana tokens
 - supports voice input, VAD-backed hearing, speech playback and avatar mouth/expression driving
 - keeps browser speech recognition where it works and falls back to sherpa-onnx websocket STT where it does not
 
@@ -66,6 +68,13 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 - builder onboarding using `AIRewardrop` as builder and referral code
 - open trade routing from AIR3 proposals
 - close position actions from the market surface
+
+### External Markets
+
+- contract-address and ticker lookup for assets outside the Pacifica perp universe
+- fallback pair discovery through DexScreener
+- fallback OHLCV through GeckoTerminal when available
+- Jupiter swap deep link for supported Solana spot assets
 
 ### Avatar Runtime
 
@@ -127,6 +136,7 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - `VITE_AIR3_PACIFICA_PORTFOLIO_BASE_URL`
 - `VITE_AIR3_PACIFICA_DEPOSIT_BASE_URL`
 - `VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL`
+- `VITE_AIR3_JUPITER_SWAP_BASE_URL`
 - `VITE_AIR3_PACIFICA_BUILDER_CODE`
 - `VITE_AIR3_PACIFICA_REFERRAL_CODE`
 
@@ -143,3 +153,4 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - the external TTS path expects an OpenAI-compatible `audio/speech` response and falls back to browser speech when unavailable
 - the STT fallback expects a sherpa-onnx offline websocket server behind the same-origin `/api/stt/ws` bridge or an explicitly configured websocket URL
 - Pacifica market universe is cached server-side and refreshed on a long interval; account and position state refresh more frequently
+- if a queried asset is not listed on Pacifica, AIR3 resolves external market data first and only shows Pacifica execution affordances where perpetual support actually exists
