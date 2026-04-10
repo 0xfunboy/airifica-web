@@ -203,6 +203,37 @@ async function connect() {
   }
 }
 
+async function connectWalletOnly() {
+  const provider = getSolanaProvider()
+  if (!provider) {
+    state.error = 'No Solana wallet detected. Install Phantom or Backpack.'
+    throw new Error(state.error)
+  }
+
+  state.connecting = true
+  state.error = null
+
+  try {
+    const response = await provider.connect()
+    const nextAddress = readProviderAddress(provider, response)
+    if (!nextAddress)
+      throw new Error('Unable to read the Solana address from the active wallet.')
+
+    if (state.address && state.address !== nextAddress)
+      persistToken(null)
+
+    persistAddress(nextAddress)
+    return nextAddress
+  }
+  catch (error) {
+    state.error = error instanceof Error ? error.message : 'Wallet connection failed.'
+    throw error
+  }
+  finally {
+    state.connecting = false
+  }
+}
+
 async function disconnect() {
   const provider = getSolanaProvider()
   try {
@@ -278,6 +309,7 @@ export function useWalletSession() {
     bootstrapFromSearch,
     authenticate,
     connect,
+    connectWalletOnly,
     disconnect,
     clearAuthentication,
     tryRestore,

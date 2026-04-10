@@ -12,6 +12,7 @@ export interface SolanaProvider {
   connect: (options?: { onlyIfTrusted?: boolean }) => Promise<SolanaProviderConnectResponse>
   disconnect?: () => Promise<void>
   signMessage?: (message: Uint8Array) => Promise<{ signature: Uint8Array } | Uint8Array>
+  signTransaction?: <T>(transaction: T) => Promise<T>
 }
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -77,6 +78,14 @@ function bytesToBinary(bytes: Uint8Array) {
 
 export function bytesToBase64(bytes: Uint8Array) {
   return btoa(bytesToBinary(bytes))
+}
+
+export function base64ToBytes(value: string) {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index)
+  return bytes
 }
 
 export function bytesToBase58(bytes: Uint8Array) {

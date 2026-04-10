@@ -3,6 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
+import https from 'node:https'
 import net from 'node:net'
 import tls from 'node:tls'
 import { fileURLToPath } from 'node:url'
@@ -40,9 +41,12 @@ const AIR3_TARGET_PORT = 4040
 const TTS_TARGET_HOST = '127.0.0.1'
 const TTS_TARGET_PORT = 4041
 const STT_PROXY_PATH = '/api/stt/ws'
+const JUPITER_PROXY_PREFIX = '/api/jupiter'
 const LISTEN_HOST = process.env.AIRIFICA_BRIDGE_HOST || '127.0.0.1'
 const LISTEN_PORT = Number(process.env.AIRIFICA_BRIDGE_PORT || 5173)
 const STT_PROXY_TARGET = (process.env.AIRIFICA_STT_PROXY_TARGET_WS_URL || '').trim()
+const JUPITER_API_BASE_URL = (process.env.AIRIFICA_JUPITER_API_BASE_URL || '').trim()
+const JUPITER_API_KEY = (process.env.AIRIFICA_JUPITER_API_KEY || '').trim()
 
 const TTS_PROXY_PATHS = new Set([
   '/api/tts',
@@ -73,6 +77,29 @@ function parseWebSocketTarget(raw) {
 }
 
 const STT_WS_TARGET = parseWebSocketTarget(STT_PROXY_TARGET)
+
+function parseHttpTarget(raw) {
+  if (!raw)
+    return null
+
+  try {
+    const url = new URL(raw)
+    if (!['http:', 'https:'].includes(url.protocol))
+      return null
+
+    return {
+      host: url.hostname,
+      port: Number(url.port || (url.protocol === 'https:' ? 443 : 80)),
+      path: (url.pathname || '/').replace(/\/+$/, ''),
+      secure: url.protocol === 'https:',
+    }
+  }
+  catch {
+    return null
+  }
+}
+
+const JUPITER_HTTP_TARGET = parseHttpTarget(JUPITER_API_BASE_URL)
 
 const AIR3_ALLOWED_ROUTES = [
   { method: 'POST', pattern: /^\/api\/auth\/challenge$/ },
@@ -158,6 +185,9 @@ function resolveTarget(pathname = '/') {
   if (pathname === STT_PROXY_PATH && STT_WS_TARGET)
     return { kind: 'websocket', ...STT_WS_TARGET }
 
+  if (pathname.startsWith(JUPITER_PROXY_PREFIX))
+    return { kind: 'jupiter' }
+
   if (pathname.startsWith('/api/'))
     return { kind: 'proxy', host: AIR3_TARGET_HOST, port: AIR3_TARGET_PORT }
 
@@ -233,6 +263,13 @@ function isAllowedApiRoute(method, pathname) {
   return AIR3_ALLOWED_ROUTES.some(route => route.method === method && route.pattern.test(pathname))
 }
 
+function isJupiterApiRoute(method, pathname) {
+  if (!pathname.startsWith(JUPITER_PROXY_PREFIX))
+    return false
+
+  return ['GET', 'POST', 'OPTIONS'].includes(method)
+}
+
 function isCorsAllowedOrigin(origin) {
   if (!origin)
     return false
@@ -265,15 +302,78 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
     const requestedMethod = String(req.headers['access-control-request-method'] || 'GET').toUpperCase()
-    if (TTS_PROXY_PATHS.has(url.pathname) || isAllowedApiRoute(requestedMethod, `${url.pathname}${url.search}`)) {
+    if (TTS_PROXY_PATHS.has(url.pathname) || isJupiterApiRoute(requestedMethod, url.pathname) || isAllowedApiRoute(requestedMethod, `${url.pathname}${url.search}`)) {
       res.writeHead(204, corsHeaders)
       res.end()
       return
     }
   }
 
-  if (url.pathname.startsWith('/api/') && !TTS_PROXY_PATHS.has(url.pathname) && !isAllowedApiRoute(req.method || 'GET', `${url.pathname}${url.search}`))
+  if (url.pathname.startsWith('/api/') && !TTS_PROXY_PATHS.has(url.pathname) && !isJupiterApiRoute(req.method || 'GET', url.pathname) && !isAllowedApiRoute(req.method || 'GET', `${url.pathname}${url.search}`))
     return sendJson(res, 404, { ok: false, error: 'Route not exposed by Airifica gateway' })
+
+  if (target.kind === 'jupiter') {
+    if (!JUPITER_HTTP_TARGET)
+      return sendJson(res, 503, { ok: false, error: 'Jupiter execution is not configured on this gateway.' })
+    if (!JUPITER_API_KEY)
+      return sendJson(res, 503, { ok: false, error: 'Jupiter execution is not configured yet. Missing AIRIFICA_JUPITER_API_KEY.' })
+
+    const upstreamPath = `${JUPITER_HTTP_TARGET.path || ''}${url.pathname.replace(/^\/api\/jupiter/, '') || ''}${url.search || ''}` || '/'
+    const client = JUPITER_HTTP_TARGET.secure ? https : http
+    const bodyChunks = []
+
+    req.on('data', (chunk) => {
+      bodyChunks.push(chunk)
+    })
+
+    req.on('end', () => {
+      const requestBody = bodyChunks.length ? Buffer.concat(bodyChunks) : null
+      const upstream = client.request(
+        {
+          host: JUPITER_HTTP_TARGET.host,
+          port: JUPITER_HTTP_TARGET.port,
+          method: req.method,
+          path: upstreamPath,
+          headers: {
+            'accept': 'application/json',
+            ...(requestBody ? { 'content-type': req.headers['content-type'] || 'application/json', 'content-length': requestBody.length } : {}),
+            'x-api-key': JUPITER_API_KEY,
+          },
+        },
+        (upstreamRes) => {
+          res.writeHead(upstreamRes.statusCode ?? 502, {
+            ...upstreamRes.headers,
+            ...corsHeaders,
+          })
+          upstreamRes.pipe(res)
+        },
+      )
+
+      upstream.on('error', () => {
+        if (!res.headersSent)
+          res.writeHead(502, {
+            'content-type': 'application/json; charset=utf-8',
+            ...corsHeaders,
+          })
+        res.end(JSON.stringify({ ok: false, error: 'Jupiter upstream unavailable' }))
+      })
+
+      if (requestBody?.length)
+        upstream.write(requestBody)
+      upstream.end()
+    })
+
+    req.on('error', () => {
+      if (!res.headersSent)
+        res.writeHead(400, {
+          'content-type': 'application/json; charset=utf-8',
+          ...corsHeaders,
+        })
+      res.end(JSON.stringify({ ok: false, error: 'Invalid Jupiter request body' }))
+    })
+
+    return
+  }
 
   const upstream = http.request(
     {

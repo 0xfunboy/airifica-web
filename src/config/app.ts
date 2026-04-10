@@ -119,6 +119,12 @@ export const appConfig = {
   pacificaDepositBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_DEPOSIT_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaWithdrawBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   jupiterSwapBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_JUPITER_SWAP_BASE_URL || '', 'https://jup.ag/swap'),
+  jupiterApiBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_JUPITER_API_BASE_URL || '', '/api/jupiter', {
+    sameOriginFallback: '/api/jupiter',
+  }),
+  jupiterInputMint: (import.meta.env.VITE_AIR3_JUPITER_INPUT_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v').trim(),
+  jupiterInputSymbol: (import.meta.env.VITE_AIR3_JUPITER_INPUT_SYMBOL || 'USDC').trim(),
+  jupiterInputDecimals: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_INPUT_DECIMALS, 6),
   pacificaBuilderCode: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_CODE || 'AIRewardrop').trim(),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || 'AIRewardrop').trim(),
   pacificaBuilderMaxFeeRate: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_MAX_FEE_RATE || '0.001').trim(),

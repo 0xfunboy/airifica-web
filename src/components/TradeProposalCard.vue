@@ -3,11 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 import type { Air3TradeProposal } from '@/lib/air3-client'
 
+import { appConfig } from '@/config/app'
 import { createAir3Client } from '@/lib/air3'
 import { Air3HttpError } from '@/lib/air3-client/http'
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useTradeExecutionPreferences } from '@/modules/product/execution'
+import { executeJupiterSpotSwap, formatJupiterExecutionMessage } from '@/modules/trade/jupiter'
 import { computeProposalConfidence, computeRiskReward } from '@/modules/trade/proposalMetrics'
 import { useWalletSession } from '@/modules/wallet/session'
 
@@ -37,6 +39,8 @@ const marketPrice = computed(() =>
 const marketMeta = computed(() =>
   marketContext.currentSymbol.value === props.proposal.symbol ? marketContext.market.value : null,
 )
+const usesJupiterExecution = computed(() => marketMeta.value?.executionVenue === 'jupiter')
+const usesPacificaExecution = computed(() => !usesJupiterExecution.value)
 const maxLeverage = computed(() => {
   const marketMax = Number(marketMeta.value?.maxLeverage || 0)
   return Number.isFinite(marketMax) && marketMax >= 1 ? Math.max(1, Math.trunc(marketMax)) : 1
@@ -50,6 +54,8 @@ const estimatedAssetAmount = computed(() =>
   props.proposal.entry > 0 ? effectiveNotionalUsd.value / props.proposal.entry : 0,
 )
 const availableCollateralUsd = computed(() => {
+  if (!usesPacificaExecution.value)
+    return 0
   const available = Number(pacifica.account.value?.availableToSpend || 0)
   return Number.isFinite(available) && available > 0 ? available : 0
 })
@@ -57,6 +63,8 @@ const exceedsAvailableCollateral = computed(() =>
   availableCollateralUsd.value > 0 && numericSizeUsd.value > availableCollateralUsd.value,
 )
 const minimumOrderHint = computed(() => {
+  if (!usesPacificaExecution.value)
+    return null
   const minimum = Number(marketMeta.value?.minOrderSize || 0)
   return Number.isFinite(minimum) && minimum > 0 ? minimum : null
 })
@@ -91,18 +99,41 @@ const proposalForExecution = computed(() => ({
   ...props.proposal,
   confidence: Number(derivedConfidence.value.toFixed(2)),
 }))
-const requiresOnboarding = computed(() => wallet.isAuthenticated.value && !pacifica.readyToExecute.value)
+const jupiterExecutionSupported = computed(() =>
+  usesJupiterExecution.value
+  && props.proposal.side === 'LONG'
+  && Boolean(marketMeta.value?.baseTokenAddress),
+)
+const jupiterExecutionHint = computed(() => {
+  if (!usesJupiterExecution.value)
+    return null
+  if (props.proposal.side !== 'LONG')
+    return 'Jupiter spot execution currently supports LONG only.'
+  if (!marketMeta.value?.baseTokenAddress)
+    return 'This token is not mapped to a Jupiter mint yet.'
+  return `Spot execution routes through Jupiter using ${appConfig.jupiterInputSymbol} from the connected wallet.`
+})
+const executionAmountLabel = computed(() => usesJupiterExecution.value ? `${appConfig.jupiterInputSymbol} amount` : 'Collateral')
+const requiresOnboarding = computed(() => usesPacificaExecution.value && wallet.isAuthenticated.value && !pacifica.readyToExecute.value)
 const requiresActivation = computed(() =>
-  wallet.isAuthenticated.value && pacifica.readyToExecute.value && pacifica.accountMissing.value,
+  usesPacificaExecution.value && wallet.isAuthenticated.value && pacifica.readyToExecute.value && pacifica.accountMissing.value,
 )
 const requiresFunding = computed(() =>
-  wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0),
+  usesPacificaExecution.value && wallet.isAuthenticated.value && pacifica.readyToExecute.value && !pacifica.accountMissing.value && ((pacifica.account.value?.availableToSpend || 0) <= 0),
 )
 const requiresBetaAccess = computed(() =>
-  wallet.isAuthenticated.value && pacifica.betaAccessRequired.value,
+  usesPacificaExecution.value && wallet.isAuthenticated.value && pacifica.betaAccessRequired.value,
 )
 const canExecute = computed(() =>
-  wallet.isAuthenticated.value && pacifica.readyToExecute.value && !requiresActivation.value && !requiresFunding.value,
+  usesJupiterExecution.value
+    ? wallet.isConnected.value && jupiterExecutionSupported.value
+    : wallet.isAuthenticated.value && pacifica.readyToExecute.value && !requiresActivation.value && !requiresFunding.value,
+)
+const requiresSessionSignature = computed(() => usesPacificaExecution.value && wallet.isConnected.value && !wallet.isAuthenticated.value)
+const showExecutionControls = computed(() =>
+  usesJupiterExecution.value
+    ? wallet.isConnected.value
+    : wallet.isAuthenticated.value && !requiresOnboarding.value && !requiresActivation.value && !requiresFunding.value && !requiresBetaAccess.value,
 )
 const pacificaTradeUrl = computed(() => marketContext.buildPacificaTradeUrl(props.proposal.symbol))
 const pacificaFundingUrl = computed(() => requiresActivation.value ? pacificaTradeUrl.value : marketContext.pacificaDepositUrl.value)
@@ -233,6 +264,14 @@ function extractPacificaErrorMessage(raw: string) {
 }
 
 function buildExecutionErrorMessage(error: unknown) {
+  if (error instanceof Error && /jupiter/i.test(error.message)) {
+    if (/missing airifica_jupiter_api_key|not configured/i.test(error.message))
+      return 'Jupiter execution is not configured on this gateway yet. Set AIRIFICA_JUPITER_API_KEY and retry.'
+    if (/insufficient funds|insufficient balance|funds/i.test(error.message))
+      return `Not enough ${appConfig.jupiterInputSymbol} in the connected wallet for this Jupiter swap.`
+    return error.message
+  }
+
   if (isBetaAccessError(error))
     return resolveBetaAccessHint(error)
 
@@ -290,6 +329,78 @@ function buildMinimumOrderMessage(minimumSize: number) {
 async function handleExecute() {
   if (executing.value)
     return
+
+  if (usesJupiterExecution.value) {
+    if (!wallet.address.value) {
+      result.value = {
+        success: false,
+        message: 'Connect a Solana wallet before executing a Jupiter spot swap.',
+      }
+      return
+    }
+
+    if (props.proposal.side !== 'LONG') {
+      result.value = {
+        success: false,
+        message: 'Jupiter spot execution currently supports LONG only.',
+      }
+      return
+    }
+
+    if (!marketMeta.value?.baseTokenAddress) {
+      result.value = {
+        success: false,
+        message: 'This token is not mapped to a Jupiter mint yet.',
+      }
+      return
+    }
+
+    if (numericSizeUsd.value <= 0) {
+      result.value = {
+        success: false,
+        message: `Set a ${appConfig.jupiterInputSymbol} amount before executing on Jupiter.`,
+      }
+      return
+    }
+
+    executing.value = true
+    awaitingConfirmation.value = false
+    result.value = null
+
+    try {
+      const execution = await executeJupiterSpotSwap({
+        walletAddress: wallet.address.value,
+        outputMint: marketMeta.value.baseTokenAddress,
+        outputSymbol: props.proposal.symbol,
+        inputAmountUsd: numericSizeUsd.value,
+      })
+
+      result.value = {
+        success: true,
+        message: formatJupiterExecutionMessage(execution),
+      }
+
+      notifyEmbeddedTradeExecuted({
+        conversationId: props.conversationId,
+        messageId: props.messageId,
+        signature: execution.signature,
+        executionVenue: 'jupiter',
+        symbol: props.proposal.symbol,
+        side: props.proposal.side,
+      })
+    }
+    catch (error) {
+      result.value = {
+        success: false,
+        message: buildExecutionErrorMessage(error),
+      }
+    }
+    finally {
+      executing.value = false
+    }
+
+    return
+  }
 
   if (!wallet.address.value || !wallet.token.value) {
     result.value = {
@@ -436,7 +547,7 @@ function handleExecuteClick() {
   if (!canExecute.value)
     return
 
-  if (product.fullAutoMode.value)
+  if (usesPacificaExecution.value && product.fullAutoMode.value)
     return void handleExecute()
 
   if (product.confirmBeforeTrade.value && !awaitingConfirmation.value) {
@@ -449,8 +560,13 @@ function handleExecuteClick() {
 
 async function handleConnectWallet() {
   try {
-    await wallet.connect()
-    await pacifica.refreshOverview()
+    if (usesJupiterExecution.value)
+      await wallet.connectWalletOnly()
+    else
+      await wallet.connect()
+
+    if (usesPacificaExecution.value)
+      await pacifica.refreshOverview()
   }
   catch {
   }
@@ -484,6 +600,8 @@ async function handleCompleteOnboarding() {
 }
 
 function maybeAutoExecute() {
+  if (usesJupiterExecution.value)
+    return
   if (!product.fullAutoMode.value || autoExecutionStarted.value || executing.value || !canExecute.value)
     return
   if (!props.messageId || product.hasAutoHandledProposal(props.messageId))
@@ -549,7 +667,7 @@ function toggleStrategy() {
     <div class="proposal-card__execution">
       <div class="proposal-card__execution-summary">
         <label class="proposal-card__field proposal-card__field--size">
-          <span>Collateral</span>
+          <span>{{ executionAmountLabel }}</span>
           <input v-model="notionalUsd" type="number" min="0" step="0.1" placeholder="0">
         </label>
 
@@ -594,14 +712,17 @@ function toggleStrategy() {
       </div>
     </div>
 
-    <p v-if="minimumOrderHint" class="proposal-card__market-hint">
+    <p v-if="usesPacificaExecution && minimumOrderHint" class="proposal-card__market-hint">
       Pacifica {{ proposal.symbol }} currently reports lot {{ marketMeta?.lotSize ?? 'n/a' }} and minimum order {{ minimumOrderHint }} USD.
     </p>
     <p
-      v-if="belowMinimumOrderRequirement && minimumOrderHint"
+      v-if="usesPacificaExecution && belowMinimumOrderRequirement && minimumOrderHint"
       class="proposal-card__market-hint proposal-card__market-hint--warning"
     >
       {{ buildMinimumOrderMessage(minimumOrderHint) }}
+    </p>
+    <p v-else-if="usesJupiterExecution && jupiterExecutionHint" class="proposal-card__market-hint">
+      {{ jupiterExecutionHint }}
     </p>
 
     <div class="proposal-card__utility-row">
@@ -645,7 +766,7 @@ function toggleStrategy() {
         {{ wallet.connecting.value ? 'Connecting...' : 'Connect wallet' }}
       </button>
       <button
-        v-else-if="!wallet.isAuthenticated.value"
+        v-else-if="requiresSessionSignature"
         class="surface-button surface-button--primary proposal-card__action"
         :disabled="wallet.authenticating.value"
         type="button"
@@ -680,20 +801,26 @@ function toggleStrategy() {
       <span v-if="requiresBetaAccess" class="proposal-card__note">
         {{ betaAccessHint }}
       </span>
+      <span v-if="usesJupiterExecution && !wallet.isConnected.value" class="proposal-card__note">
+        Connect a Solana wallet to sign the Jupiter swap onchain.
+      </span>
+      <span v-if="usesJupiterExecution && wallet.isConnected.value && jupiterExecutionHint" class="proposal-card__note">
+        {{ jupiterExecutionHint }}
+      </span>
     </div>
 
     <p
-      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding && !requiresBetaAccess && availableCollateralUsd > 0"
+      v-if="usesPacificaExecution && wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding && !requiresBetaAccess && availableCollateralUsd > 0"
       class="proposal-card__market-hint"
     >
       Available collateral: {{ formatUsd(availableCollateralUsd) }} USD.
     </p>
 
     <div
-      v-if="wallet.isAuthenticated.value && !requiresOnboarding && !requiresActivation && !requiresFunding && !requiresBetaAccess"
+      v-if="showExecutionControls"
       class="proposal-card__execution-actions"
     >
-      <div class="proposal-card__preset-row">
+      <div v-if="usesPacificaExecution" class="proposal-card__preset-row">
         <button
           v-for="preset in collateralPresets"
           :key="preset"
