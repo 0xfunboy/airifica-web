@@ -5,10 +5,12 @@ import type { Air3PacificaPosition } from '@/lib/air3-client'
 
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
+import { useTelegramLink } from '@/modules/telegram/link'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const marketContext = useMarketContext()
 const pacifica = usePacificaAccount()
+const telegram = useTelegramLink()
 const wallet = useWalletSession()
 
 const market = computed(() => marketContext.market.value)
@@ -78,6 +80,36 @@ const accountMetrics = computed(() => {
     { label: 'Withdrawable', value: formatPrice(pacifica.account.value.availableToWithdraw) },
     { label: 'Open Positions', value: String(pacifica.positions.value.length) },
   ]
+})
+
+const telegramLinkedChats = computed(() => telegram.linkedChats.value)
+const telegramPendingCode = computed(() => telegram.pendingCode.value)
+const telegramPendingDeepLinkUrl = computed(() => telegram.pendingDeepLinkUrl.value)
+const telegramHasLink = computed(() => telegramLinkedChats.value.length > 0)
+const telegramBotUsername = computed(() => telegram.botUsername.value)
+
+const telegramStatusLabel = computed(() => {
+  if (!telegramBotUsername.value)
+    return 'Bot unavailable'
+  if (telegramHasLink.value)
+    return `${telegramLinkedChats.value.length} linked`
+  if (!wallet.isAuthenticated.value)
+    return 'Session required'
+  return 'Ready to link'
+})
+
+const telegramHint = computed(() => {
+  if (!telegramBotUsername.value)
+    return 'Telegram bot is not configured yet.'
+  if (!wallet.isConnected.value)
+    return 'Connect your Solana wallet to link Telegram.'
+  if (!wallet.isAuthenticated.value)
+    return 'Sign the Airifica session, then open Telegram.'
+  if (telegramHasLink.value)
+    return 'Alerts and conversational control are live on your linked private Telegram chats.'
+  if (telegramPendingCode.value)
+    return 'One tap should open Telegram and finish linking. Manual code remains available as fallback.'
+  return 'Link a private Telegram chat to receive trade alerts and manage positions from the bot.'
 })
 
 const expandedPositionKeys = reactive(new Set<string>())
@@ -375,6 +407,13 @@ async function handleSetupPacifica() {
   }
 }
 
+async function ensureWalletSession() {
+  if (!wallet.isConnected.value)
+    await wallet.connect()
+  else if (!wallet.isAuthenticated.value)
+    await wallet.authenticate()
+}
+
 async function handleConnectWallet() {
   try {
     await wallet.connect()
@@ -388,6 +427,55 @@ async function handleAuthenticateWallet() {
   try {
     await wallet.authenticate()
     await refreshPacificaOverview()
+  }
+  catch {
+  }
+}
+
+async function handleTelegramConnect() {
+  try {
+    await ensureWalletSession()
+    await telegram.requestLink({ openBot: true })
+  }
+  catch {
+  }
+}
+
+async function handleTelegramRefresh() {
+  try {
+    await telegram.refreshStatus()
+  }
+  catch {
+  }
+}
+
+async function handleTelegramCopyCode() {
+  try {
+    await telegram.copyPendingCode()
+  }
+  catch {
+  }
+}
+
+async function handleTelegramAlertsToggle(chatId: string, enabled: boolean) {
+  try {
+    await telegram.updateChat(chatId, { alertsEnabled: enabled })
+  }
+  catch {
+  }
+}
+
+async function handleTelegramConversationToggle(chatId: string, enabled: boolean) {
+  try {
+    await telegram.updateChat(chatId, { conversationalEnabled: enabled })
+  }
+  catch {
+  }
+}
+
+async function handleTelegramUnlink(chatId: string) {
+  try {
+    await telegram.unlinkChat(chatId)
   }
   catch {
   }
@@ -664,6 +752,132 @@ watch(() => wallet.token.value, () => {
       >
         Open portfolio
       </a>
+
+      <div class="stage-backdrop__detail-card stage-backdrop__telegram-card">
+        <div class="stage-backdrop__position-header">
+          <div class="stage-backdrop__metric-label">
+            Telegram bot
+          </div>
+          <span class="stage-backdrop__telegram-pill">
+            {{ telegramStatusLabel }}
+          </span>
+        </div>
+
+        <div class="stage-backdrop__telegram-summary">
+          <div class="stage-backdrop__telegram-title">
+            @{{ telegramBotUsername || 'AIRificabot' }}
+          </div>
+          <div class="stage-backdrop__account-hint">
+            {{ telegramHint }}
+          </div>
+        </div>
+
+        <div class="stage-backdrop__telegram-actions">
+          <button
+            v-if="telegramBotUsername"
+            :disabled="telegram.linking.value || wallet.connecting.value || wallet.authenticating.value"
+            class="stage-backdrop__primary-action stage-backdrop__primary-action--telegram"
+            type="button"
+            @click="handleTelegramConnect"
+          >
+            {{
+              telegram.linking.value
+                ? 'Preparing…'
+                : telegramHasLink
+                  ? 'Add another Telegram chat'
+                  : 'Connect Telegram'
+            }}
+          </button>
+
+          <button
+            v-if="telegramPendingDeepLinkUrl || telegramBotUsername"
+            class="stage-backdrop__secondary-action"
+            type="button"
+            @click="telegram.openBot()"
+          >
+            Open bot
+          </button>
+
+          <button
+            class="stage-backdrop__secondary-action"
+            :disabled="telegram.loading.value"
+            type="button"
+            @click="handleTelegramRefresh"
+          >
+            Refresh
+          </button>
+        </div>
+
+        <div v-if="telegramPendingCode" class="stage-backdrop__telegram-code-card">
+          <div class="stage-backdrop__telegram-code-head">
+            <span>Manual fallback code</span>
+            <strong>{{ telegramPendingCode }}</strong>
+          </div>
+          <div class="stage-backdrop__telegram-code-actions">
+            <button class="stage-backdrop__secondary-action" type="button" @click="handleTelegramCopyCode">
+              Copy code
+            </button>
+            <button class="stage-backdrop__secondary-action" type="button" @click="telegram.openBot()">
+              Open deep link
+            </button>
+          </div>
+        </div>
+
+        <div v-if="telegram.lastActionMessage.value" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+          <span>{{ telegram.lastActionMessage.value }}</span>
+        </div>
+
+        <div v-if="telegram.error.value" class="stage-backdrop__error">
+          {{ telegram.error.value }}
+        </div>
+
+        <div v-if="telegramLinkedChats.length" class="stage-backdrop__telegram-links">
+          <article
+            v-for="chat in telegramLinkedChats"
+            :key="chat.chatId"
+            class="stage-backdrop__telegram-link"
+          >
+            <div class="stage-backdrop__telegram-link-head">
+              <div>
+                <div class="stage-backdrop__telegram-link-title">
+                  {{ chat.username ? `@${chat.username}` : (chat.firstName || `Chat ${chat.chatId}`) }}
+                </div>
+                <div class="stage-backdrop__account-hint">
+                  Chat {{ chat.chatId }}
+                </div>
+              </div>
+
+              <button
+                class="stage-backdrop__danger-action stage-backdrop__danger-action--ghost"
+                :disabled="telegram.updatingChatId.value === chat.chatId"
+                type="button"
+                @click="handleTelegramUnlink(chat.chatId)"
+              >
+                Unlink
+              </button>
+            </div>
+
+            <div class="stage-backdrop__telegram-toggle-grid">
+              <button
+                :class="['stage-backdrop__telegram-toggle', { 'stage-backdrop__telegram-toggle--active': chat.alertsEnabled }]"
+                :disabled="telegram.updatingChatId.value === chat.chatId"
+                type="button"
+                @click="handleTelegramAlertsToggle(chat.chatId, !chat.alertsEnabled)"
+              >
+                Alerts {{ chat.alertsEnabled ? 'on' : 'off' }}
+              </button>
+              <button
+                :class="['stage-backdrop__telegram-toggle', { 'stage-backdrop__telegram-toggle--active': chat.conversationalEnabled }]"
+                :disabled="telegram.updatingChatId.value === chat.chatId"
+                type="button"
+                @click="handleTelegramConversationToggle(chat.chatId, !chat.conversationalEnabled)"
+              >
+                Chat {{ chat.conversationalEnabled ? 'on' : 'off' }}
+              </button>
+            </div>
+          </article>
+        </div>
+      </div>
 
       <div v-if="currentPacificaPosition" class="stage-backdrop__detail-card">
         <div class="stage-backdrop__position-header">
@@ -1213,6 +1427,139 @@ watch(() => wallet.token.value, () => {
   text-decoration: none;
 }
 
+.stage-backdrop__telegram-card {
+  display: grid;
+  gap: 10px;
+}
+
+.stage-backdrop__telegram-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  background: rgba(15, 53, 92, 0.26);
+  color: #bfdbfe;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.stage-backdrop__telegram-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.stage-backdrop__telegram-title {
+  color: rgba(240, 249, 255, 0.96);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.stage-backdrop__telegram-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stage-backdrop__primary-action--telegram {
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.94), rgba(103, 232, 249, 0.88));
+  color: #081421;
+}
+
+.stage-backdrop__telegram-code-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  background: rgba(11, 37, 57, 0.34);
+}
+
+.stage-backdrop__telegram-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stage-backdrop__telegram-code-head span {
+  color: rgba(186, 230, 253, 0.52);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.stage-backdrop__telegram-code-head strong {
+  color: rgba(240, 249, 255, 0.96);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.stage-backdrop__telegram-code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stage-backdrop__telegram-links {
+  display: grid;
+  gap: 8px;
+}
+
+.stage-backdrop__telegram-link {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  background: rgba(8, 28, 42, 0.22);
+}
+
+.stage-backdrop__telegram-link-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stage-backdrop__telegram-link-title {
+  color: rgba(240, 249, 255, 0.96);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.stage-backdrop__telegram-toggle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stage-backdrop__telegram-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(224, 242, 254, 0.88);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.stage-backdrop__telegram-toggle--active {
+  border-color: rgba(34, 197, 94, 0.24);
+  background: rgba(22, 101, 52, 0.26);
+  color: #dcfce7;
+}
+
+.stage-backdrop__danger-action--ghost {
+  background: rgba(127, 29, 29, 0.12);
+}
+
 .stage-backdrop__position-side {
   display: inline-flex;
   align-items: center;
@@ -1404,6 +1751,12 @@ watch(() => wallet.token.value, () => {
 
   .stage-backdrop__account-actions {
     justify-content: flex-start;
+  }
+
+  .stage-backdrop__telegram-link-head,
+  .stage-backdrop__telegram-code-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .stage-backdrop__chart {

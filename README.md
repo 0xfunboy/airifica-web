@@ -32,6 +32,7 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 - handles Solana wallet connect, challenge signing, verify and authenticated request headers
 - falls back to `Open in Phantom` on mobile when no injected Solana provider is available in the current browser
 - syncs Pacifica account overview, builder onboarding, agent bind, open trade execution and close position actions
+- links one or more private Telegram chats to the authenticated wallet and syncs alert/conversation preferences
 - renders market context inside the stage and surfaces trade proposals back into the conversation
 - falls back to DexScreener + GeckoTerminal market data when a ticker or contract address is not listed on Pacifica
 - distinguishes execution venue per asset, including spot handoff to Jupiter for supported Solana tokens
@@ -61,6 +62,14 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 - challenge request and verify flow
 - bearer token persistence in session storage
 - AIR3 request headers built from wallet address, token and session identity
+
+### Telegram Linking
+
+- one-click Telegram linking from the web app through `t.me/<bot>?start=link_CODE`
+- auto-refresh of linked chat status after the user jumps into Telegram
+- manual code entry kept only as fallback
+- per-chat toggles for alerts and conversational forwarding
+- unlink controls in the same account surface used for Pacifica execution state
 
 ### Pacifica
 
@@ -106,6 +115,7 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - `VITE_AIR3_SERVICE_API_URL`: explicit API base override; usually empty in production
 - `VITE_AIR3_RUNTIME_BASE_URL`: optional legacy runtime alias
 - `VITE_AIRIFICA_PUBLIC_APP_URL`: public app origin used for wallet/deep-link flows
+- `VITE_AIR3_TELEGRAM_BOT_USERNAME`: bot username used to build Telegram deep links in the UI
 - `VITE_AIRIFICA_AVATAR_MODEL_URL`: override for the default VRM model
 - `VITE_AIR3_DEFAULT_MARKET`: initial market symbol
 - `VITE_AIR3_TTS_PROVIDER`: `browser` or `openai-compatible`

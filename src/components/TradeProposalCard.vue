@@ -388,6 +388,26 @@ async function handleExecute() {
         symbol: props.proposal.symbol,
         side: props.proposal.side,
       })
+
+      if (wallet.token.value) {
+        try {
+          const client = createAir3Client({
+            token: wallet.token.value,
+          })
+          await client.notifyTelegramTrade({
+            symbol: props.proposal.symbol,
+            side: props.proposal.side,
+            venue: 'Jupiter',
+            amountUsd: effectiveNotionalUsd.value,
+            quantity: estimatedAssetAmount.value,
+            txSignature: execution.signature,
+            explorerUrl: execution.explorerUrl,
+            headers: wallet.buildRequestHeaders(),
+          })
+        }
+        catch {
+        }
+      }
     }
     catch (error) {
       result.value = {

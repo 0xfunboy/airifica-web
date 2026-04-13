@@ -77,6 +77,10 @@ function resolveEndpointUrl(baseUrl: string, path: string) {
   return `${normalizedBase}/${normalizedPath}`
 }
 
+function normalizeTelegramUsername(raw: string | undefined) {
+  return (raw || '').trim().replace(/^@/, '')
+}
+
 const ttsBaseUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_BASE_URL || '', '')
 const ttsDevProxyUrl = import.meta.env.DEV
   ? normalizeUrl(import.meta.env.VITE_AIR3_TTS_DEV_PROXY_URL || '', 'http://127.0.0.1:4041')
@@ -100,6 +104,7 @@ const normalizedSttProvider = rawSttProvider === 'webspeech'
     ? 'server'
     : rawSttProvider
 const sttWsUrl = normalizeWebSocketBase(import.meta.env.VITE_AIR3_STT_WS_URL || '', '/api/stt/ws')
+const telegramBotUsername = normalizeTelegramUsername(import.meta.env.VITE_AIR3_TELEGRAM_BOT_USERNAME || '')
 
 export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
@@ -118,6 +123,8 @@ export const appConfig = {
   pacificaPortfolioBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_PORTFOLIO_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaDepositBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_DEPOSIT_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
   pacificaWithdrawBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_PACIFICA_WITHDRAW_BASE_URL || '', 'https://app.pacifica.fi/portfolio'),
+  telegramBotUsername,
+  telegramBotUrl: telegramBotUsername ? `https://t.me/${telegramBotUsername}` : '',
   jupiterSwapBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_JUPITER_SWAP_BASE_URL || '', 'https://jup.ag/swap'),
   jupiterApiBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_JUPITER_API_BASE_URL || '', '/api/jupiter', {
     sameOriginFallback: '/api/jupiter',

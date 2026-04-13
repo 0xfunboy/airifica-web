@@ -14,6 +14,9 @@ import type {
   Air3PacificaPrepareAgentOptions,
   Air3PacificaPrepareAgentResponse,
   Air3SessionResponse,
+  Air3TelegramLinkRequestResponse,
+  Air3TelegramLinkStatusResponse,
+  Air3TelegramNotifyTradeResponse,
   Air3TradeProposal,
   Air3WalletChallengeResponse,
 } from './types'
@@ -107,6 +110,29 @@ export interface FetchMarketContextInput {
   symbol: string
   timeframe?: string
   limit?: number
+  headers?: HeadersInit
+}
+
+export interface UpdateTelegramLinkPreferencesInput {
+  chatId: string
+  alertsEnabled?: boolean
+  conversationalEnabled?: boolean
+  headers?: HeadersInit
+}
+
+export interface UnlinkTelegramChatInput {
+  chatId: string
+  headers?: HeadersInit
+}
+
+export interface NotifyTelegramTradeInput {
+  symbol: string
+  side?: 'LONG' | 'SHORT'
+  venue?: string
+  amountUsd?: number
+  quantity?: number
+  txSignature?: string | null
+  explorerUrl?: string | null
   headers?: HeadersInit
 }
 
@@ -446,6 +472,72 @@ export class Air3Client {
     )
   }
 
+  requestTelegramLink(headers?: HeadersInit) {
+    return requestJson<Air3TelegramLinkRequestResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/telegram/link/request`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({}),
+      },
+      20_000,
+    )
+  }
+
+  fetchTelegramLinkStatus(headers?: HeadersInit) {
+    return requestJson<Air3TelegramLinkStatusResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/telegram/link/status`,
+      {
+        method: 'GET',
+        headers,
+      },
+      20_000,
+    )
+  }
+
+  updateTelegramLinkPreferences(input: UpdateTelegramLinkPreferencesInput) {
+    return requestJson<{ ok: boolean }>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/telegram/link/preferences`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          chatId: input.chatId,
+          ...(input.alertsEnabled !== undefined ? { alertsEnabled: input.alertsEnabled } : {}),
+          ...(input.conversationalEnabled !== undefined ? { conversationalEnabled: input.conversationalEnabled } : {}),
+        }),
+      },
+      20_000,
+    )
+  }
+
+  unlinkTelegramChat(input: UnlinkTelegramChatInput) {
+    return requestJson<{ ok: boolean }>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/telegram/link/unlink`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          chatId: input.chatId,
+        }),
+      },
+      20_000,
+    )
+  }
+
   fetchHealth(headers?: HeadersInit) {
     return requestJson<Air3HealthResponse>(
       this.config,
@@ -454,6 +546,30 @@ export class Air3Client {
         method: 'GET',
         headers,
       },
+    )
+  }
+
+  notifyTelegramTrade(input: NotifyTelegramTradeInput) {
+    return requestJson<Air3TelegramNotifyTradeResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/telegram/notify/trade`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: JSON.stringify({
+          symbol: input.symbol,
+          side: input.side,
+          venue: input.venue,
+          amountUsd: input.amountUsd,
+          quantity: input.quantity,
+          txSignature: input.txSignature,
+          explorerUrl: input.explorerUrl,
+        }),
+      },
+      20_000,
     )
   }
 }

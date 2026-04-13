@@ -239,6 +239,36 @@ export interface Air3MarketUniverseResponse {
   markets: Air3PacificaMarketRow[]
 }
 
+export interface Air3TelegramLink {
+  chatId: string
+  userId: string | null
+  username: string | null
+  firstName: string | null
+  walletAddress: string
+  linkedAt: number
+  alertsEnabled: boolean
+  conversationalEnabled: boolean
+}
+
+export interface Air3TelegramLinkRequestResponse {
+  ok: boolean
+  code: string
+  expiresAt: number
+  deepLinkUrl: string
+  linkedChats: Air3TelegramLink[]
+}
+
+export interface Air3TelegramLinkStatusResponse {
+  ok: boolean
+  botUsername: string | null
+  linkedChats: Air3TelegramLink[]
+}
+
+export interface Air3TelegramNotifyTradeResponse {
+  ok: boolean
+  queued: number
+}
+
 export interface Air3HealthResponse {
   ok: boolean
   service: string

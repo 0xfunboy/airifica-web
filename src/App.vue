@@ -11,9 +11,11 @@ import StageHeader from '@/components/layout/StageHeader.vue'
 import { useAvatarPresence } from '@/modules/avatar/presence'
 import { useConversationState } from '@/modules/conversation/state'
 import { appConfig } from '@/config/app'
+import { useTelegramLink } from '@/modules/telegram/link'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const wallet = useWalletSession()
+useTelegramLink()
 const avatar = useAvatarPresence()
 const conversation = useConversationState()
 const mobileLayout = ref(false)
