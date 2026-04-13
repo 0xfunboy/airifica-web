@@ -31,6 +31,12 @@ export interface ExecuteJupiterSpotSwapResult {
   requestId: string
 }
 
+interface JupiterReferralPolicy {
+  enabled: boolean
+  referralAccount: string | null
+  referralFeeBps: number
+}
+
 function buildJupiterApiUrl(pathname: string, search?: URLSearchParams) {
   const normalizedBase = appConfig.jupiterApiBaseUrl.replace(/\/+$/, '')
   const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`
@@ -90,6 +96,30 @@ function shortSignature(signature: string | null | undefined) {
   return `${signature.slice(0, 6)}…${signature.slice(-6)}`
 }
 
+function resolveJupiterReferralPolicy(outputSymbol: string): JupiterReferralPolicy {
+  const referralAccount = appConfig.jupiterReferralAccount.trim()
+  const referralFeeBps = Math.trunc(appConfig.jupiterReferralFeeBps)
+  const symbol = String(outputSymbol || '').trim().toUpperCase()
+  const enabledSymbols = new Set(appConfig.jupiterReferralEnabledSymbols)
+  const disabledSymbols = new Set(appConfig.jupiterReferralDisabledSymbols)
+
+  if (!referralAccount || !Number.isFinite(referralFeeBps) || referralFeeBps < 50 || referralFeeBps > 255)
+    return { enabled: false, referralAccount: null, referralFeeBps: 0 }
+
+  if (enabledSymbols.size > 0)
+    return {
+      enabled: enabledSymbols.has(symbol),
+      referralAccount,
+      referralFeeBps,
+    }
+
+  return {
+    enabled: symbol ? !disabledSymbols.has(symbol) : false,
+    referralAccount,
+    referralFeeBps,
+  }
+}
+
 export async function executeJupiterSpotSwap(input: ExecuteJupiterSpotSwapInput): Promise<ExecuteJupiterSpotSwapResult> {
   const provider = getSolanaProvider()
   if (!provider)
@@ -102,12 +132,18 @@ export async function executeJupiterSpotSwap(input: ExecuteJupiterSpotSwapInput)
   if (inputAmountAtomic <= 0)
     throw new Error(`Set at least a small ${appConfig.jupiterInputSymbol} amount before executing on Jupiter.`)
 
+  const referralPolicy = resolveJupiterReferralPolicy(input.outputSymbol)
   const search = new URLSearchParams({
     inputMint: appConfig.jupiterInputMint,
     outputMint: input.outputMint,
     amount: String(inputAmountAtomic),
     taker: input.walletAddress,
   })
+
+  if (referralPolicy.enabled && referralPolicy.referralAccount) {
+    search.set('referralAccount', referralPolicy.referralAccount)
+    search.set('referralFee', String(referralPolicy.referralFeeBps))
+  }
 
   const order = await requestJupiterJson<JupiterOrderResponse>('order', {
     method: 'GET',

@@ -125,6 +125,16 @@ export const appConfig = {
   jupiterInputMint: (import.meta.env.VITE_AIR3_JUPITER_INPUT_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v').trim(),
   jupiterInputSymbol: (import.meta.env.VITE_AIR3_JUPITER_INPUT_SYMBOL || 'USDC').trim(),
   jupiterInputDecimals: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_INPUT_DECIMALS, 6),
+  jupiterReferralAccount: (import.meta.env.VITE_AIR3_JUPITER_REFERRAL_ACCOUNT || '').trim(),
+  jupiterReferralFeeBps: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_REFERRAL_FEE_BPS, 0),
+  jupiterReferralEnabledSymbols: (import.meta.env.VITE_AIR3_JUPITER_REFERRAL_ENABLED_SYMBOLS || '')
+    .split(/[,\s]+/)
+    .map((value: string) => value.trim().toUpperCase())
+    .filter(Boolean),
+  jupiterReferralDisabledSymbols: (import.meta.env.VITE_AIR3_JUPITER_REFERRAL_DISABLED_SYMBOLS || 'SOL,BTC,ETH,USDC,USDT,JUP,JLP,JUPSOL')
+    .split(/[,\s]+/)
+    .map((value: string) => value.trim().toUpperCase())
+    .filter(Boolean),
   pacificaBuilderCode: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_CODE || 'AIRewardrop').trim(),
   pacificaReferralCode: (import.meta.env.VITE_AIR3_PACIFICA_REFERRAL_CODE || 'AIRewardrop').trim(),
   pacificaBuilderMaxFeeRate: (import.meta.env.VITE_AIR3_PACIFICA_BUILDER_MAX_FEE_RATE || '0.001').trim(),

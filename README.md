@@ -158,4 +158,5 @@ Copy [`.env.example`](./.env.example) to `.env.local` and set the values for you
 - the STT fallback expects a sherpa-onnx offline websocket server behind the same-origin `/api/stt/ws` bridge or an explicitly configured websocket URL
 - Pacifica market universe is cached server-side and refreshed on a long interval; account and position state refresh more frequently
 - if a queried asset is not listed on Pacifica, AIR3 resolves external market data first and only shows Pacifica execution affordances where perpetual support actually exists
-- Jupiter spot execution runs client-side with the user wallet, but the Ultra API key should stay server-side in the bridge via `AIRIFICA_JUPITER_API_KEY`
+- Jupiter spot execution runs client-side with the user wallet, but the Jupiter Swap API key should stay server-side in the bridge via `AIRIFICA_JUPITER_API_KEY`
+- Jupiter referral revenue can be enabled with `VITE_AIR3_JUPITER_REFERRAL_ACCOUNT` and `VITE_AIR3_JUPITER_REFERRAL_FEE_BPS`; by default the frontend suppresses referral fees on majors/stables listed in `VITE_AIR3_JUPITER_REFERRAL_DISABLED_SYMBOLS` to avoid degrading execution quality
