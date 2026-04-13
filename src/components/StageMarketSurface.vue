@@ -84,32 +84,61 @@ const accountMetrics = computed(() => {
 
 const telegramLinkedChats = computed(() => telegram.linkedChats.value)
 const telegramPendingCode = computed(() => telegram.pendingCode.value)
-const telegramPendingDeepLinkUrl = computed(() => telegram.pendingDeepLinkUrl.value)
 const telegramHasLink = computed(() => telegramLinkedChats.value.length > 0)
 const telegramBotUsername = computed(() => telegram.botUsername.value)
+const telegramBotReady = computed(() => Boolean(telegramBotUsername.value))
+const telegramAlertsEnabled = computed(() =>
+  telegramLinkedChats.value.length > 0 && telegramLinkedChats.value.every(chat => chat.alertsEnabled),
+)
 
 const telegramStatusLabel = computed(() => {
-  if (!telegramBotUsername.value)
-    return 'Bot unavailable'
+  if (!telegramBotReady.value)
+    return 'Telegram offline'
+  if (telegramPendingCode.value)
+    return 'Finish in Telegram'
   if (telegramHasLink.value)
-    return `${telegramLinkedChats.value.length} linked`
-  if (!wallet.isAuthenticated.value)
-    return 'Session required'
-  return 'Ready to link'
+    return telegramAlertsEnabled.value ? 'TG alerts on' : 'TG linked'
+  return 'TG not linked'
+})
+
+const telegramStatusClass = computed(() => {
+  if (!telegramBotReady.value)
+    return 'stage-backdrop__telegram-pill stage-backdrop__telegram-pill--off'
+  if (telegramHasLink.value && telegramAlertsEnabled.value)
+    return 'stage-backdrop__telegram-pill stage-backdrop__telegram-pill--on'
+  return 'stage-backdrop__telegram-pill stage-backdrop__telegram-pill--pending'
+})
+
+const telegramButtonClass = computed(() => {
+  if (!telegramBotReady.value)
+    return 'stage-backdrop__telegram-toggle-button stage-backdrop__telegram-toggle-button--off'
+  if (telegramHasLink.value && telegramAlertsEnabled.value)
+    return 'stage-backdrop__telegram-toggle-button stage-backdrop__telegram-toggle-button--on'
+  return 'stage-backdrop__telegram-toggle-button stage-backdrop__telegram-toggle-button--pending'
+})
+
+const telegramButtonLabel = computed(() => {
+  if (telegram.linking.value)
+    return 'Preparing Telegram…'
+  if (!telegramBotReady.value)
+    return 'Telegram unavailable'
+  if (!telegramHasLink.value || telegramPendingCode.value)
+    return 'Enable TG alerts'
+  if (telegramAlertsEnabled.value)
+    return 'Disable TG alerts'
+  return 'Enable TG alerts'
 })
 
 const telegramHint = computed(() => {
-  if (!telegramBotUsername.value)
-    return 'Telegram bot is not configured yet.'
-  if (!wallet.isConnected.value)
-    return 'Connect your Solana wallet to link Telegram.'
-  if (!wallet.isAuthenticated.value)
-    return 'Sign the Airifica session, then open Telegram.'
-  if (telegramHasLink.value)
-    return 'Alerts and conversational control are live on your linked private Telegram chats.'
+  if (!telegramBotReady.value)
+    return 'Telegram bot unavailable right now.'
   if (telegramPendingCode.value)
-    return 'One tap should open Telegram and finish linking. Manual code remains available as fallback.'
-  return 'Link a private Telegram chat to receive trade alerts and manage positions from the bot.'
+    return 'Tap again in Telegram if the bot did not open automatically.'
+  if (telegramHasLink.value && telegramAlertsEnabled.value)
+    return 'Trade alerts are active on your linked Telegram chat.'
+  if (telegramHasLink.value)
+    return 'Telegram is linked, but alerts are currently muted.'
+  return 'Link a private Telegram chat to receive trade alerts.'
 })
 
 const expandedPositionKeys = reactive(new Set<string>())
@@ -435,47 +464,18 @@ async function handleAuthenticateWallet() {
 async function handleTelegramConnect() {
   try {
     await ensureWalletSession()
-    await telegram.requestLink({ openBot: true })
-  }
-  catch {
-  }
-}
+    if (!telegramBotReady.value)
+      return
 
-async function handleTelegramRefresh() {
-  try {
-    await telegram.refreshStatus()
-  }
-  catch {
-  }
-}
+    if (!telegramHasLink.value || telegramPendingCode.value) {
+      await telegram.requestLink({ openBot: true })
+      return
+    }
 
-async function handleTelegramCopyCode() {
-  try {
-    await telegram.copyPendingCode()
-  }
-  catch {
-  }
-}
-
-async function handleTelegramAlertsToggle(chatId: string, enabled: boolean) {
-  try {
-    await telegram.updateChat(chatId, { alertsEnabled: enabled })
-  }
-  catch {
-  }
-}
-
-async function handleTelegramConversationToggle(chatId: string, enabled: boolean) {
-  try {
-    await telegram.updateChat(chatId, { conversationalEnabled: enabled })
-  }
-  catch {
-  }
-}
-
-async function handleTelegramUnlink(chatId: string) {
-  try {
-    await telegram.unlinkChat(chatId)
+    const nextEnabled = !telegramAlertsEnabled.value
+    await Promise.all(telegramLinkedChats.value.map(chat =>
+      telegram.updateChat(chat.chatId, { alertsEnabled: nextEnabled }),
+    ))
   }
   catch {
   }
@@ -638,6 +638,10 @@ watch(() => wallet.token.value, () => {
       Loading market context...
     </div>
 
+    <div v-else-if="marketContext.notice.value" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+      {{ marketContext.notice.value }}
+    </div>
+
     <div v-else-if="marketContext.error.value" class="stage-backdrop__error">
       {{ marketContext.error.value }}
     </div>
@@ -758,7 +762,7 @@ watch(() => wallet.token.value, () => {
           <div class="stage-backdrop__metric-label">
             Telegram bot
           </div>
-          <span class="stage-backdrop__telegram-pill">
+          <span :class="telegramStatusClass">
             {{ telegramStatusLabel }}
           </span>
         </div>
@@ -774,37 +778,12 @@ watch(() => wallet.token.value, () => {
 
         <div class="stage-backdrop__telegram-actions">
           <button
-            v-if="telegramBotUsername"
-            :disabled="telegram.linking.value || wallet.connecting.value || wallet.authenticating.value"
-            class="stage-backdrop__primary-action stage-backdrop__primary-action--telegram"
+            :disabled="telegram.linking.value || wallet.connecting.value || wallet.authenticating.value || !telegramBotReady"
+            :class="telegramButtonClass"
             type="button"
             @click="handleTelegramConnect"
           >
-            {{
-              telegram.linking.value
-                ? 'Preparing…'
-                : telegramHasLink
-                  ? 'Add another Telegram chat'
-                  : 'Connect Telegram'
-            }}
-          </button>
-
-          <button
-            v-if="telegramPendingDeepLinkUrl || telegramBotUsername"
-            class="stage-backdrop__secondary-action"
-            type="button"
-            @click="telegram.openBot()"
-          >
-            Open bot
-          </button>
-
-          <button
-            class="stage-backdrop__secondary-action"
-            :disabled="telegram.loading.value"
-            type="button"
-            @click="handleTelegramRefresh"
-          >
-            Refresh
+            {{ telegramButtonLabel }}
           </button>
         </div>
 
@@ -814,11 +793,11 @@ watch(() => wallet.token.value, () => {
             <strong>{{ telegramPendingCode }}</strong>
           </div>
           <div class="stage-backdrop__telegram-code-actions">
-            <button class="stage-backdrop__secondary-action" type="button" @click="handleTelegramCopyCode">
+            <button class="stage-backdrop__secondary-action" type="button" @click="telegram.copyPendingCode()">
               Copy code
             </button>
             <button class="stage-backdrop__secondary-action" type="button" @click="telegram.openBot()">
-              Open deep link
+              Open Telegram
             </button>
           </div>
         </div>
@@ -827,55 +806,8 @@ watch(() => wallet.token.value, () => {
           <span>{{ telegram.lastActionMessage.value }}</span>
         </div>
 
-        <div v-if="telegram.error.value" class="stage-backdrop__error">
-          {{ telegram.error.value }}
-        </div>
-
-        <div v-if="telegramLinkedChats.length" class="stage-backdrop__telegram-links">
-          <article
-            v-for="chat in telegramLinkedChats"
-            :key="chat.chatId"
-            class="stage-backdrop__telegram-link"
-          >
-            <div class="stage-backdrop__telegram-link-head">
-              <div>
-                <div class="stage-backdrop__telegram-link-title">
-                  {{ chat.username ? `@${chat.username}` : (chat.firstName || `Chat ${chat.chatId}`) }}
-                </div>
-                <div class="stage-backdrop__account-hint">
-                  Chat {{ chat.chatId }}
-                </div>
-              </div>
-
-              <button
-                class="stage-backdrop__danger-action stage-backdrop__danger-action--ghost"
-                :disabled="telegram.updatingChatId.value === chat.chatId"
-                type="button"
-                @click="handleTelegramUnlink(chat.chatId)"
-              >
-                Unlink
-              </button>
-            </div>
-
-            <div class="stage-backdrop__telegram-toggle-grid">
-              <button
-                :class="['stage-backdrop__telegram-toggle', { 'stage-backdrop__telegram-toggle--active': chat.alertsEnabled }]"
-                :disabled="telegram.updatingChatId.value === chat.chatId"
-                type="button"
-                @click="handleTelegramAlertsToggle(chat.chatId, !chat.alertsEnabled)"
-              >
-                Alerts {{ chat.alertsEnabled ? 'on' : 'off' }}
-              </button>
-              <button
-                :class="['stage-backdrop__telegram-toggle', { 'stage-backdrop__telegram-toggle--active': chat.conversationalEnabled }]"
-                :disabled="telegram.updatingChatId.value === chat.chatId"
-                type="button"
-                @click="handleTelegramConversationToggle(chat.chatId, !chat.conversationalEnabled)"
-              >
-                Chat {{ chat.conversationalEnabled ? 'on' : 'off' }}
-              </button>
-            </div>
-          </article>
+        <div v-if="telegram.error.value && telegramBotReady" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+          Telegram temporarily unavailable.
         </div>
       </div>
 
@@ -1445,6 +1377,24 @@ watch(() => wallet.token.value, () => {
   font-weight: 600;
 }
 
+.stage-backdrop__telegram-pill--on {
+  border-color: rgba(34, 197, 94, 0.24);
+  background: rgba(22, 101, 52, 0.24);
+  color: #dcfce7;
+}
+
+.stage-backdrop__telegram-pill--pending {
+  border-color: rgba(250, 204, 21, 0.24);
+  background: rgba(113, 63, 18, 0.24);
+  color: #fef08a;
+}
+
+.stage-backdrop__telegram-pill--off {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+}
+
 .stage-backdrop__telegram-summary {
   display: grid;
   gap: 6px;
@@ -1462,9 +1412,36 @@ watch(() => wallet.token.value, () => {
   gap: 8px;
 }
 
-.stage-backdrop__primary-action--telegram {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.94), rgba(103, 232, 249, 0.88));
-  color: #081421;
+.stage-backdrop__telegram-toggle-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  width: 100%;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.stage-backdrop__telegram-toggle-button--on {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: linear-gradient(135deg, rgba(22, 101, 52, 0.92), rgba(34, 197, 94, 0.72));
+  color: #dcfce7;
+}
+
+.stage-backdrop__telegram-toggle-button--pending {
+  border-color: rgba(250, 204, 21, 0.28);
+  background: linear-gradient(135deg, rgba(113, 63, 18, 0.92), rgba(202, 138, 4, 0.72));
+  color: #fef3c7;
+}
+
+.stage-backdrop__telegram-toggle-button--off {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
 }
 
 .stage-backdrop__telegram-code-card {

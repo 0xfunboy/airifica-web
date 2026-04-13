@@ -26,6 +26,18 @@ let statusPollTimer: number | null = null
 let statusPollDeadline = 0
 let statusPollPreviousLinkedCount = 0
 
+function sanitizeTelegramError(error: unknown) {
+  const raw = error instanceof Error ? error.message : 'Telegram is unavailable right now.'
+  const stripped = raw.replace(/\s*\[request:[^\]]+\]\s*$/i, '').trim()
+
+  if (/route not exposed by airifica gateway/i.test(stripped))
+    return 'Telegram linking is not exposed by the current gateway yet.'
+  if (/telegram integration is not configured|bot unavailable|not configured/i.test(stripped))
+    return 'Telegram bot is not configured yet.'
+
+  return stripped || 'Telegram is unavailable right now.'
+}
+
 function stopStatusPolling() {
   if (statusPollTimer != null && typeof window !== 'undefined')
     window.clearTimeout(statusPollTimer)
@@ -95,7 +107,7 @@ async function refreshStatus() {
     return payload
   }
   catch (error) {
-    state.error = error instanceof Error ? error.message : 'Failed to load Telegram link status.'
+    state.error = sanitizeTelegramError(error)
     throw error
   }
   finally {
@@ -164,7 +176,7 @@ async function requestLink(options?: { openBot?: boolean, clearQuery?: boolean }
     return payload
   }
   catch (error) {
-    state.error = error instanceof Error ? error.message : 'Failed to prepare Telegram link.'
+    state.error = sanitizeTelegramError(error)
     throw error
   }
   finally {
@@ -189,7 +201,7 @@ async function unlinkChat(chatId: string) {
     state.lastActionMessage = 'Telegram chat unlinked.'
   }
   catch (error) {
-    state.error = error instanceof Error ? error.message : 'Failed to unlink Telegram chat.'
+    state.error = sanitizeTelegramError(error)
     throw error
   }
   finally {
@@ -223,7 +235,7 @@ async function updateChat(chatId: string, patch: { alertsEnabled?: boolean, conv
     state.lastActionMessage = 'Telegram preferences updated.'
   }
   catch (error) {
-    state.error = error instanceof Error ? error.message : 'Failed to update Telegram preferences.'
+    state.error = sanitizeTelegramError(error)
     throw error
   }
   finally {

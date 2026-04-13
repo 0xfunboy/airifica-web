@@ -45,6 +45,7 @@ const state = reactive({
   universeLoading: false,
   loading: false,
   error: null as string | null,
+  notice: null as string | null,
   lastSyncedAt: null as number | null,
   lastUniverseSyncedAt: null as number | null,
 })
@@ -179,6 +180,32 @@ function buildJupiterTradeUrl(tokenAddress: string) {
   return `${normalizedBase}/SOL-${normalizedToken}`
 }
 
+function stripRequestSuffix(raw: string) {
+  return raw.replace(/\s*\[request:[^\]]+\]\s*$/i, '').trim()
+}
+
+function isMissingMarketError(error: unknown) {
+  const message = error instanceof Error ? stripRequestSuffix(error.message).toLowerCase() : ''
+  return message.includes('no market data found') || message.includes('failed to fetch market context')
+}
+
+function buildMissingMarketNotice(query: string, fallbackSymbol: string) {
+  return `${query} is not tracked right now. Showing ${fallbackSymbol} instead. Try BTC, ETH, SOL or a contract address.`
+}
+
+async function fetchContextForQuery(query: string) {
+  const client = createAir3Client({
+    token: wallet.token.value || undefined,
+  })
+
+  return await client.fetchMarketContext({
+    symbol: query,
+    timeframe: '15m',
+    limit: 96,
+    headers: wallet.buildRequestHeaders(),
+  })
+}
+
 function refreshFromConversation() {
   const target = resolveTargetFromMessages()
   if (target && target !== state.currentQuery)
@@ -188,22 +215,29 @@ function refreshFromConversation() {
 async function refreshMarketContext() {
   state.loading = true
   state.error = null
+  state.notice = null
 
   try {
-    const client = createAir3Client({
-      token: wallet.token.value || undefined,
-    })
-    state.market = await client.fetchMarketContext({
-      symbol: state.currentQuery,
-      timeframe: '15m',
-      limit: 96,
-      headers: wallet.buildRequestHeaders(),
-    })
+    state.market = await fetchContextForQuery(state.currentQuery)
     state.lastSyncedAt = Date.now()
   }
   catch (error) {
+    if (state.currentQuery !== appConfig.defaultMarket && isMissingMarketError(error)) {
+      try {
+        state.market = await fetchContextForQuery(appConfig.defaultMarket)
+        state.lastSyncedAt = Date.now()
+        state.notice = buildMissingMarketNotice(state.currentQuery, appConfig.defaultMarket)
+        state.error = null
+        return
+      }
+      catch {
+      }
+    }
+
     state.market = null
-    state.error = error instanceof Error ? error.message : 'Failed to fetch market context.'
+    state.error = error instanceof Error
+      ? (stripRequestSuffix(error.message) || 'Market data is unavailable right now.')
+      : 'Market data is unavailable right now.'
   }
   finally {
     state.loading = false
@@ -271,6 +305,7 @@ export function useMarketContext() {
     universeLoading: computed(() => state.universeLoading),
     loading: computed(() => state.loading),
     error: computed(() => state.error),
+    notice: computed(() => state.notice),
     lastSyncedAt: computed(() => state.lastSyncedAt),
     lastUniverseSyncedAt: computed(() => state.lastUniverseSyncedAt),
     pacificaTradeUrl: computed(() => buildPacificaTradeUrl(currentSymbol.value)),
