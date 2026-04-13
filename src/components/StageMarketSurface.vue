@@ -91,42 +91,12 @@ const telegramAlertsEnabled = computed(() =>
   telegramLinkedChats.value.length > 0 && telegramLinkedChats.value.every(chat => chat.alertsEnabled),
 )
 
-const telegramStatusLabel = computed(() => {
-  if (!telegramBotReady.value)
-    return 'Telegram offline'
-  if (telegramPendingCode.value)
-    return 'Finish in Telegram'
-  if (telegramHasLink.value)
-    return telegramAlertsEnabled.value ? 'TG alerts on' : 'TG linked'
-  return 'TG not linked'
-})
-
 const telegramStatusClass = computed(() => {
   if (!telegramBotReady.value)
-    return 'stage-backdrop__telegram-pill stage-backdrop__telegram-pill--off'
+    return 'stage-backdrop__telegram-mini-button stage-backdrop__telegram-mini-button--off'
   if (telegramHasLink.value && telegramAlertsEnabled.value)
-    return 'stage-backdrop__telegram-pill stage-backdrop__telegram-pill--on'
-  return 'stage-backdrop__telegram-pill stage-backdrop__telegram-pill--pending'
-})
-
-const telegramButtonClass = computed(() => {
-  if (!telegramBotReady.value)
-    return 'stage-backdrop__telegram-toggle-button stage-backdrop__telegram-toggle-button--off'
-  if (telegramHasLink.value && telegramAlertsEnabled.value)
-    return 'stage-backdrop__telegram-toggle-button stage-backdrop__telegram-toggle-button--on'
-  return 'stage-backdrop__telegram-toggle-button stage-backdrop__telegram-toggle-button--pending'
-})
-
-const telegramButtonLabel = computed(() => {
-  if (telegram.linking.value)
-    return 'Preparing Telegram…'
-  if (!telegramBotReady.value)
-    return 'Telegram unavailable'
-  if (!telegramHasLink.value || telegramPendingCode.value)
-    return 'Enable TG alerts'
-  if (telegramAlertsEnabled.value)
-    return 'Disable TG alerts'
-  return 'Enable TG alerts'
+    return 'stage-backdrop__telegram-mini-button stage-backdrop__telegram-mini-button--on'
+  return 'stage-backdrop__telegram-mini-button stage-backdrop__telegram-mini-button--pending'
 })
 
 const telegramHint = computed(() => {
@@ -463,19 +433,27 @@ async function handleAuthenticateWallet() {
 
 async function handleTelegramConnect() {
   try {
-    await ensureWalletSession()
-    if (!telegramBotReady.value)
+    if (!telegramBotReady.value) {
+      telegram.openBot()
       return
+    }
+
+    if (telegramHasLink.value && telegramAlertsEnabled.value && !telegramPendingCode.value) {
+      telegram.openBot()
+      return
+    }
+
+    await ensureWalletSession()
 
     if (!telegramHasLink.value || telegramPendingCode.value) {
       await telegram.requestLink({ openBot: true })
       return
     }
 
-    const nextEnabled = !telegramAlertsEnabled.value
     await Promise.all(telegramLinkedChats.value.map(chat =>
-      telegram.updateChat(chat.chatId, { alertsEnabled: nextEnabled }),
+      telegram.updateChat(chat.chatId, { alertsEnabled: true }),
     ))
+    telegram.openBot()
   }
   catch {
   }
@@ -736,6 +714,19 @@ watch(() => wallet.token.value, () => {
             >
               {{ requiresPacificaActivation ? 'Deposit on Pacifica' : 'Portfolio' }}
             </a>
+
+            <button
+              :disabled="telegram.linking.value || wallet.connecting.value || wallet.authenticating.value"
+              :class="telegramStatusClass"
+              type="button"
+              :title="telegramHint"
+              @click="handleTelegramConnect"
+            >
+              <svg class="stage-backdrop__telegram-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M21.6 4.2c.3.2.4.6.3 1L18.5 19c-.1.4-.5.7-.9.7h-.1c-.2 0-.4-.1-.6-.2l-4.4-3.3-2.2 2.2c-.2.2-.4.3-.7.3-.1 0-.2 0-.3-.1-.4-.1-.7-.5-.7-.9v-3.1l9.2-8.4c.4-.4-.1-.5-.6-.2L6 13.1l-4.6-1.5c-.4-.1-.6-.4-.7-.8 0-.4.2-.7.6-.9L20.3 4c.4-.2.9-.2 1.3.2Z" />
+              </svg>
+              <span>TG alerts</span>
+            </button>
           </div>
         </div>
       </div>
@@ -757,58 +748,20 @@ watch(() => wallet.token.value, () => {
         Open portfolio
       </a>
 
-      <div class="stage-backdrop__detail-card stage-backdrop__telegram-card">
-        <div class="stage-backdrop__position-header">
-          <div class="stage-backdrop__metric-label">
-            Telegram bot
-          </div>
-          <span :class="telegramStatusClass">
-            {{ telegramStatusLabel }}
-          </span>
-        </div>
-
-        <div class="stage-backdrop__telegram-summary">
-          <div class="stage-backdrop__telegram-title">
-            @{{ telegramBotUsername || 'AIRificabot' }}
-          </div>
-          <div class="stage-backdrop__account-hint">
-            {{ telegramHint }}
-          </div>
-        </div>
-
-        <div class="stage-backdrop__telegram-actions">
-          <button
-            :disabled="telegram.linking.value || wallet.connecting.value || wallet.authenticating.value || !telegramBotReady"
-            :class="telegramButtonClass"
-            type="button"
-            @click="handleTelegramConnect"
-          >
-            {{ telegramButtonLabel }}
+      <div v-if="telegramPendingCode" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+        <span>Telegram code ready: {{ telegramPendingCode }}</span>
+        <span class="stage-backdrop__telegram-inline-actions">
+          <button class="stage-backdrop__secondary-action" type="button" @click="telegram.copyPendingCode()">
+            Copy
           </button>
-        </div>
+          <button class="stage-backdrop__secondary-action" type="button" @click="telegram.openBot()">
+            Open Telegram
+          </button>
+        </span>
+      </div>
 
-        <div v-if="telegramPendingCode" class="stage-backdrop__telegram-code-card">
-          <div class="stage-backdrop__telegram-code-head">
-            <span>Manual fallback code</span>
-            <strong>{{ telegramPendingCode }}</strong>
-          </div>
-          <div class="stage-backdrop__telegram-code-actions">
-            <button class="stage-backdrop__secondary-action" type="button" @click="telegram.copyPendingCode()">
-              Copy code
-            </button>
-            <button class="stage-backdrop__secondary-action" type="button" @click="telegram.openBot()">
-              Open Telegram
-            </button>
-          </div>
-        </div>
-
-        <div v-if="telegram.lastActionMessage.value" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
-          <span>{{ telegram.lastActionMessage.value }}</span>
-        </div>
-
-        <div v-if="telegram.error.value && telegramBotReady" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
-          Telegram temporarily unavailable.
-        </div>
+      <div v-else-if="telegram.lastActionMessage.value" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+        <span>{{ telegram.lastActionMessage.value }}</span>
       </div>
 
       <div v-if="currentPacificaPosition" class="stage-backdrop__detail-card">
@@ -1359,89 +1312,48 @@ watch(() => wallet.token.value, () => {
   text-decoration: none;
 }
 
-.stage-backdrop__telegram-card {
-  display: grid;
-  gap: 10px;
-}
-
-.stage-backdrop__telegram-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(96, 165, 250, 0.22);
-  background: rgba(15, 53, 92, 0.26);
-  color: #bfdbfe;
-  font-size: 0.68rem;
-  font-weight: 600;
-}
-
-.stage-backdrop__telegram-pill--on {
-  border-color: rgba(34, 197, 94, 0.24);
-  background: rgba(22, 101, 52, 0.24);
-  color: #dcfce7;
-}
-
-.stage-backdrop__telegram-pill--pending {
-  border-color: rgba(250, 204, 21, 0.24);
-  background: rgba(113, 63, 18, 0.24);
-  color: #fef08a;
-}
-
-.stage-backdrop__telegram-pill--off {
-  border-color: rgba(248, 113, 113, 0.22);
-  background: rgba(127, 29, 29, 0.22);
-  color: #fecaca;
-}
-
-.stage-backdrop__telegram-summary {
-  display: grid;
-  gap: 6px;
-}
-
-.stage-backdrop__telegram-title {
-  color: rgba(240, 249, 255, 0.96);
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
-.stage-backdrop__telegram-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.stage-backdrop__telegram-toggle-button {
+.stage-backdrop__telegram-mini-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  width: 100%;
-  padding: 0 14px;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px;
   border-radius: 12px;
   border: 1px solid transparent;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 700;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
-.stage-backdrop__telegram-toggle-button--on {
+.stage-backdrop__telegram-mini-button--on {
   border-color: rgba(34, 197, 94, 0.28);
   background: linear-gradient(135deg, rgba(22, 101, 52, 0.92), rgba(34, 197, 94, 0.72));
   color: #dcfce7;
 }
 
-.stage-backdrop__telegram-toggle-button--pending {
+.stage-backdrop__telegram-mini-button--pending {
   border-color: rgba(250, 204, 21, 0.28);
   background: linear-gradient(135deg, rgba(113, 63, 18, 0.92), rgba(202, 138, 4, 0.72));
   color: #fef3c7;
 }
 
-.stage-backdrop__telegram-toggle-button--off {
+.stage-backdrop__telegram-mini-button--off {
   border-color: rgba(248, 113, 113, 0.22);
   background: rgba(127, 29, 29, 0.28);
   color: #fecaca;
+}
+
+.stage-backdrop__telegram-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.stage-backdrop__telegram-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .stage-backdrop__telegram-code-card {
@@ -1478,59 +1390,6 @@ watch(() => wallet.token.value, () => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.stage-backdrop__telegram-links {
-  display: grid;
-  gap: 8px;
-}
-
-.stage-backdrop__telegram-link {
-  display: grid;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(103, 232, 249, 0.12);
-  background: rgba(8, 28, 42, 0.22);
-}
-
-.stage-backdrop__telegram-link-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.stage-backdrop__telegram-link-title {
-  color: rgba(240, 249, 255, 0.96);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.stage-backdrop__telegram-toggle-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.stage-backdrop__telegram-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(103, 232, 249, 0.16);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(224, 242, 254, 0.88);
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
-.stage-backdrop__telegram-toggle--active {
-  border-color: rgba(34, 197, 94, 0.24);
-  background: rgba(22, 101, 52, 0.26);
-  color: #dcfce7;
 }
 
 .stage-backdrop__danger-action--ghost {

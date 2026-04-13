@@ -65,11 +65,10 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 
 ### Telegram Linking
 
-- one-click Telegram linking from the web app through `t.me/<bot>?start=link_CODE`
+- one-click Telegram linking from the market/account surface through `t.me/<bot>?start=link_CODE`
 - auto-refresh of linked chat status after the user jumps into Telegram
 - manual code entry kept only as fallback
-- per-chat toggles for alerts and conversational forwarding
-- unlink controls in the same account surface used for Pacifica execution state
+- compact `TG alerts` control in the account surface with status color and direct open/link behavior
 
 ### Pacifica
 
