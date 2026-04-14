@@ -6,6 +6,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const jupiterProxyTargetRaw = (env.AIRIFICA_JUPITER_API_BASE_URL || '').trim()
+  const jupiterTriggerProxyTargetRaw = (env.AIRIFICA_JUPITER_TRIGGER_API_BASE_URL || '').trim()
   const proxy: Record<string, {
     target: string
     changeOrigin: boolean
@@ -25,6 +26,17 @@ export default defineConfig(({ mode }) => {
       target: sttProxyTarget,
       changeOrigin: true,
       ws: true,
+    }
+  }
+
+  if (jupiterTriggerProxyTargetRaw) {
+    const targetUrl = new URL(jupiterTriggerProxyTargetRaw)
+    const targetBasePath = targetUrl.pathname.replace(/\/+$/, '')
+    proxy['/api/jupiter-trigger'] = {
+      target: `${targetUrl.protocol}//${targetUrl.host}`,
+      changeOrigin: true,
+      ...(env.AIRIFICA_JUPITER_API_KEY ? { headers: { 'x-api-key': env.AIRIFICA_JUPITER_API_KEY } } : {}),
+      rewrite: requestPath => `${targetBasePath}${requestPath.replace(/^\/api\/jupiter-trigger/, '') || ''}` || '/',
     }
   }
 

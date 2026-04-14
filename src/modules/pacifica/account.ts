@@ -113,6 +113,14 @@ function upsertOnchainPosition(position: Air3OnchainPosition) {
     state.onchainPositions.unshift(position)
 }
 
+function removeOnchainPosition(mintAddress: string | null | undefined) {
+  const normalized = String(mintAddress || '').trim()
+  if (!normalized)
+    return
+
+  state.onchainPositions = state.onchainPositions.filter(item => String(item.mintAddress || '').trim() !== normalized)
+}
+
 function setBetaAccessRequired(hint?: string | null) {
   state.betaAccessRequired = true
   state.betaAccessHint = hint?.trim() || 'Open Pacifica Portfolio, redeem a valid beta code, then retry execution.'
@@ -274,6 +282,7 @@ export function usePacificaAccount() {
     setupBuilderAccess,
     getPositionForSymbol,
     upsertOnchainPosition,
+    removeOnchainPosition,
     closeSymbolPosition,
     setBetaAccessRequired,
     clearBetaAccessRequired,

@@ -144,12 +144,17 @@ export interface Air3OnchainPosition {
   symbol: string
   mintAddress: string
   quantity: number
+  quantityAtomic?: string | null
   decimals?: number
   priceUsd?: number | null
   valueUsd?: number | null
   costBasisUsd?: number | null
   unrealizedPnlUsd?: number | null
   realizedPnlUsd?: number | null
+  takeProfitPrice?: number | null
+  stopLossPrice?: number | null
+  triggerOrderId?: string | null
+  triggerTxSignature?: string | null
   provider?: string | null
   marketQuery?: string | null
   lastTradeAt?: number | null

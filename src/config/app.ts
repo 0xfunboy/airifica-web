@@ -137,6 +137,14 @@ export const appConfig = {
   jupiterApiBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_JUPITER_API_BASE_URL || '', '/api/jupiter', {
     sameOriginFallback: '/api/jupiter',
   }),
+  jupiterTriggerApiBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_JUPITER_TRIGGER_API_BASE_URL || '', '/api/jupiter-trigger', {
+    sameOriginFallback: '/api/jupiter-trigger',
+  }),
+  jupiterTriggerEnabled: normalizeBoolean(import.meta.env.VITE_AIR3_JUPITER_TRIGGER_ENABLED, true),
+  jupiterTriggerOrderTtlMs: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_TRIGGER_ORDER_TTL_MS, 30 * 24 * 60 * 60 * 1000),
+  jupiterTriggerMinOrderUsd: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_TRIGGER_MIN_ORDER_USD, 10),
+  jupiterTriggerTpSlippageBps: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_TRIGGER_TP_SLIPPAGE_BPS, 100),
+  jupiterTriggerSlSlippageBps: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_TRIGGER_SL_SLIPPAGE_BPS, 200),
   jupiterInputMint: (import.meta.env.VITE_AIR3_JUPITER_INPUT_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v').trim(),
   jupiterInputSymbol: (import.meta.env.VITE_AIR3_JUPITER_INPUT_SYMBOL || 'USDC').trim(),
   jupiterInputDecimals: normalizeNumber(import.meta.env.VITE_AIR3_JUPITER_INPUT_DECIMALS, 6),

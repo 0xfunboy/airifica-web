@@ -42,10 +42,12 @@ const TTS_TARGET_HOST = '127.0.0.1'
 const TTS_TARGET_PORT = 4041
 const STT_PROXY_PATH = '/api/stt/ws'
 const JUPITER_PROXY_PREFIX = '/api/jupiter'
+const JUPITER_TRIGGER_PROXY_PREFIX = '/api/jupiter-trigger'
 const LISTEN_HOST = process.env.AIRIFICA_BRIDGE_HOST || '127.0.0.1'
 const LISTEN_PORT = Number(process.env.AIRIFICA_BRIDGE_PORT || 5173)
 const STT_PROXY_TARGET = (process.env.AIRIFICA_STT_PROXY_TARGET_WS_URL || '').trim()
 const JUPITER_API_BASE_URL = (process.env.AIRIFICA_JUPITER_API_BASE_URL || '').trim()
+const JUPITER_TRIGGER_API_BASE_URL = (process.env.AIRIFICA_JUPITER_TRIGGER_API_BASE_URL || '').trim()
 const JUPITER_API_KEY = (process.env.AIRIFICA_JUPITER_API_KEY || '').trim()
 
 const TTS_PROXY_PATHS = new Set([
@@ -53,6 +55,10 @@ const TTS_PROXY_PATHS = new Set([
   '/api/tts/captioned',
   '/api/tts/phonemes',
 ])
+
+function matchesProxyPrefix(pathname, prefix) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`)
+}
 
 function parseWebSocketTarget(raw) {
   if (!raw)
@@ -100,6 +106,7 @@ function parseHttpTarget(raw) {
 }
 
 const JUPITER_HTTP_TARGET = parseHttpTarget(JUPITER_API_BASE_URL)
+const JUPITER_TRIGGER_HTTP_TARGET = parseHttpTarget(JUPITER_TRIGGER_API_BASE_URL)
 
 const AIR3_ALLOWED_ROUTES = [
   { method: 'POST', pattern: /^\/api\/auth\/challenge$/ },
@@ -191,8 +198,11 @@ function resolveTarget(pathname = '/') {
   if (pathname === STT_PROXY_PATH && STT_WS_TARGET)
     return { kind: 'websocket', ...STT_WS_TARGET }
 
-  if (pathname.startsWith(JUPITER_PROXY_PREFIX))
-    return { kind: 'jupiter' }
+  if (matchesProxyPrefix(pathname, JUPITER_TRIGGER_PROXY_PREFIX))
+    return { kind: 'jupiter', target: JUPITER_TRIGGER_HTTP_TARGET, prefix: JUPITER_TRIGGER_PROXY_PREFIX, unavailableError: 'Jupiter trigger orders are not configured on this gateway.', missingKeyError: 'Jupiter trigger orders are not configured yet. Missing AIRIFICA_JUPITER_API_KEY.' }
+
+  if (matchesProxyPrefix(pathname, JUPITER_PROXY_PREFIX))
+    return { kind: 'jupiter', target: JUPITER_HTTP_TARGET, prefix: JUPITER_PROXY_PREFIX, unavailableError: 'Jupiter execution is not configured on this gateway.', missingKeyError: 'Jupiter execution is not configured yet. Missing AIRIFICA_JUPITER_API_KEY.' }
 
   if (pathname.startsWith('/api/'))
     return { kind: 'proxy', host: AIR3_TARGET_HOST, port: AIR3_TARGET_PORT }
@@ -270,7 +280,7 @@ function isAllowedApiRoute(method, pathname) {
 }
 
 function isJupiterApiRoute(method, pathname) {
-  if (!pathname.startsWith(JUPITER_PROXY_PREFIX))
+  if (!matchesProxyPrefix(pathname, JUPITER_PROXY_PREFIX) && !matchesProxyPrefix(pathname, JUPITER_TRIGGER_PROXY_PREFIX))
     return false
 
   return ['GET', 'POST', 'OPTIONS'].includes(method)
@@ -319,13 +329,13 @@ const server = http.createServer((req, res) => {
     return sendJson(res, 404, { ok: false, error: 'Route not exposed by Airifica gateway' })
 
   if (target.kind === 'jupiter') {
-    if (!JUPITER_HTTP_TARGET)
-      return sendJson(res, 503, { ok: false, error: 'Jupiter execution is not configured on this gateway.' })
+    if (!target.target)
+      return sendJson(res, 503, { ok: false, error: target.unavailableError })
     if (!JUPITER_API_KEY)
-      return sendJson(res, 503, { ok: false, error: 'Jupiter execution is not configured yet. Missing AIRIFICA_JUPITER_API_KEY.' })
+      return sendJson(res, 503, { ok: false, error: target.missingKeyError })
 
-    const upstreamPath = `${JUPITER_HTTP_TARGET.path || ''}${url.pathname.replace(/^\/api\/jupiter/, '') || ''}${url.search || ''}` || '/'
-    const client = JUPITER_HTTP_TARGET.secure ? https : http
+    const upstreamPath = `${target.target.path || ''}${url.pathname.replace(new RegExp(`^${target.prefix}`), '') || ''}${url.search || ''}` || '/'
+    const client = target.target.secure ? https : http
     const bodyChunks = []
 
     req.on('data', (chunk) => {
@@ -336,8 +346,8 @@ const server = http.createServer((req, res) => {
       const requestBody = bodyChunks.length ? Buffer.concat(bodyChunks) : null
       const upstream = client.request(
         {
-          host: JUPITER_HTTP_TARGET.host,
-          port: JUPITER_HTTP_TARGET.port,
+          host: target.target.host,
+          port: target.target.port,
           method: req.method,
           path: upstreamPath,
           headers: {

@@ -13,6 +13,7 @@ import { useAvatarPresence } from '@/modules/avatar/presence'
 import { useConversationState } from '@/modules/conversation/state'
 import { appConfig } from '@/config/app'
 import { useMarketContext } from '@/modules/market/context'
+import { useSpotCloseIntent } from '@/modules/trade/spotCloseIntent'
 import { useTelegramLink } from '@/modules/telegram/link'
 import { useWalletSession } from '@/modules/wallet/session'
 
@@ -21,6 +22,7 @@ useTelegramLink()
 const avatar = useAvatarPresence()
 const conversation = useConversationState()
 const marketContext = useMarketContext()
+const spotCloseIntent = useSpotCloseIntent()
 const mobileLayout = ref(false)
 const mobilePanel = ref<'chat' | 'market'>('chat')
 const mobilePanelExpanded = ref(false)
@@ -202,10 +204,42 @@ function consumeTelegramTradeIntent() {
   window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
 }
 
+function consumeTelegramSpotCloseIntent() {
+  if (typeof window === 'undefined')
+    return
+
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('tgSpotClose') !== '1')
+    return
+
+  const symbol = (url.searchParams.get('symbol') || '').trim().toUpperCase()
+  const mintAddress = (url.searchParams.get('mint') || '').trim()
+  const marketQuery = (url.searchParams.get('query') || symbol || mintAddress).trim()
+  const closePct = Number(url.searchParams.get('closePct'))
+
+  if (!mintAddress || !marketQuery)
+    return
+
+  marketContext.setSymbol(marketQuery)
+  spotCloseIntent.setIntent({
+    mintAddress,
+    symbol: symbol || marketQuery,
+    marketQuery,
+    closePct: Number.isFinite(closePct) && closePct > 0 ? closePct : 100,
+    source: 'telegram',
+  })
+
+  ;['tgSpotClose', 'query', 'symbol', 'mint', 'closePct'].forEach((key) => {
+    url.searchParams.delete(key)
+  })
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
+}
+
 onMounted(() => {
   wallet.bootstrapFromSearch()
   void wallet.tryRestore()
   consumeTelegramTradeIntent()
+  consumeTelegramSpotCloseIntent()
   syncLayoutMode()
   window.addEventListener('message', handleEmbeddedBootstrap)
   window.addEventListener('resize', syncLayoutMode)

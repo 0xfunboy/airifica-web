@@ -3,14 +3,20 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 import type { Air3OnchainPosition, Air3PacificaPosition } from '@/lib/air3-client'
 
+import { appConfig } from '@/config/app'
+import { createAir3Client } from '@/lib/air3'
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
+import { executeJupiterSpotClose } from '@/modules/trade/jupiter'
+import { cancelJupiterSpotTpSl } from '@/modules/trade/jupiterTrigger'
+import { useSpotCloseIntent } from '@/modules/trade/spotCloseIntent'
 import { useTelegramLink } from '@/modules/telegram/link'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const marketContext = useMarketContext()
 const pacifica = usePacificaAccount()
 const telegram = useTelegramLink()
+const spotCloseIntent = useSpotCloseIntent()
 const wallet = useWalletSession()
 
 const market = computed(() => marketContext.market.value)
@@ -21,6 +27,8 @@ const pacificaDepositUrl = computed(() => marketContext.pacificaDepositUrl.value
 const marketUniverse = computed(() => marketContext.universe.value)
 const marketMenuOpen = ref(false)
 const marketMenuRef = ref<HTMLElement | null>(null)
+const closingSpotMint = ref<string | null>(null)
+const spotActionMessage = ref<string | null>(null)
 
 const selectedMarketRow = computed(() =>
   marketUniverse.value.find(row => row.symbol === marketContext.currentSymbol.value) || null,
@@ -54,6 +62,20 @@ const otherOnchainPositions = computed(() =>
     !currentOnchainPosition.value || getOnchainPositionKey(position) !== getOnchainPositionKey(currentOnchainPosition.value),
   ),
 )
+const hasOnchainPositions = computed(() =>
+  Boolean(currentOnchainPosition.value || otherOnchainPositions.value.length),
+)
+const matchedSpotCloseIntent = computed(() => {
+  const intent = spotCloseIntent.pending.value
+  const position = currentOnchainPosition.value
+  if (!intent || !position)
+    return null
+
+  const sameMint = String(intent.mintAddress || '').trim() !== ''
+    && String(intent.mintAddress || '').trim() === String(position.mintAddress || '').trim()
+  const sameSymbol = normalizeSurfaceSymbol(intent.symbol) === normalizeSurfaceSymbol(position.symbol)
+  return sameMint || sameSymbol ? intent : null
+})
 
 const requiresSessionSignature = computed(() =>
   Boolean(wallet.isConnected.value && !wallet.isAuthenticated.value),
@@ -252,6 +274,68 @@ function getPositionKey(position: Pick<Air3PacificaPosition, 'symbol' | 'side'>)
 
 function getOnchainPositionKey(position: Pick<Air3OnchainPosition, 'mintAddress'>) {
   return String(position.mintAddress || '').trim()
+}
+
+function hasOnchainTrigger(position: Air3OnchainPosition | null | undefined) {
+  return Boolean(position?.triggerOrderId)
+}
+
+function buildOnchainPositionFields(position: Air3OnchainPosition) {
+  return [
+    { label: 'TP', value: position.takeProfitPrice && position.takeProfitPrice > 0 ? formatPrice(position.takeProfitPrice) : '--' },
+    { label: 'SL', value: position.stopLossPrice && position.stopLossPrice > 0 ? formatPrice(position.stopLossPrice) : '--' },
+    { label: 'Spot PnL', value: position.unrealizedPnlUsd != null ? formatSignedUsd(position.unrealizedPnlUsd) : '--' },
+  ]
+}
+
+function formatOnchainCloseLabel(position: Air3OnchainPosition) {
+  const intent = matchedSpotCloseIntent.value
+  if (!intent)
+    return 'Close market'
+
+  const matchesMint = String(intent.mintAddress || '').trim() === String(position.mintAddress || '').trim()
+  const matchesSymbol = normalizeSurfaceSymbol(intent.symbol) === normalizeSurfaceSymbol(position.symbol)
+  if (!matchesMint && !matchesSymbol)
+    return 'Close market'
+
+  return intent.closePct >= 100 ? 'Close market' : `Close ${intent.closePct}%`
+}
+
+function decimalToAtomic(value: number, decimals: number) {
+  const normalizedDecimals = Number.isFinite(decimals) && decimals > 0 ? Math.trunc(decimals) : 0
+  const normalized = Math.max(0, Number(value || 0))
+  const fixed = normalized.toFixed(normalizedDecimals)
+  const [whole, fraction = ''] = fixed.split('.')
+  const atomic = `${whole}${fraction.padEnd(normalizedDecimals, '0')}`.replace(/^0+(?=\d)/, '')
+  return atomic || '0'
+}
+
+function atomicToDecimal(raw: string | null | undefined, decimals: number) {
+  const digits = String(raw || '').trim()
+  const normalizedDecimals = Number.isFinite(decimals) && decimals > 0 ? Math.trunc(decimals) : 0
+  if (!/^\d+$/.test(digits))
+    return 0
+
+  const whole = normalizedDecimals > 0
+    ? `${digits.padStart(normalizedDecimals + 1, '0').slice(0, -normalizedDecimals)}.${digits.padStart(normalizedDecimals + 1, '0').slice(-normalizedDecimals)}`
+    : digits
+
+  return Number(whole)
+}
+
+function computeCloseAmountAtomic(position: Air3OnchainPosition, pct: number) {
+  const normalizedPct = Math.min(100, Math.max(1, Math.round(pct)))
+  const quantityAtomic = String(position.quantityAtomic || '').trim()
+  if (/^\d+$/.test(quantityAtomic) && BigInt(quantityAtomic) > 0n) {
+    const raw = (BigInt(quantityAtomic) * BigInt(normalizedPct)) / 100n
+    return raw > 0n ? raw.toString() : quantityAtomic
+  }
+
+  return decimalToAtomic(position.quantity, Number(position.decimals || 0))
+}
+
+function openTelegramBot() {
+  telegram.openBot()
 }
 
 function normalizeSurfaceSymbol(raw: string | null | undefined) {
@@ -537,6 +621,136 @@ async function handleCloseListedPosition(symbol: string, side?: 'LONG' | 'SHORT'
   }
 }
 
+async function ensureSpotWalletSession() {
+  if (!wallet.isConnected.value)
+    await wallet.connect()
+  else if (!wallet.isAuthenticated.value)
+    await wallet.authenticate()
+}
+
+async function handleCloseOnchainPosition(position: Air3OnchainPosition) {
+  const mintAddress = String(position.mintAddress || '').trim()
+  if (!mintAddress)
+    return
+
+  try {
+    await ensureSpotWalletSession()
+  }
+  catch {
+    return
+  }
+
+  if (!wallet.address.value) {
+    spotActionMessage.value = 'Connect a Solana wallet before closing a spot position.'
+    return
+  }
+
+  const closePct = matchedSpotCloseIntent.value?.closePct || 100
+  const amountAtomic = computeCloseAmountAtomic(position, closePct)
+  if (!/^\d+$/.test(amountAtomic) || BigInt(amountAtomic) <= 0n) {
+    spotActionMessage.value = 'Unable to resolve a valid token amount for this close request.'
+    return
+  }
+
+  closingSpotMint.value = mintAddress
+  spotActionMessage.value = null
+
+  try {
+    if (hasOnchainTrigger(position) && wallet.isConnected.value) {
+      try {
+        await cancelJupiterSpotTpSl({
+          walletAddress: wallet.address.value,
+          orderId: String(position.triggerOrderId || ''),
+        })
+      }
+      catch {
+      }
+    }
+
+    const execution = await executeJupiterSpotClose({
+      walletAddress: wallet.address.value,
+      inputMint: mintAddress,
+      inputSymbol: position.symbol,
+      inputAmountAtomic: amountAtomic,
+    })
+
+    const decimals = Number(position.decimals || 0)
+    const closedQuantity = atomicToDecimal(execution.inputAmountAtomic || amountAtomic, decimals)
+    const remainingQuantity = Math.max(0, Number(position.quantity || 0) - closedQuantity)
+    const remainingQuantityAtomic = /^\d+$/.test(String(position.quantityAtomic || '').trim())
+      ? (() => {
+          const current = BigInt(String(position.quantityAtomic || '0').trim())
+          const closed = BigInt(execution.inputAmountAtomic || amountAtomic)
+          const remaining = current > closed ? current - closed : 0n
+          return remaining.toString()
+        })()
+      : decimalToAtomic(remainingQuantity, decimals)
+    const receivedUsd = execution.outputAmountAtomic
+      ? Number(execution.outputAmountAtomic) / (10 ** appConfig.jupiterInputDecimals)
+      : 0
+
+    if (remainingQuantity <= 0) {
+      pacifica.removeOnchainPosition(mintAddress)
+    }
+    else {
+      pacifica.upsertOnchainPosition({
+        ...position,
+        quantity: remainingQuantity,
+        quantityAtomic: remainingQuantityAtomic,
+        valueUsd: position.priceUsd != null ? position.priceUsd * remainingQuantity : position.valueUsd ?? null,
+        takeProfitPrice: null,
+        stopLossPrice: null,
+        triggerOrderId: null,
+        triggerTxSignature: null,
+        lastTradeAt: Date.now(),
+        lastTxSignature: execution.signature,
+        updatedAt: Date.now(),
+      })
+    }
+
+    if (wallet.token.value) {
+      try {
+        const client = createAir3Client({
+          token: wallet.token.value,
+        })
+        await client.notifyTelegramTrade({
+          kind: 'POSITION_CLOSED',
+          symbol: position.symbol,
+          side: 'SELL',
+          venue: 'Jupiter',
+          amountUsd: receivedUsd > 0 ? receivedUsd : undefined,
+          quantity: closedQuantity > 0 ? closedQuantity : undefined,
+          quantityAtomic: execution.inputAmountAtomic || amountAtomic,
+          positionMint: mintAddress,
+          outputMint: appConfig.jupiterInputMint,
+          marketQuery: position.marketQuery || marketContext.currentQuery.value,
+          txSignature: execution.signature,
+          explorerUrl: execution.explorerUrl,
+          headers: wallet.buildRequestHeaders(),
+        })
+      }
+      catch {
+      }
+    }
+
+    spotCloseIntent.clearIntent()
+    spotActionMessage.value = remainingQuantity > 0
+      ? `${formatOnchainCloseLabel(position)} submitted for ${position.symbol}.`
+      : `${position.symbol} spot position closed.`
+
+    await pacifica.refreshOverview()
+    setTimeout(() => {
+      void pacifica.refreshOverview().catch(() => {})
+    }, 1_500)
+  }
+  catch (error) {
+    spotActionMessage.value = error instanceof Error ? error.message : 'Failed to close the onchain spot position.'
+  }
+  finally {
+    closingSpotMint.value = null
+  }
+}
+
 onMounted(() => {
   void marketContext.refreshMarketContext()
   void marketContext.refreshMarketUniverse().catch(() => {})
@@ -790,7 +1004,7 @@ watch(() => wallet.token.value, () => {
         </article>
       </div>
 
-      <div class="stage-backdrop__detail-card">
+      <div v-if="hasOnchainPositions" class="stage-backdrop__detail-card">
         <div class="stage-backdrop__position-header">
           <div class="stage-backdrop__metric-label">
             Onchain spot positions
@@ -808,16 +1022,53 @@ watch(() => wallet.token.value, () => {
             <strong>{{ formatAssetAmount(currentOnchainPosition.quantity) }}</strong>
             <strong>{{ formatCompactUsd(currentOnchainPosition.valueUsd) }}</strong>
           </div>
-          <div
-            v-if="currentOnchainPosition.unrealizedPnlUsd != null"
-            class="stage-backdrop__status-line stage-backdrop__status-line--meta"
-          >
-            <span>Spot PnL {{ formatSignedUsd(currentOnchainPosition.unrealizedPnlUsd) }}</span>
+
+          <div class="stage-backdrop__position-detail-grid">
+            <div
+              v-for="field in buildOnchainPositionFields(currentOnchainPosition)"
+              :key="`${getOnchainPositionKey(currentOnchainPosition)}:${field.label}`"
+              class="stage-backdrop__position-detail"
+            >
+              <span>{{ field.label }}</span>
+              <strong>{{ field.value }}</strong>
+            </div>
+          </div>
+
+          <div class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+            <span v-if="currentOnchainPosition.triggerOrderId">Trigger armed</span>
+            <span v-else-if="currentOnchainPosition.takeProfitPrice || currentOnchainPosition.stopLossPrice">TP/SL saved</span>
+            <span v-else>Spot holding tracked</span>
+            <button
+              v-if="wallet.isConnected.value"
+              class="stage-backdrop__secondary-action"
+              type="button"
+              :disabled="closingSpotMint === currentOnchainPosition.mintAddress"
+              @click="handleCloseOnchainPosition(currentOnchainPosition)"
+            >
+              {{ closingSpotMint === currentOnchainPosition.mintAddress ? 'Closing…' : formatOnchainCloseLabel(currentOnchainPosition) }}
+            </button>
+            <button
+              v-else
+              class="stage-backdrop__secondary-action"
+              type="button"
+              :disabled="wallet.connecting.value || wallet.authenticating.value"
+              @click="handleConnectWallet"
+            >
+              Connect wallet
+            </button>
           </div>
         </div>
 
-        <div v-else class="stage-backdrop__status-line stage-backdrop__status-line--meta">
-          <span>No open onchain positions.</span>
+        <div v-if="spotActionMessage" class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+          <span>{{ spotActionMessage }}</span>
+          <button
+            v-if="telegramBotReady"
+            class="stage-backdrop__secondary-action"
+            type="button"
+            @click="openTelegramBot"
+          >
+            Telegram
+          </button>
         </div>
 
         <details v-if="otherOnchainPositions.length" class="stage-backdrop__nested-details">
@@ -839,11 +1090,38 @@ watch(() => wallet.token.value, () => {
                   <strong>{{ formatAssetAmount(position.quantity) }}</strong>
                   <strong>{{ formatCompactUsd(position.valueUsd) }}</strong>
                 </div>
-                <div
-                  v-if="position.unrealizedPnlUsd != null"
-                  class="stage-backdrop__status-line stage-backdrop__status-line--meta"
-                >
-                  <span>Spot PnL {{ formatSignedUsd(position.unrealizedPnlUsd) }}</span>
+                <div class="stage-backdrop__position-detail-grid">
+                  <div
+                    v-for="field in buildOnchainPositionFields(position)"
+                    :key="`${getOnchainPositionKey(position)}:${field.label}`"
+                    class="stage-backdrop__position-detail"
+                  >
+                    <span>{{ field.label }}</span>
+                    <strong>{{ field.value }}</strong>
+                  </div>
+                </div>
+                <div class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+                  <span v-if="position.triggerOrderId">Trigger armed</span>
+                  <span v-else-if="position.takeProfitPrice || position.stopLossPrice">TP/SL saved</span>
+                  <span v-else>Spot holding tracked</span>
+                  <button
+                    v-if="wallet.isConnected.value"
+                    class="stage-backdrop__secondary-action"
+                    type="button"
+                    :disabled="closingSpotMint === position.mintAddress"
+                    @click="handleCloseOnchainPosition(position)"
+                  >
+                    {{ closingSpotMint === position.mintAddress ? 'Closing…' : formatOnchainCloseLabel(position) }}
+                  </button>
+                  <button
+                    v-else
+                    class="stage-backdrop__secondary-action"
+                    type="button"
+                    :disabled="wallet.connecting.value || wallet.authenticating.value"
+                    @click="handleConnectWallet"
+                  >
+                    Connect wallet
+                  </button>
                 </div>
               </div>
             </div>

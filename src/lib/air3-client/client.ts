@@ -127,14 +127,22 @@ export interface UnlinkTelegramChatInput {
 }
 
 export interface NotifyTelegramTradeInput {
+  kind?: 'TRADE_OPENED' | 'POSITION_CLOSED'
   proposalId?: number | null
   symbol: string
-  side?: 'LONG' | 'SHORT'
+  side?: 'LONG' | 'SHORT' | 'BUY' | 'SELL' | 'CLOSE'
   venue?: string
   amountUsd?: number
   quantity?: number
+  quantityAtomic?: string | null
+  positionMint?: string | null
   outputMint?: string | null
   marketQuery?: string | null
+  tpPriceUsd?: number | null
+  slPriceUsd?: number | null
+  triggerArmed?: boolean
+  triggerOrderId?: string | null
+  triggerTxSignature?: string | null
   txSignature?: string | null
   explorerUrl?: string | null
   headers?: HeadersInit
@@ -564,14 +572,22 @@ export class Air3Client {
           ...input.headers,
         },
         body: JSON.stringify({
+          kind: input.kind,
           proposalId: input.proposalId,
           symbol: input.symbol,
           side: input.side,
           venue: input.venue,
           amountUsd: input.amountUsd,
           quantity: input.quantity,
+          quantityAtomic: input.quantityAtomic,
+          positionMint: input.positionMint,
           outputMint: input.outputMint,
           marketQuery: input.marketQuery,
+          tpPriceUsd: input.tpPriceUsd,
+          slPriceUsd: input.slPriceUsd,
+          triggerArmed: input.triggerArmed,
+          triggerOrderId: input.triggerOrderId,
+          triggerTxSignature: input.triggerTxSignature,
           txSignature: input.txSignature,
           explorerUrl: input.explorerUrl,
         }),

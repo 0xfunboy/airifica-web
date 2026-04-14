@@ -6,6 +6,10 @@ import { base64ToBytes, bytesToBase64, getSolanaProvider } from '@/lib/solana'
 interface JupiterOrderResponse {
   requestId?: string
   transaction?: string
+  inputMint?: string
+  outputMint?: string
+  inAmount?: string
+  outAmount?: string
   error?: string
   code?: string | number
 }
@@ -15,6 +19,14 @@ interface JupiterExecuteResponse {
   signature?: string
   error?: string
   code?: string | number
+}
+
+interface ExecuteJupiterSwapInput {
+  walletAddress: string
+  inputMint: string
+  outputMint: string
+  outputSymbol: string
+  inputAmountAtomic: string
 }
 
 export interface ExecuteJupiterSpotSwapInput {
@@ -29,6 +41,10 @@ export interface ExecuteJupiterSpotSwapResult {
   signature: string | null
   explorerUrl: string | null
   requestId: string
+  inputMint: string | null
+  outputMint: string | null
+  inputAmountAtomic: string | null
+  outputAmountAtomic: string | null
 }
 
 interface JupiterReferralPolicy {
@@ -90,6 +106,15 @@ function toAtomicAmount(amountUsd: number) {
   return Math.max(0, Math.floor(amountUsd * scale))
 }
 
+function sanitizeAtomicAmount(raw: string) {
+  const trimmed = String(raw || '').trim()
+  if (!/^\d+$/.test(trimmed))
+    throw new Error('Jupiter execution requires a valid atomic token amount.')
+  if (BigInt(trimmed) <= 0n)
+    throw new Error('Jupiter execution requires a positive token amount.')
+  return trimmed
+}
+
 function shortSignature(signature: string | null | undefined) {
   if (!signature)
     return null
@@ -120,7 +145,7 @@ function resolveJupiterReferralPolicy(outputSymbol: string): JupiterReferralPoli
   }
 }
 
-export async function executeJupiterSpotSwap(input: ExecuteJupiterSpotSwapInput): Promise<ExecuteJupiterSpotSwapResult> {
+async function executeJupiterSwap(input: ExecuteJupiterSwapInput): Promise<ExecuteJupiterSpotSwapResult> {
   const provider = getSolanaProvider()
   if (!provider)
     throw new Error('No Solana wallet detected.')
@@ -128,15 +153,13 @@ export async function executeJupiterSpotSwap(input: ExecuteJupiterSpotSwapInput)
   if (!provider.signTransaction)
     throw new Error('The active Solana wallet does not support transaction signing.')
 
-  const inputAmountAtomic = toAtomicAmount(input.inputAmountUsd)
-  if (inputAmountAtomic <= 0)
-    throw new Error(`Set at least a small ${appConfig.jupiterInputSymbol} amount before executing on Jupiter.`)
+  const inputAmountAtomic = sanitizeAtomicAmount(input.inputAmountAtomic)
 
   const referralPolicy = resolveJupiterReferralPolicy(input.outputSymbol)
   const search = new URLSearchParams({
-    inputMint: appConfig.jupiterInputMint,
+    inputMint: input.inputMint,
     outputMint: input.outputMint,
-    amount: String(inputAmountAtomic),
+    amount: inputAmountAtomic,
     taker: input.walletAddress,
   })
 
@@ -184,7 +207,42 @@ export async function executeJupiterSpotSwap(input: ExecuteJupiterSpotSwapInput)
     signature,
     explorerUrl,
     requestId: order.requestId,
+    inputMint: order.inputMint || null,
+    outputMint: order.outputMint || null,
+    inputAmountAtomic: order.inAmount || null,
+    outputAmountAtomic: order.outAmount || null,
   }
+}
+
+export async function executeJupiterSpotSwap(input: ExecuteJupiterSpotSwapInput): Promise<ExecuteJupiterSpotSwapResult> {
+  const inputAmountAtomic = String(toAtomicAmount(input.inputAmountUsd))
+  if (BigInt(inputAmountAtomic) <= 0n)
+    throw new Error(`Set at least a small ${appConfig.jupiterInputSymbol} amount before executing on Jupiter.`)
+
+  return executeJupiterSwap({
+    walletAddress: input.walletAddress,
+    inputMint: appConfig.jupiterInputMint,
+    outputMint: input.outputMint,
+    outputSymbol: input.outputSymbol,
+    inputAmountAtomic,
+  })
+}
+
+export interface ExecuteJupiterSpotCloseInput {
+  walletAddress: string
+  inputMint: string
+  inputSymbol: string
+  inputAmountAtomic: string
+}
+
+export async function executeJupiterSpotClose(input: ExecuteJupiterSpotCloseInput): Promise<ExecuteJupiterSpotSwapResult> {
+  return executeJupiterSwap({
+    walletAddress: input.walletAddress,
+    inputMint: input.inputMint,
+    outputMint: appConfig.jupiterInputMint,
+    outputSymbol: appConfig.jupiterInputSymbol,
+    inputAmountAtomic: input.inputAmountAtomic,
+  })
 }
 
 export function formatJupiterExecutionMessage(result: ExecuteJupiterSpotSwapResult) {

@@ -10,6 +10,7 @@ import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
 import { useTradeExecutionPreferences } from '@/modules/product/execution'
 import { executeJupiterSpotSwap, formatJupiterExecutionMessage } from '@/modules/trade/jupiter'
+import { armJupiterSpotTpSl } from '@/modules/trade/jupiterTrigger'
 import { computeProposalConfidence, computeRiskReward } from '@/modules/trade/proposalMetrics'
 import { useWalletSession } from '@/modules/wallet/session'
 
@@ -106,6 +107,20 @@ const jupiterExecutionSupported = computed(() =>
   && props.proposal.side === 'LONG'
   && Boolean(marketMeta.value?.baseTokenAddress),
 )
+const jupiterTriggerLevelsValid = computed(() =>
+  Number.isFinite(props.proposal.tp)
+  && Number.isFinite(props.proposal.sl)
+  && props.proposal.tp > 0
+  && props.proposal.sl > 0
+  && props.proposal.tp > props.proposal.sl,
+)
+const jupiterTriggerConfigured = computed(() =>
+  appConfig.jupiterTriggerEnabled
+  && Boolean(appConfig.jupiterTriggerApiBaseUrl.trim()),
+)
+const jupiterTriggerMinOrderReady = computed(() =>
+  numericSizeUsd.value >= appConfig.jupiterTriggerMinOrderUsd,
+)
 const jupiterExecutionHint = computed(() => {
   if (!usesJupiterExecution.value)
     return null
@@ -113,7 +128,11 @@ const jupiterExecutionHint = computed(() => {
     return 'Jupiter spot execution currently supports LONG only. Entry, take profit and stop loss stay as analytical levels only.'
   if (!marketMeta.value?.baseTokenAddress)
     return 'This token is not mapped to a Jupiter mint yet.'
-  return `Spot execution routes through Jupiter using ${appConfig.jupiterInputSymbol} from the connected wallet. Entry, take profit and stop loss are guidance only and are not placed onchain.`
+  if (!jupiterTriggerConfigured.value)
+    return 'Jupiter Trigger is not configured on this gateway yet, so TP/SL stay analytical only.'
+  if (!jupiterTriggerLevelsValid.value)
+    return 'This setup has invalid TP/SL levels for a Jupiter Trigger exit order.'
+  return null
 })
 const executionAmountLabel = computed(() => usesJupiterExecution.value ? `${appConfig.jupiterInputSymbol} amount` : 'Collateral')
 const requiresOnboarding = computed(() => usesPacificaExecution.value && wallet.isAuthenticated.value && !pacifica.readyToExecute.value)
@@ -350,6 +369,19 @@ function buildMinimumOrderMessage(minimumSize: number) {
   return friendly
 }
 
+function buildJupiterTriggerSkipMessage() {
+  if (!jupiterTriggerConfigured.value)
+    return 'TP/SL stayed analytical because Jupiter Trigger is not configured on this gateway.'
+
+  if (!jupiterTriggerLevelsValid.value)
+    return 'TP/SL stayed analytical because the setup levels are invalid for a Jupiter spot exit order.'
+
+  if (!jupiterTriggerMinOrderReady.value)
+    return `Swap executed, but Jupiter Trigger requires at least ${formatInputUsd(appConfig.jupiterTriggerMinOrderUsd)} ${appConfig.jupiterInputSymbol} to arm TP/SL.`
+
+  return null
+}
+
 async function handleExecute() {
   if (executing.value)
     return
@@ -399,9 +431,50 @@ async function handleExecute() {
         inputAmountUsd: numericSizeUsd.value,
       })
 
+      let successMessage = formatJupiterExecutionMessage(execution)
+      let triggerOrderId: string | null = null
+      let triggerTxSignature: string | null = null
+      let triggerArmed = false
+
+      if (/^success$/i.test(execution.status)) {
+        const skipMessage = buildJupiterTriggerSkipMessage()
+
+        if (!skipMessage && execution.outputAmountAtomic) {
+          try {
+            const triggerOrder = await armJupiterSpotTpSl({
+              walletAddress: wallet.address.value,
+              outputMint: marketMeta.value.baseTokenAddress,
+              acquiredAmountAtomic: execution.outputAmountAtomic,
+              tpPriceUsd: props.proposal.tp,
+              slPriceUsd: props.proposal.sl,
+            })
+
+            triggerOrderId = triggerOrder.orderId || null
+            triggerTxSignature = triggerOrder.txSignature || null
+            triggerArmed = true
+            successMessage += triggerOrder.orderId
+              ? ` TP/SL armed on Jupiter Trigger (${triggerOrder.orderId}).`
+              : ' TP/SL armed on Jupiter Trigger.'
+          }
+          catch (error) {
+            const triggerError = error instanceof Error ? error.message : 'Jupiter Trigger arming failed.'
+            successMessage += ` Swap executed, but TP/SL were not armed: ${triggerError}`
+          }
+        }
+        else if (skipMessage) {
+          successMessage += ` ${skipMessage}`
+        }
+        else {
+          successMessage += ' Swap executed, but Jupiter Trigger did not return the filled token amount required to arm TP/SL.'
+        }
+      }
+      else if (jupiterTriggerConfigured.value && jupiterTriggerLevelsValid.value) {
+        successMessage += ' TP/SL were not armed yet because the Jupiter swap is still pending confirmation.'
+      }
+
       result.value = {
         success: true,
-        message: formatJupiterExecutionMessage(execution),
+        message: successMessage,
       }
 
       notifyEmbeddedTradeExecuted({
@@ -417,8 +490,13 @@ async function handleExecute() {
         symbol: props.proposal.symbol,
         mintAddress: marketMeta.value.baseTokenAddress,
         quantity: estimatedAssetAmount.value,
+        quantityAtomic: execution.outputAmountAtomic,
         priceUsd: props.proposal.entry,
         valueUsd: effectiveNotionalUsd.value,
+        takeProfitPrice: triggerArmed ? props.proposal.tp : null,
+        stopLossPrice: triggerArmed ? props.proposal.sl : null,
+        triggerOrderId,
+        triggerTxSignature,
         provider: 'jupiter',
         marketQuery: marketMeta.value.requestQuery || marketContext.currentQuery.value,
         lastTradeAt: Date.now(),
@@ -432,14 +510,22 @@ async function handleExecute() {
             token: wallet.token.value,
           })
           await client.notifyTelegramTrade({
+            kind: 'TRADE_OPENED',
             proposalId: props.externalProposalId,
             symbol: props.proposal.symbol,
             side: props.proposal.side,
             venue: 'Jupiter',
             amountUsd: effectiveNotionalUsd.value,
             quantity: estimatedAssetAmount.value,
+            quantityAtomic: execution.outputAmountAtomic,
+            positionMint: marketMeta.value.baseTokenAddress,
             outputMint: marketMeta.value.baseTokenAddress,
             marketQuery: marketMeta.value.requestQuery || marketContext.currentQuery.value,
+            tpPriceUsd: triggerArmed ? props.proposal.tp : null,
+            slPriceUsd: triggerArmed ? props.proposal.sl : null,
+            triggerArmed,
+            triggerOrderId,
+            triggerTxSignature,
             txSignature: execution.signature,
             explorerUrl: execution.explorerUrl,
             headers: wallet.buildRequestHeaders(),
