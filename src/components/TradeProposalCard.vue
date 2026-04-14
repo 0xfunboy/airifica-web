@@ -18,6 +18,7 @@ const props = defineProps<{
   conversationId?: string
   messageId?: string
   createdAt?: number
+  prefilledCollateralUsd?: number | null
 }>()
 
 const wallet = useWalletSession()
@@ -400,6 +401,8 @@ async function handleExecute() {
             venue: 'Jupiter',
             amountUsd: effectiveNotionalUsd.value,
             quantity: estimatedAssetAmount.value,
+            outputMint: marketMeta.value.baseTokenAddress,
+            marketQuery: marketMeta.value.requestQuery || marketContext.currentQuery.value,
             txSignature: execution.signature,
             explorerUrl: execution.explorerUrl,
             headers: wallet.buildRequestHeaders(),
@@ -538,6 +541,14 @@ watch(() => maxLeverage.value, (value) => {
 watch(() => props.proposal.symbol, () => {
   leverage.value = minLeverage.value
 })
+
+watch(() => props.prefilledCollateralUsd, (value) => {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0)
+    return
+
+  notionalUsd.value = formatInputUsd(numeric)
+}, { immediate: true })
 
 watch(leverage, (value) => {
   const normalized = clampLeverage(value)

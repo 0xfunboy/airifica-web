@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
-import type { Air3PacificaPosition } from '@/lib/air3-client'
+import type { Air3OnchainPosition, Air3PacificaPosition } from '@/lib/air3-client'
 
 import { useMarketContext } from '@/modules/market/context'
 import { usePacificaAccount } from '@/modules/pacifica/account'
@@ -39,6 +39,19 @@ const currentPacificaPosition = computed(() =>
 const otherPacificaPositions = computed(() =>
   pacifica.positions.value.filter(position =>
     !currentPacificaPosition.value || getPositionKey(position) !== getPositionKey(currentPacificaPosition.value),
+  ),
+)
+const currentOnchainPosition = computed(() =>
+  pacifica.onchainPositions.value.find((position) => {
+    const sameMint = Boolean(market.value?.baseTokenAddress)
+      && String(position.mintAddress || '').trim() === String(market.value?.baseTokenAddress || '').trim()
+    const sameSymbol = normalizeSurfaceSymbol(position.symbol) === normalizeSurfaceSymbol(marketContext.currentSymbol.value)
+    return sameMint || sameSymbol
+  }) || null,
+)
+const otherOnchainPositions = computed(() =>
+  pacifica.onchainPositions.value.filter(position =>
+    !currentOnchainPosition.value || getOnchainPositionKey(position) !== getOnchainPositionKey(currentOnchainPosition.value),
   ),
 )
 
@@ -237,6 +250,17 @@ function getPositionKey(position: Pick<Air3PacificaPosition, 'symbol' | 'side'>)
   return `${position.symbol}:${position.side || 'OPEN'}`
 }
 
+function getOnchainPositionKey(position: Pick<Air3OnchainPosition, 'mintAddress'>) {
+  return String(position.mintAddress || '').trim()
+}
+
+function normalizeSurfaceSymbol(raw: string | null | undefined) {
+  return String(raw || '')
+    .toUpperCase()
+    .trim()
+    .replace(/[^A-Z0-9]/g, '')
+}
+
 function togglePositionDetails(position: Pick<Air3PacificaPosition, 'symbol' | 'side'>) {
   const key = getPositionKey(position)
   if (expandedPositionKeys.has(key))
@@ -325,6 +349,16 @@ function formatCompactUsd(value: number | null | undefined) {
     currency: 'USD',
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
+  }).format(Number(value))
+}
+
+function formatAssetAmount(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return '--'
+
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
   }).format(Number(value))
 }
 
@@ -736,6 +770,55 @@ watch(() => wallet.token.value, () => {
           <span>{{ metric.label }}</span>
           <strong>{{ metric.value }}</strong>
         </article>
+      </div>
+
+      <div class="stage-backdrop__detail-card">
+        <div class="stage-backdrop__position-header">
+          <div class="stage-backdrop__metric-label">
+            Onchain spot positions
+          </div>
+        </div>
+
+        <div v-if="currentOnchainPosition" class="stage-backdrop__position-table">
+          <div class="stage-backdrop__position-table-head">
+            <span>Ticker</span>
+            <span>Quantity</span>
+            <span>Value $</span>
+          </div>
+          <div class="stage-backdrop__position-table-row">
+            <strong>{{ currentOnchainPosition.symbol }}</strong>
+            <strong>{{ formatAssetAmount(currentOnchainPosition.quantity) }}</strong>
+            <strong>{{ formatCompactUsd(currentOnchainPosition.valueUsd) }}</strong>
+          </div>
+        </div>
+
+        <div v-else class="stage-backdrop__status-line stage-backdrop__status-line--meta">
+          <span>No open onchain positions.</span>
+        </div>
+
+        <details v-if="otherOnchainPositions.length" class="stage-backdrop__nested-details">
+          <summary>Other spot holdings · {{ otherOnchainPositions.length }}</summary>
+          <div class="stage-backdrop__positions-list">
+            <div
+              v-for="position in otherOnchainPositions"
+              :key="getOnchainPositionKey(position)"
+              class="stage-backdrop__position-card"
+            >
+              <div class="stage-backdrop__position-table">
+                <div class="stage-backdrop__position-table-head">
+                  <span>Ticker</span>
+                  <span>Quantity</span>
+                  <span>Value $</span>
+                </div>
+                <div class="stage-backdrop__position-table-row">
+                  <strong>{{ position.symbol }}</strong>
+                  <strong>{{ formatAssetAmount(position.quantity) }}</strong>
+                  <strong>{{ formatCompactUsd(position.valueUsd) }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
 
       <a
@@ -1543,6 +1626,10 @@ watch(() => wallet.token.value, () => {
 .stage-backdrop__positions-list {
   display: grid;
   gap: 8px;
+  margin-top: 12px;
+}
+
+.stage-backdrop__nested-details {
   margin-top: 12px;
 }
 

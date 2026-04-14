@@ -127,6 +127,7 @@ function replayMessage() {
         :conversation-id="message.conversationId"
         :message-id="message.id"
         :created-at="message.createdAt"
+        :prefilled-collateral-usd="message.tradePresetUsd"
       />
 
       <StrategySummaryCard

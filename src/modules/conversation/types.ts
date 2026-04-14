@@ -11,6 +11,7 @@ export interface ConversationMessage {
   image?: string
   proposal?: Air3TradeProposal
   proposalPending?: boolean
+  tradePresetUsd?: number | null
   meta?: Air3MessageMeta
   pending?: boolean
   statusNote?: string

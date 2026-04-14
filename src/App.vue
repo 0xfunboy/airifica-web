@@ -12,6 +12,7 @@ import StageHeader from '@/components/layout/StageHeader.vue'
 import { useAvatarPresence } from '@/modules/avatar/presence'
 import { useConversationState } from '@/modules/conversation/state'
 import { appConfig } from '@/config/app'
+import { useMarketContext } from '@/modules/market/context'
 import { useTelegramLink } from '@/modules/telegram/link'
 import { useWalletSession } from '@/modules/wallet/session'
 
@@ -19,6 +20,7 @@ const wallet = useWalletSession()
 useTelegramLink()
 const avatar = useAvatarPresence()
 const conversation = useConversationState()
+const marketContext = useMarketContext()
 const mobileLayout = ref(false)
 const mobilePanel = ref<'chat' | 'market'>('chat')
 const mobilePanelExpanded = ref(false)
@@ -149,9 +151,59 @@ function handleEmbeddedBootstrap(event: MessageEvent) {
   })
 }
 
+function consumeTelegramTradeIntent() {
+  if (typeof window === 'undefined')
+    return
+
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('tgTrade') !== '1')
+    return
+
+  const symbol = (url.searchParams.get('symbol') || '').trim().toUpperCase()
+  const side = (url.searchParams.get('side') || 'LONG').trim().toUpperCase() === 'SHORT' ? 'SHORT' : 'LONG'
+  const entry = Number(url.searchParams.get('entry'))
+  const tp = Number(url.searchParams.get('tp'))
+  const sl = Number(url.searchParams.get('sl'))
+  const timeframe = (url.searchParams.get('timeframe') || '1H').trim()
+  const confidence = Number(url.searchParams.get('confidence'))
+  const sizeUsd = Number(url.searchParams.get('sizeUsd'))
+  const marketQuery = (url.searchParams.get('query') || symbol).trim()
+  const venue = (url.searchParams.get('venue') || '').trim().toLowerCase()
+
+  if (!symbol || !Number.isFinite(entry) || !Number.isFinite(tp) || !Number.isFinite(sl))
+    return
+
+  marketContext.setSymbol(marketQuery || symbol)
+  conversation.injectExternalProposal({
+    content: venue === 'jupiter'
+      ? `Telegram handed off a spot setup for ${symbol}.`
+      : `Telegram handed off a setup for ${symbol}.`,
+    proposal: {
+      symbol,
+      side,
+      entry,
+      tp,
+      sl,
+      timeframe,
+      confidence: Number.isFinite(confidence) ? confidence : 0.6,
+      thesis: venue === 'jupiter'
+        ? 'Spot execution handoff from Telegram.'
+        : 'Execution handoff from Telegram.',
+      sourceAction: 'TELEGRAM_HANDOFF',
+    },
+    tradePresetUsd: Number.isFinite(sizeUsd) && sizeUsd > 0 ? sizeUsd : null,
+  })
+
+  ;['tgTrade', 'query', 'symbol', 'side', 'entry', 'tp', 'sl', 'timeframe', 'confidence', 'sizeUsd', 'venue'].forEach((key) => {
+    url.searchParams.delete(key)
+  })
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
+}
+
 onMounted(() => {
   wallet.bootstrapFromSearch()
   void wallet.tryRestore()
+  consumeTelegramTradeIntent()
   syncLayoutMode()
   window.addEventListener('message', handleEmbeddedBootstrap)
   window.addEventListener('resize', syncLayoutMode)

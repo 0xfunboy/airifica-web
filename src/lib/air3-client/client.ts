@@ -132,6 +132,8 @@ export interface NotifyTelegramTradeInput {
   venue?: string
   amountUsd?: number
   quantity?: number
+  outputMint?: string | null
+  marketQuery?: string | null
   txSignature?: string | null
   explorerUrl?: string | null
   headers?: HeadersInit
@@ -566,6 +568,8 @@ export class Air3Client {
           venue: input.venue,
           amountUsd: input.amountUsd,
           quantity: input.quantity,
+          outputMint: input.outputMint,
+          marketQuery: input.marketQuery,
           txSignature: input.txSignature,
           explorerUrl: input.explorerUrl,
         }),

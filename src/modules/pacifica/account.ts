@@ -1,6 +1,7 @@
 import { computed, reactive } from 'vue'
 
 import type {
+  Air3OnchainPosition,
   Air3PacificaAccountSnapshot,
   Air3PacificaPosition,
   Air3PacificaStatus,
@@ -38,6 +39,7 @@ const state = reactive({
   status: { ...DEFAULT_STATUS } as Air3PacificaStatus,
   account: null as Air3PacificaAccountSnapshot | null,
   positions: [] as Air3PacificaPosition[],
+  onchainPositions: [] as Air3OnchainPosition[],
   accountMissing: false,
   betaAccessRequired: false,
   betaAccessHint: null as string | null,
@@ -81,6 +83,7 @@ function reset() {
   state.status = { ...DEFAULT_STATUS }
   state.account = null
   state.positions = []
+  state.onchainPositions = []
   state.accountMissing = false
   state.betaAccessRequired = false
   state.betaAccessHint = null
@@ -125,6 +128,7 @@ async function refreshOverview() {
     state.status = overview.status || { ...DEFAULT_STATUS }
     state.account = overview.account || null
     state.positions = Array.isArray(overview.positions) ? overview.positions : []
+    state.onchainPositions = Array.isArray(overview.onchainPositions) ? overview.onchainPositions : []
     state.accountMissing = Boolean(overview.accountMissing)
     state.minimumDepositUsd = Number.isFinite(overview.minimumDepositUsd) ? Number(overview.minimumDepositUsd) : 10
     state.onboardingHint = overview.onboardingHint || null
@@ -134,6 +138,7 @@ async function refreshOverview() {
   catch (error) {
     state.account = null
     state.positions = []
+    state.onchainPositions = []
     state.accountMissing = false
     state.onboardingHint = null
 
@@ -238,6 +243,7 @@ export function usePacificaAccount() {
     status: computed(() => state.status),
     account: computed(() => state.account),
     positions: computed(() => state.positions),
+    onchainPositions: computed(() => state.onchainPositions),
     loading: computed(() => state.loading),
     setupLoading: computed(() => state.setupLoading),
     closingSymbol: computed(() => state.closingSymbol),

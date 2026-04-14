@@ -140,11 +140,26 @@ export interface Air3PacificaPosition {
   raw?: Record<string, unknown>
 }
 
+export interface Air3OnchainPosition {
+  symbol: string
+  mintAddress: string
+  quantity: number
+  decimals?: number
+  priceUsd?: number | null
+  valueUsd?: number | null
+  provider?: string | null
+  marketQuery?: string | null
+  lastTradeAt?: number | null
+  lastTxSignature?: string | null
+  updatedAt: number
+}
+
 export interface Air3PacificaOverview {
   ok: boolean
   status: Air3PacificaStatus
   account: Air3PacificaAccountSnapshot | null
   positions: Air3PacificaPosition[]
+  onchainPositions?: Air3OnchainPosition[]
   accountMissing?: boolean
   minimumDepositUsd?: number | null
   onboardingHint?: string | null

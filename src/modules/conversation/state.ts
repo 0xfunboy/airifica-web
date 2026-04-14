@@ -11,6 +11,7 @@ import { deriveProposalFallback } from '@/modules/trade/proposalFallback'
 import { useWalletSession } from '@/modules/wallet/session'
 
 import type { ConversationMessage } from './types'
+import type { Air3TradeProposal } from '@/lib/air3-client'
 
 interface PersistedConversation {
   conversationId: string
@@ -353,6 +354,27 @@ function primeConversationId(conversationId: string | null | undefined) {
   persist()
 }
 
+function injectExternalProposal(input: {
+  proposal: Air3TradeProposal
+  content?: string
+  conversationId?: string | null
+  tradePresetUsd?: number | null
+}) {
+  hydrateForIdentity()
+
+  const content = String(input.content || '').trim() || `Telegram handoff ready for ${input.proposal.symbol}.`
+  const conversationId = String(input.conversationId || state.conversationId || createId('conversation')).trim()
+  state.conversationId = conversationId
+
+  pushMessage({
+    role: 'assistant',
+    content,
+    conversationId,
+    proposal: input.proposal,
+    tradePresetUsd: input.tradePresetUsd ?? null,
+  })
+}
+
 export function useConversationState() {
   return {
     hydratedIdentity: computed(() => state.hydratedIdentity),
@@ -381,5 +403,6 @@ export function useConversationState() {
     sendMessage,
     resetConversation,
     primeConversationId,
+    injectExternalProposal,
   }
 }
