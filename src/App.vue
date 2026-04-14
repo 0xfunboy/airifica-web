@@ -221,6 +221,14 @@ function consumeTelegramSpotCloseIntent() {
     return
 
   marketContext.setSymbol(marketQuery)
+  conversation.resetConversation()
+  conversation.injectSpotCloseIntent({
+    mintAddress,
+    symbol: symbol || marketQuery,
+    marketQuery,
+    closePct: Number.isFinite(closePct) && closePct > 0 ? closePct : 100,
+    content: `Telegram requested ${Number.isFinite(closePct) && closePct > 0 && closePct < 100 ? `a ${Math.round(closePct)}% sell` : 'a market close'} for ${symbol || marketQuery}.`,
+  })
   spotCloseIntent.setIntent({
     mintAddress,
     symbol: symbol || marketQuery,

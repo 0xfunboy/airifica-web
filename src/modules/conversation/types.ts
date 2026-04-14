@@ -13,6 +13,12 @@ export interface ConversationMessage {
   proposalPending?: boolean
   tradePresetUsd?: number | null
   externalProposalId?: number | null
+  spotCloseIntent?: {
+    mintAddress: string
+    symbol: string
+    marketQuery: string
+    closePct: number
+  } | null
   meta?: Air3MessageMeta
   pending?: boolean
   statusNote?: string

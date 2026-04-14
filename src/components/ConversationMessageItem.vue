@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import SpotCloseCard from '@/components/SpotCloseCard.vue'
 import StrategySummaryCard from '@/components/StrategySummaryCard.vue'
 import TradeProposalCard from '@/components/TradeProposalCard.vue'
 import { appConfig } from '@/config/app'
@@ -129,6 +130,11 @@ function replayMessage() {
         :created-at="message.createdAt"
         :prefilled-collateral-usd="message.tradePresetUsd"
         :external-proposal-id="message.externalProposalId"
+      />
+
+      <SpotCloseCard
+        v-else-if="message.spotCloseIntent"
+        :intent="message.spotCloseIntent"
       />
 
       <StrategySummaryCard

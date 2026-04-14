@@ -445,7 +445,7 @@ function formatAssetAmount(value: number | null | undefined) {
 
   const numeric = Number(value)
   const absolute = Math.abs(numeric)
-  if (absolute >= 1_000_000) {
+  if (absolute >= 10_000) {
     return new Intl.NumberFormat('en-US', {
       notation: 'compact',
       maximumFractionDigits: 3,
@@ -453,10 +453,10 @@ function formatAssetAmount(value: number | null | undefined) {
   }
 
   const maximumFractionDigits = absolute >= 1
-    ? 4
+    ? Math.min(3, absolute >= 100 ? 2 : 3)
     : absolute === 0
       ? 0
-      : Math.min(6, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 2))
+      : Math.min(5, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
 
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,

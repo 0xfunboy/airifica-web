@@ -212,7 +212,7 @@ function formatUsd(value: number) {
 
 function formatAssetAmount(value: number) {
   const absolute = Math.abs(value)
-  if (absolute >= 1_000_000) {
+  if (absolute >= 10_000) {
     return value.toLocaleString(undefined, {
       notation: 'compact',
       maximumFractionDigits: 3,
@@ -220,15 +220,37 @@ function formatAssetAmount(value: number) {
   }
 
   const maximumFractionDigits = absolute >= 1
-    ? 4
+    ? Math.min(3, absolute >= 100 ? 2 : 3)
     : absolute === 0
       ? 0
-      : Math.min(6, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 2))
+      : Math.min(5, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
 
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits,
   })
+}
+
+function formatProposalLevel(value: number) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric))
+    return '--'
+
+  const absolute = Math.abs(numeric)
+  const maximumFractionDigits = absolute >= 1
+    ? 4
+    : Math.min(7, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
+
+  return numeric.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  })
+}
+
+function executionMetricLabel(kind: 'quantity' | 'size') {
+  return usesJupiterExecution.value
+    ? (kind === 'quantity' ? 'Qty' : 'Value')
+    : (kind === 'quantity' ? 'Quantity' : 'Position size')
 }
 
 function formatInputUsd(value: number) {
@@ -810,15 +832,15 @@ function toggleStrategy() {
     <div class="proposal-card__levels">
       <article>
         <span>Entry</span>
-        <strong>{{ proposal.entry.toLocaleString(undefined, { maximumFractionDigits: 6 }) }}</strong>
+        <strong>{{ formatProposalLevel(proposal.entry) }}</strong>
       </article>
       <article>
         <span>Take profit</span>
-        <strong>{{ proposal.tp.toLocaleString(undefined, { maximumFractionDigits: 6 }) }}</strong>
+        <strong>{{ formatProposalLevel(proposal.tp) }}</strong>
       </article>
       <article>
         <span>Stop loss</span>
-        <strong>{{ proposal.sl.toLocaleString(undefined, { maximumFractionDigits: 6 }) }}</strong>
+        <strong>{{ formatProposalLevel(proposal.sl) }}</strong>
       </article>
     </div>
 
@@ -830,13 +852,15 @@ function toggleStrategy() {
         </label>
 
         <article class="proposal-card__execution-metric proposal-card__execution-metric--quantity">
-          <span>Quantity</span>
-          <strong>{{ formatAssetAmount(estimatedAssetAmount) }} {{ proposal.symbol }}</strong>
+          <span>{{ executionMetricLabel('quantity') }}</span>
+          <strong :class="{ 'proposal-card__execution-value--compact': usesJupiterExecution }">
+            {{ formatAssetAmount(estimatedAssetAmount) }} {{ proposal.symbol }}
+          </strong>
         </article>
 
         <article class="proposal-card__execution-metric">
-          <span>Position size</span>
-          <strong>{{ formatUsd(effectiveNotionalUsd) }} USD</strong>
+          <span>{{ executionMetricLabel('size') }}</span>
+          <strong :class="{ 'proposal-card__execution-value--compact': usesJupiterExecution }">{{ formatUsd(effectiveNotionalUsd) }} USD</strong>
         </article>
       </div>
 
@@ -1218,7 +1242,13 @@ function toggleStrategy() {
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.proposal-card__execution-value--compact {
+  font-size: 0.92rem;
 }
 
 .proposal-card__leverage-input-shell {

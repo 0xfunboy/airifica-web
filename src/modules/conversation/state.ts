@@ -377,6 +377,34 @@ function injectExternalProposal(input: {
   })
 }
 
+function injectSpotCloseIntent(input: {
+  mintAddress: string
+  symbol: string
+  marketQuery: string
+  closePct: number
+  content?: string
+  conversationId?: string | null
+}) {
+  hydrateForIdentity()
+
+  const symbol = String(input.symbol || input.marketQuery || 'TOKEN').trim().toUpperCase()
+  const content = String(input.content || '').trim() || `Telegram requested ${input.closePct >= 100 ? 'a full close' : `a ${input.closePct}% close`} for ${symbol}.`
+  const conversationId = String(input.conversationId || state.conversationId || createId('conversation')).trim()
+  state.conversationId = conversationId
+
+  pushMessage({
+    role: 'assistant',
+    content,
+    conversationId,
+    spotCloseIntent: {
+      mintAddress: String(input.mintAddress || '').trim(),
+      symbol,
+      marketQuery: String(input.marketQuery || symbol).trim(),
+      closePct: Math.min(100, Math.max(1, Math.round(Number(input.closePct || 100)))),
+    },
+  })
+}
+
 export function useConversationState() {
   return {
     hydratedIdentity: computed(() => state.hydratedIdentity),
@@ -406,5 +434,6 @@ export function useConversationState() {
     resetConversation,
     primeConversationId,
     injectExternalProposal,
+    injectSpotCloseIntent,
   }
 }
