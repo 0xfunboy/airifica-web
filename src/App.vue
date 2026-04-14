@@ -167,6 +167,7 @@ function consumeTelegramTradeIntent() {
   const timeframe = (url.searchParams.get('timeframe') || '1H').trim()
   const confidence = Number(url.searchParams.get('confidence'))
   const sizeUsd = Number(url.searchParams.get('sizeUsd'))
+  const proposalId = Number(url.searchParams.get('proposalId'))
   const marketQuery = (url.searchParams.get('query') || symbol).trim()
   const venue = (url.searchParams.get('venue') || '').trim().toLowerCase()
 
@@ -192,9 +193,10 @@ function consumeTelegramTradeIntent() {
       sourceAction: 'TELEGRAM_HANDOFF',
     },
     tradePresetUsd: Number.isFinite(sizeUsd) && sizeUsd > 0 ? sizeUsd : null,
+    externalProposalId: Number.isFinite(proposalId) && proposalId > 0 ? proposalId : null,
   })
 
-  ;['tgTrade', 'query', 'symbol', 'side', 'entry', 'tp', 'sl', 'timeframe', 'confidence', 'sizeUsd', 'venue'].forEach((key) => {
+  ;['tgTrade', 'query', 'symbol', 'side', 'entry', 'tp', 'sl', 'timeframe', 'confidence', 'sizeUsd', 'venue', 'proposalId'].forEach((key) => {
     url.searchParams.delete(key)
   })
   window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)

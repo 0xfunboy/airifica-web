@@ -127,6 +127,7 @@ export interface UnlinkTelegramChatInput {
 }
 
 export interface NotifyTelegramTradeInput {
+  proposalId?: number | null
   symbol: string
   side?: 'LONG' | 'SHORT'
   venue?: string
@@ -563,6 +564,7 @@ export class Air3Client {
           ...input.headers,
         },
         body: JSON.stringify({
+          proposalId: input.proposalId,
           symbol: input.symbol,
           side: input.side,
           venue: input.venue,

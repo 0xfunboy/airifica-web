@@ -19,6 +19,7 @@ const props = defineProps<{
   messageId?: string
   createdAt?: number
   prefilledCollateralUsd?: number | null
+  externalProposalId?: number | null
 }>()
 
 const wallet = useWalletSession()
@@ -109,10 +110,10 @@ const jupiterExecutionHint = computed(() => {
   if (!usesJupiterExecution.value)
     return null
   if (props.proposal.side !== 'LONG')
-    return 'Jupiter spot execution currently supports LONG only.'
+    return 'Jupiter spot execution currently supports LONG only. Entry, take profit and stop loss stay as analytical levels only.'
   if (!marketMeta.value?.baseTokenAddress)
     return 'This token is not mapped to a Jupiter mint yet.'
-  return `Spot execution routes through Jupiter using ${appConfig.jupiterInputSymbol} from the connected wallet.`
+  return `Spot execution routes through Jupiter using ${appConfig.jupiterInputSymbol} from the connected wallet. Entry, take profit and stop loss are guidance only and are not placed onchain.`
 })
 const executionAmountLabel = computed(() => usesJupiterExecution.value ? `${appConfig.jupiterInputSymbol} amount` : 'Collateral')
 const requiresOnboarding = computed(() => usesPacificaExecution.value && wallet.isAuthenticated.value && !pacifica.readyToExecute.value)
@@ -390,12 +391,26 @@ async function handleExecute() {
         side: props.proposal.side,
       })
 
+      pacifica.upsertOnchainPosition({
+        symbol: props.proposal.symbol,
+        mintAddress: marketMeta.value.baseTokenAddress,
+        quantity: estimatedAssetAmount.value,
+        priceUsd: props.proposal.entry,
+        valueUsd: effectiveNotionalUsd.value,
+        provider: 'jupiter',
+        marketQuery: marketMeta.value.requestQuery || marketContext.currentQuery.value,
+        lastTradeAt: Date.now(),
+        lastTxSignature: execution.signature,
+        updatedAt: Date.now(),
+      })
+
       if (wallet.token.value) {
         try {
           const client = createAir3Client({
             token: wallet.token.value,
           })
           await client.notifyTelegramTrade({
+            proposalId: props.externalProposalId,
             symbol: props.proposal.symbol,
             side: props.proposal.side,
             venue: 'Jupiter',
@@ -407,6 +422,10 @@ async function handleExecute() {
             explorerUrl: execution.explorerUrl,
             headers: wallet.buildRequestHeaders(),
           })
+          await pacifica.refreshOverview()
+          setTimeout(() => {
+            void pacifica.refreshOverview().catch(() => {})
+          }, 1_500)
         }
         catch {
         }

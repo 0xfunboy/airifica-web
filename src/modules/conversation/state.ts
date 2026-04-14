@@ -359,6 +359,7 @@ function injectExternalProposal(input: {
   content?: string
   conversationId?: string | null
   tradePresetUsd?: number | null
+  externalProposalId?: number | null
 }) {
   hydrateForIdentity()
 
@@ -372,6 +373,7 @@ function injectExternalProposal(input: {
     conversationId,
     proposal: input.proposal,
     tradePresetUsd: input.tradePresetUsd ?? null,
+    externalProposalId: input.externalProposalId ?? null,
   })
 }
 
