@@ -177,16 +177,38 @@ function notifyEmbeddedTradeExecuted(payload: Record<string, unknown>) {
 }
 
 function formatUsd(value: number) {
+  const absolute = Math.abs(value)
+  const maximumFractionDigits = absolute >= 100
+    ? 2
+    : absolute >= 1
+      ? 2
+      : absolute === 0
+        ? 2
+        : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
   return value.toLocaleString(undefined, {
-    minimumFractionDigits: value >= 100 ? 0 : 2,
-    maximumFractionDigits: value >= 100 ? 0 : 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
   })
 }
 
 function formatAssetAmount(value: number) {
+  const absolute = Math.abs(value)
+  if (absolute >= 1_000_000) {
+    return value.toLocaleString(undefined, {
+      notation: 'compact',
+      maximumFractionDigits: 3,
+    } as Intl.NumberFormatOptions)
+  }
+
+  const maximumFractionDigits = absolute >= 1
+    ? 4
+    : absolute === 0
+      ? 0
+      : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
+
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
+    maximumFractionDigits,
   })
 }
 

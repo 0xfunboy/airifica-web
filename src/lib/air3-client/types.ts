@@ -147,6 +147,9 @@ export interface Air3OnchainPosition {
   decimals?: number
   priceUsd?: number | null
   valueUsd?: number | null
+  costBasisUsd?: number | null
+  unrealizedPnlUsd?: number | null
+  realizedPnlUsd?: number | null
   provider?: string | null
   marketQuery?: string | null
   lastTradeAt?: number | null

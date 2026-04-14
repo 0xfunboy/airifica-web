@@ -315,10 +315,18 @@ function formatPrice(value: number | null | undefined) {
     return '--'
 
   const numeric = Number(value)
+  const absolute = Math.abs(numeric)
+  const maximumFractionDigits = absolute >= 100
+    ? 2
+    : absolute >= 1
+      ? 4
+      : absolute === 0
+        ? 2
+        : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: numeric >= 100 ? 2 : 4,
+    maximumFractionDigits,
   }).format(numeric)
 }
 
@@ -344,22 +352,32 @@ function formatCompactUsd(value: number | null | undefined) {
   if (!Number.isFinite(value))
     return '--'
 
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  }).format(Number(value))
+  return formatPrice(Number(value))
 }
 
 function formatAssetAmount(value: number | null | undefined) {
   if (!Number.isFinite(value))
     return '--'
 
+  const numeric = Number(value)
+  const absolute = Math.abs(numeric)
+  if (absolute >= 1_000_000) {
+    return new Intl.NumberFormat('en-US', {
+      notation: 'compact',
+      maximumFractionDigits: 3,
+    }).format(numeric)
+  }
+
+  const maximumFractionDigits = absolute >= 1
+    ? 4
+    : absolute === 0
+      ? 0
+      : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
+
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  }).format(Number(value))
+    maximumFractionDigits,
+  }).format(numeric)
 }
 
 function formatSignedUsd(value: number | null | undefined) {
@@ -790,6 +808,12 @@ watch(() => wallet.token.value, () => {
             <strong>{{ formatAssetAmount(currentOnchainPosition.quantity) }}</strong>
             <strong>{{ formatCompactUsd(currentOnchainPosition.valueUsd) }}</strong>
           </div>
+          <div
+            v-if="currentOnchainPosition.unrealizedPnlUsd != null"
+            class="stage-backdrop__status-line stage-backdrop__status-line--meta"
+          >
+            <span>Spot PnL {{ formatSignedUsd(currentOnchainPosition.unrealizedPnlUsd) }}</span>
+          </div>
         </div>
 
         <div v-else class="stage-backdrop__status-line stage-backdrop__status-line--meta">
@@ -814,6 +838,12 @@ watch(() => wallet.token.value, () => {
                   <strong>{{ position.symbol }}</strong>
                   <strong>{{ formatAssetAmount(position.quantity) }}</strong>
                   <strong>{{ formatCompactUsd(position.valueUsd) }}</strong>
+                </div>
+                <div
+                  v-if="position.unrealizedPnlUsd != null"
+                  class="stage-backdrop__status-line stage-backdrop__status-line--meta"
+                >
+                  <span>Spot PnL {{ formatSignedUsd(position.unrealizedPnlUsd) }}</span>
                 </div>
               </div>
             </div>
