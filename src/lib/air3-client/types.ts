@@ -275,3 +275,119 @@ export interface Air3HealthResponse {
   pacificaApiBase?: string
   pacificaPublicApiBase?: string
 }
+
+export interface Air3AdminMetricEntry {
+  key: string
+  count: number
+  updatedAt: number
+}
+
+export interface Air3AdminUserRow {
+  walletAddress: string
+  firstSeenAt: number
+  lastSeenAt: number
+  verifiedAt: number | null
+  authCount: number
+  isAdmin: boolean
+  lastSource: string | null
+  linkedChats: number
+  binding: {
+    isActive: boolean
+    builderApprovedAt: number | null
+    agentBoundAt: number | null
+    pacificaAccount: string | null
+  } | null
+  latestTrade: {
+    symbol: string
+    side: 'LONG' | 'SHORT'
+    updatedAt: number
+  } | null
+}
+
+export interface Air3AdminTradeRow {
+  id: number
+  walletAddress: string
+  symbol: string
+  side: 'LONG' | 'SHORT'
+  venue: string
+  source: string
+  orderId: string | null
+  notionalUsd: number
+  marginUsd: number
+  leverage: number
+  updatedAt: number
+}
+
+export interface Air3AdminOverviewResponse {
+  ok: boolean
+  generatedAt: number
+  overview: {
+    totalKnownWallets: number
+    verifiedWallets: number
+    adminWalletsSeen: number
+    adminWalletsConfigured: number
+    pacificaBindings: number
+    pacificaBuildersApproved: number
+    pacificaActiveAgents: number
+    totalProposals: number
+    executedTrades: number
+    pacificaExecutedVolumeUsd: number
+    externalReportedVolumeUsd: number
+    marketUniverseCount: number
+  }
+  users: {
+    recent: Air3AdminUserRow[]
+  }
+  trading: {
+    proposalStatusCounts: Record<string, number>
+    recentTrades: Air3AdminTradeRow[]
+    topRequestedTickers: Air3AdminMetricEntry[]
+    topRequestedContracts: Air3AdminMetricEntry[]
+    topTradeSymbols: Air3AdminMetricEntry[]
+  }
+  telegram: {
+    configured: boolean
+    botUsername: string | null
+    linkedChats: number
+    linkedWallets: number
+    alertsEnabledChats: number
+    conversationEnabledChats: number
+    pendingLinkCodes: number
+    deliveredAlerts: number
+    failedAlerts: number
+    pendingAlerts: number
+    heartbeat: {
+      live: boolean
+      lastSeenAt: number | null
+      meta: Record<string, unknown>
+    }
+    topCommands: Air3AdminMetricEntry[]
+    topActions: Air3AdminMetricEntry[]
+  }
+  runtime: {
+    service: string
+    nodeEnv: string
+    port: number
+    pid: number
+    uptimeSec: number
+    memory: {
+      rssMb: number
+      heapUsedMb: number
+      heapTotalMb: number
+    }
+    config: {
+      publicAppUrl: string | null
+      corsOriginsConfigured: number
+      pacificaApiBase: string
+      pacificaPublicApiBase: string
+      pacificaBuilderCode: string | null
+      pacificaBuilderMaxFeeRate: string | null
+      encryptionKeyConfigured: boolean
+      authSecretConfigured: boolean
+      telegramBotUsername: string | null
+      telegramInternalConfigured: boolean
+      telegramNotifyBaseUrl: string | null
+      adminWallets: string[]
+    }
+  }
+}

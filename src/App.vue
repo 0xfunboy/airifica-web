@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 
 import AvatarStageCard from '@/components/AvatarStageCard.vue'
+import AdminDashboard from '@/components/AdminDashboard.vue'
 import ConversationCard from '@/components/ConversationCard.vue'
 import StageBackdrop from '@/components/StageBackdrop.vue'
 import StageMarketSurface from '@/components/StageMarketSurface.vue'
@@ -171,6 +172,7 @@ onUnmounted(() => {
 <template>
   <div class="stage-page">
     <StageBackdrop :show-market-surface="!mobileLayout" />
+    <AdminDashboard />
 
     <div class="stage-page__root">
       <div class="stage-page__header">

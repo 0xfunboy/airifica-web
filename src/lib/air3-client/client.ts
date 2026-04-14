@@ -1,5 +1,6 @@
 import type {
   Air3ApproveTradeProposalResponse,
+  Air3AdminOverviewResponse,
   Air3AuthVerifyResponse,
   Air3ClientConfig,
   Air3ClosePositionResponse,
@@ -570,6 +571,18 @@ export class Air3Client {
         }),
       },
       20_000,
+    )
+  }
+
+  fetchAdminOverview(headers?: HeadersInit) {
+    return requestJson<Air3AdminOverviewResponse>(
+      this.config,
+      `${resolveServiceApiBaseUrl(this.config)}/airi3/admin/overview`,
+      {
+        method: 'GET',
+        headers,
+      },
+      30_000,
     )
   }
 }

@@ -5,18 +5,22 @@ import CommandGuideOverlay from '@/components/layout/CommandGuideOverlay.vue'
 import HeaderLink from '@/components/layout/HeaderLink.vue'
 import PacificaTradeButton from '@/components/layout/PacificaTradeButton.vue'
 import WalletConnectButton from '@/components/layout/WalletConnectButton.vue'
+import { useAdminPanel } from '@/modules/admin/panel'
 import { useAvatarLighting } from '@/modules/avatar/lighting'
 import { useConversationComposer } from '@/modules/conversation/composer'
 import { EXAMPLE_PROMPTS } from '@/modules/conversation/examples'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
 import { useMarketContext } from '@/modules/market/context'
 import { useSpeechRuntime } from '@/modules/speech/runtime'
+import { useWalletSession } from '@/modules/wallet/session'
 
 const lighting = useAvatarLighting()
 const composerState = useConversationComposer()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
 const marketContext = useMarketContext()
+const wallet = useWalletSession()
+const adminPanel = useAdminPanel()
 
 const settingsOpen = ref(false)
 const guideOpen = ref(false)
@@ -95,6 +99,14 @@ onUnmounted(() => {
           <div v-if="settingsOpen" class="stage-header__settings-popover">
             <button v-if="mobileCompact" class="stage-header__utility" type="button" @click="guideOpen = true">
               <span>Prompt guide</span>
+            </button>
+            <button
+              v-if="wallet.isAdmin.value"
+              class="stage-header__utility stage-header__utility--primary"
+              type="button"
+              @click="adminPanel.openPanel()"
+            >
+              <span>Admin control panel</span>
             </button>
             <a
               v-if="mobileCompact"
@@ -364,6 +376,12 @@ onUnmounted(() => {
   color: var(--text-1);
   text-align: left;
   text-decoration: none;
+}
+
+.stage-header__utility--primary {
+  border: 1px solid rgba(103, 232, 249, 0.22);
+  background: rgba(103, 232, 249, 0.12);
+  color: #d9fbff;
 }
 
 .stage-header__utility--ghost {

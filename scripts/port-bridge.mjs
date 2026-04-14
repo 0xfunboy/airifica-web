@@ -111,6 +111,7 @@ const AIR3_ALLOWED_ROUTES = [
   { method: 'POST', pattern: /^\/api\/airi3\/proposals$/ },
   { method: 'POST', pattern: /^\/api\/airi3\/proposals\/\d+\/approve$/ },
   { method: 'GET', pattern: /^\/api\/airi3\/health$/ },
+  { method: 'GET', pattern: /^\/api\/airi3\/admin\/overview$/ },
   { method: 'GET', pattern: /^\/api\/airi3\/market-context(?:\?|$)/ },
   { method: 'GET', pattern: /^\/api\/airi3\/market-universe(?:\?|$)/ },
   { method: 'POST', pattern: /^\/api\/airi3\/telegram\/link\/request$/ },

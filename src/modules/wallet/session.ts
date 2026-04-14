@@ -19,6 +19,7 @@ import { readStorage, removeStorage, writeStorage } from '@/lib/storage'
 
 const ADDRESS_KEY = 'airifica:wallet-address'
 const TOKEN_KEY = 'airifica:auth-token'
+const IS_ADMIN_KEY = 'airifica:is-admin'
 const GUEST_IDENTITY_KEY = 'airifica:guest-session-id'
 
 function getLocalStorage() {
@@ -40,6 +41,7 @@ function initializeGuestIdentity() {
 const state = reactive({
   address: readStorage<string | null>(getLocalStorage(), ADDRESS_KEY, null),
   token: readStorage<string | null>(getSessionStorage(), TOKEN_KEY, null),
+  isAdmin: readStorage<boolean>(getSessionStorage(), IS_ADMIN_KEY, false),
   guestSessionId: initializeGuestIdentity(),
   connecting: false,
   authenticating: false,
@@ -63,8 +65,14 @@ function persistToken(value: string | null) {
     removeStorage(getSessionStorage(), TOKEN_KEY)
 }
 
+function persistIsAdmin(value: boolean) {
+  state.isAdmin = value
+  writeStorage(getSessionStorage(), IS_ADMIN_KEY, value)
+}
+
 function clearAuthentication(message?: string | null) {
   persistToken(null)
+  persistIsAdmin(false)
   state.error = message || null
 }
 
@@ -74,6 +82,7 @@ const shortAddress = computed(() =>
 )
 const isConnected = computed(() => Boolean(state.address))
 const isAuthenticated = computed(() => Boolean(state.address && state.token))
+const isAdmin = computed(() => Boolean(state.address && state.token && state.isAdmin))
 const hasWalletProvider = computed(() => Boolean(getSolanaProvider()))
 const mobileWalletFallbackAvailable = computed(() =>
   isMobileBrowser() && !state.embedded && !hasWalletProvider.value,
@@ -94,7 +103,7 @@ function buildRequestHeaders() {
   }
 }
 
-function hydrateExternalSession(payload: { address?: string | null, token?: string | null, embedded?: boolean }) {
+function hydrateExternalSession(payload: { address?: string | null, token?: string | null, isAdmin?: boolean, embedded?: boolean }) {
   if (payload.address && payload.address !== state.address) {
     persistAddress(payload.address)
     if (!payload.token)
@@ -103,6 +112,9 @@ function hydrateExternalSession(payload: { address?: string | null, token?: stri
 
   if (payload.token)
     persistToken(payload.token)
+
+  if (typeof payload.isAdmin === 'boolean')
+    persistIsAdmin(payload.isAdmin)
 
   if (payload.embedded !== undefined)
     state.embedded = payload.embedded
@@ -117,6 +129,7 @@ function bootstrapFromSearch(search = typeof window !== 'undefined' ? window.loc
   const params = new URLSearchParams(search)
   const walletAddress = params.get('wallet') || params.get('walletAddress')
   const token = params.get('token') || params.get('jwt')
+  const isAdminRaw = params.get('isAdmin')
   const embedded = ['1', 'true', 'yes'].includes(String(params.get('embedded') || '').toLowerCase())
 
   if (!walletAddress && !token && !params.has('embedded'))
@@ -125,6 +138,7 @@ function bootstrapFromSearch(search = typeof window !== 'undefined' ? window.loc
   hydrateExternalSession({
     address: walletAddress,
     token,
+    ...(isAdminRaw != null ? { isAdmin: ['1', 'true', 'yes'].includes(isAdminRaw.toLowerCase()) } : {}),
     embedded,
   })
 
@@ -135,6 +149,7 @@ function bootstrapFromSearch(search = typeof window !== 'undefined' ? window.loc
     nextUrl.searchParams.delete('token')
     nextUrl.searchParams.delete('jwt')
     nextUrl.searchParams.delete('embedded')
+    nextUrl.searchParams.delete('isAdmin')
     window.history.replaceState({}, '', nextUrl.toString())
   }
 
@@ -160,10 +175,12 @@ async function authenticate(provider?: SolanaProvider | null) {
     const result = await client.verifyWalletChallenge(challenge.message, signature, state.address)
     persistToken(result.token)
     persistAddress(result.user.address)
+    persistIsAdmin(Boolean(result.user.isAdmin))
     return result
   }
   catch (error) {
     persistToken(null)
+    persistIsAdmin(false)
     state.error = error instanceof Error ? error.message : 'Wallet authentication failed.'
     throw error
   }
@@ -244,6 +261,7 @@ async function disconnect() {
 
   persistAddress(null)
   persistToken(null)
+  persistIsAdmin(false)
   state.error = null
 }
 
@@ -301,6 +319,7 @@ export function useWalletSession() {
     shortAddress,
     isConnected,
     isAuthenticated,
+    isAdmin,
     hasWalletProvider,
     mobileWalletFallbackAvailable,
     mobileWalletFallbackHref,

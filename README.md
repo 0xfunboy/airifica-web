@@ -38,6 +38,7 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 - distinguishes execution venue per asset, including spot handoff to Jupiter for supported Solana tokens
 - supports voice input, VAD-backed hearing, speech playback and avatar mouth/expression driving
 - keeps browser speech recognition where it works and falls back to sherpa-onnx websocket STT where it does not
+- exposes an admin-only control panel for wallet-allowlisted operators
 
 ## Runtime Areas
 
@@ -62,6 +63,14 @@ Full documentation is in the [`docs/`](./docs/) folder, structured as a GitBook:
 - challenge request and verify flow
 - bearer token persistence in session storage
 - AIR3 request headers built from wallet address, token and session identity
+- admin state propagated from backend wallet verification so the control panel can be gated by the same signed session
+
+### Admin Control Panel
+
+- wallet-authenticated admin overlay inside the frontend
+- overview, users, trading, Telegram and runtime tabs
+- same-origin reads from `/api/airi3/admin/overview`
+- backend allowlist remains authoritative; the frontend only renders the panel when the signed session is admin-enabled
 
 ### Telegram Linking
 
