@@ -101,7 +101,7 @@ onUnmounted(() => {
               <span>Prompt guide</span>
             </button>
             <button
-              v-if="wallet.isAdmin.value"
+              v-if="wallet.isAdmin.value || wallet.isConfiguredAdminWallet.value"
               class="stage-header__utility stage-header__utility--primary"
               type="button"
               @click="adminPanel.openPanel()"

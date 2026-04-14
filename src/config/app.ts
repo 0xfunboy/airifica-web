@@ -81,6 +81,13 @@ function normalizeTelegramUsername(raw: string | undefined) {
   return (raw || '').trim().replace(/^@/, '')
 }
 
+function normalizeWalletList(raw: string | undefined) {
+  return (raw || '')
+    .split(/[,\s]+/)
+    .map(value => value.trim())
+    .filter(Boolean)
+}
+
 const ttsBaseUrl = normalizeUrl(import.meta.env.VITE_AIR3_TTS_BASE_URL || '', '')
 const ttsDevProxyUrl = import.meta.env.DEV
   ? normalizeUrl(import.meta.env.VITE_AIR3_TTS_DEV_PROXY_URL || '', 'http://127.0.0.1:4041')
@@ -110,6 +117,7 @@ export const appConfig = {
   brandName: (import.meta.env.VITE_AIRIFICA_BRAND_NAME || 'Airifica').trim(),
   productName: (import.meta.env.VITE_AIRIFICA_PRODUCT_NAME || 'AIR3').trim(),
   publicAppUrl: normalizeUrl(import.meta.env.VITE_AIRIFICA_PUBLIC_APP_URL || '', ''),
+  adminWallets: normalizeWalletList(import.meta.env.VITE_AIRIFICA_ADMIN_WALLETS || ''),
   runtimeBaseUrl: normalizeUrl(import.meta.env.VITE_AIR3_ELIZA_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_BASE_URL || import.meta.env.VITE_AIR3_RUNTIME_URL || '', '', {
     sameOriginFallback: '/',
   }),

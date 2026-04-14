@@ -141,7 +141,12 @@ const currentTab = computed(() => panel.activeTab.value)
         Sign the wallet session to access the admin dashboard.
       </div>
       <div v-else-if="!wallet.isAdmin.value" class="admin-dashboard__empty">
-        This wallet is not in the admin allowlist. Re-sign after updating the backend env if needed.
+        <template v-if="wallet.isConfiguredAdminWallet.value">
+          This wallet is configured for admin access, but the current signed session is not marked admin yet. Re-sign the wallet session.
+        </template>
+        <template v-else>
+          This wallet is not in the admin allowlist. Re-sign after updating the backend env if needed.
+        </template>
       </div>
       <div v-else>
         <nav class="admin-dashboard__tabs">

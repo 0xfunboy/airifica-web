@@ -82,6 +82,9 @@ const shortAddress = computed(() =>
 )
 const isConnected = computed(() => Boolean(state.address))
 const isAuthenticated = computed(() => Boolean(state.address && state.token))
+const isConfiguredAdminWallet = computed(() =>
+  Boolean(state.address && appConfig.adminWallets.includes(state.address)),
+)
 const isAdmin = computed(() => Boolean(state.address && state.token && state.isAdmin))
 const hasWalletProvider = computed(() => Boolean(getSolanaProvider()))
 const mobileWalletFallbackAvailable = computed(() =>
@@ -319,6 +322,7 @@ export function useWalletSession() {
     shortAddress,
     isConnected,
     isAuthenticated,
+    isConfiguredAdminWallet,
     isAdmin,
     hasWalletProvider,
     mobileWalletFallbackAvailable,

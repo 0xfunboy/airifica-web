@@ -322,7 +322,7 @@ function formatPrice(value: number | null | undefined) {
       ? 4
       : absolute === 0
         ? 2
-        : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
+        : Math.min(6, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 2))
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -372,7 +372,7 @@ function formatAssetAmount(value: number | null | undefined) {
     ? 4
     : absolute === 0
       ? 0
-      : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
+      : Math.min(6, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 2))
 
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,

@@ -184,7 +184,7 @@ function formatUsd(value: number) {
       ? 2
       : absolute === 0
         ? 2
-        : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
+        : Math.min(6, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 2))
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits,
@@ -204,7 +204,7 @@ function formatAssetAmount(value: number) {
     ? 4
     : absolute === 0
       ? 0
-      : Math.min(8, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 1))
+      : Math.min(6, Math.max(2, Math.abs(Math.floor(Math.log10(absolute))) + 2))
 
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 0,
