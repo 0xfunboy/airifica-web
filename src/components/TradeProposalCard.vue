@@ -128,10 +128,14 @@ const jupiterExecutionHint = computed(() => {
     return 'Jupiter spot execution currently supports LONG only. Entry, take profit and stop loss stay as analytical levels only.'
   if (!marketMeta.value?.baseTokenAddress)
     return 'This token is not mapped to a Jupiter mint yet.'
+  if (wallet.isConnected.value && !wallet.isAuthenticated.value)
+    return 'Sign your wallet session before executing on Jupiter so Airifica can persist the trade, sync spot tracking and send Telegram alerts.'
   if (!jupiterTriggerConfigured.value)
     return 'Jupiter Trigger is not configured on this gateway yet, so TP/SL stay analytical only.'
   if (!jupiterTriggerLevelsValid.value)
     return 'This setup has invalid TP/SL levels for a Jupiter Trigger exit order.'
+  if (numericSizeUsd.value > 0 && !jupiterTriggerMinOrderReady.value)
+    return `Swaps below ${formatInputUsd(appConfig.jupiterTriggerMinOrderUsd)} ${appConfig.jupiterInputSymbol} execute normally, but TP/SL will not arm on Jupiter Trigger.`
   return null
 })
 const executionAmountLabel = computed(() => usesJupiterExecution.value ? `${appConfig.jupiterInputSymbol} amount` : 'Collateral')
@@ -147,10 +151,10 @@ const requiresBetaAccess = computed(() =>
 )
 const canExecute = computed(() =>
   usesJupiterExecution.value
-    ? wallet.isConnected.value && jupiterExecutionSupported.value
+    ? wallet.isAuthenticated.value && jupiterExecutionSupported.value
     : wallet.isAuthenticated.value && pacifica.readyToExecute.value && !requiresActivation.value && !requiresFunding.value,
 )
-const requiresSessionSignature = computed(() => usesPacificaExecution.value && wallet.isConnected.value && !wallet.isAuthenticated.value)
+const requiresSessionSignature = computed(() => Boolean(wallet.isConnected.value && !wallet.isAuthenticated.value))
 const showExecutionControls = computed(() =>
   usesJupiterExecution.value
     ? wallet.isConnected.value
@@ -399,7 +403,7 @@ function buildJupiterTriggerSkipMessage() {
     return 'TP/SL stayed analytical because the setup levels are invalid for a Jupiter spot exit order.'
 
   if (!jupiterTriggerMinOrderReady.value)
-    return `Swap executed, but Jupiter Trigger requires at least ${formatInputUsd(appConfig.jupiterTriggerMinOrderUsd)} ${appConfig.jupiterInputSymbol} to arm TP/SL.`
+    return `Swap executed, but TP/SL were not armed because Jupiter Trigger requires at least ${formatInputUsd(appConfig.jupiterTriggerMinOrderUsd)} ${appConfig.jupiterInputSymbol}.`
 
   return null
 }
@@ -409,6 +413,14 @@ async function handleExecute() {
     return
 
   if (usesJupiterExecution.value) {
+    if (!wallet.isAuthenticated.value) {
+      result.value = {
+        success: false,
+        message: 'Sign your wallet session before executing on Jupiter so Airifica can persist the trade, sync spot tracking and send Telegram alerts.',
+      }
+      return
+    }
+
     if (!wallet.address.value) {
       result.value = {
         success: false,
@@ -457,6 +469,7 @@ async function handleExecute() {
       let triggerOrderId: string | null = null
       let triggerTxSignature: string | null = null
       let triggerArmed = false
+      let notificationWarning: string | null = null
 
       if (/^success$/i.test(execution.status)) {
         const skipMessage = buildJupiterTriggerSkipMessage()
@@ -492,11 +505,6 @@ async function handleExecute() {
       }
       else if (jupiterTriggerConfigured.value && jupiterTriggerLevelsValid.value) {
         successMessage += ' TP/SL were not armed yet because the Jupiter swap is still pending confirmation.'
-      }
-
-      result.value = {
-        success: true,
-        message: successMessage,
       }
 
       notifyEmbeddedTradeExecuted({
@@ -543,8 +551,8 @@ async function handleExecute() {
             positionMint: marketMeta.value.baseTokenAddress,
             outputMint: marketMeta.value.baseTokenAddress,
             marketQuery: marketMeta.value.requestQuery || marketContext.currentQuery.value,
-            tpPriceUsd: triggerArmed ? props.proposal.tp : null,
-            slPriceUsd: triggerArmed ? props.proposal.sl : null,
+            tpPriceUsd: props.proposal.tp,
+            slPriceUsd: props.proposal.sl,
             triggerArmed,
             triggerOrderId,
             triggerTxSignature,
@@ -552,13 +560,30 @@ async function handleExecute() {
             explorerUrl: execution.explorerUrl,
             headers: wallet.buildRequestHeaders(),
           })
-          await pacifica.refreshOverview()
-          setTimeout(() => {
-            void pacifica.refreshOverview().catch(() => {})
-          }, 1_500)
         }
-        catch {
+        catch (error) {
+          console.error('[airifica-web] Jupiter Telegram notify failed:', error)
+          notificationWarning = error instanceof Error
+            ? ` Telegram alert could not be queued: ${error.message}`
+            : ' Telegram alert could not be queued.'
         }
+      }
+
+      try {
+        await pacifica.refreshOverview()
+        setTimeout(() => {
+          void pacifica.refreshOverview().catch(() => {})
+        }, 1_500)
+      }
+      catch {
+      }
+
+      if (notificationWarning)
+        successMessage += notificationWarning
+
+      result.value = {
+        success: true,
+        message: successMessage,
       }
     }
     catch (error) {
