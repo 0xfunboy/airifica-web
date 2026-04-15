@@ -257,7 +257,8 @@ async function deriveProposalForMessage(message: ConversationMessage) {
       proposal: response.proposal || deriveProposalFallback(message),
     })
   }
-  catch {
+  catch (error) {
+    console.warn('[conversation] deriveTradeProposal failed, using fallback:', error instanceof Error ? error.message : error)
     patchMessage(message.id, {
       proposalPending: false,
       proposal: deriveProposalFallback(message),
@@ -265,10 +266,15 @@ async function deriveProposalForMessage(message: ConversationMessage) {
   }
 }
 
+const MAX_MESSAGE_LENGTH = 4096
+
 async function sendMessage(text: string) {
   const content = text.trim()
   if (!content || state.sending)
     return
+
+  if (content.length > MAX_MESSAGE_LENGTH)
+    throw new Error(`Message too long (max ${MAX_MESSAGE_LENGTH} characters)`)
 
   hydrateForIdentity()
 

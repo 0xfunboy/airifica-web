@@ -55,12 +55,15 @@ const state = reactive({
 const wallet = useWalletSession()
 let syncInitialized = false
 let syncInterval: ReturnType<typeof setInterval> | undefined
+let visibilityHandler: (() => void) | undefined
 
 function safeRefreshOverview() {
   if (!wallet.token.value || state.loading)
     return
 
-  void refreshOverview().catch(() => {})
+  void refreshOverview().catch((error) => {
+    console.warn('[pacifica] background refresh failed:', error instanceof Error ? error.message : error)
+  })
 }
 
 function initializeSync() {
@@ -68,15 +71,30 @@ function initializeSync() {
     return
 
   syncInitialized = true
+  visibilityHandler = () => {
+    if (document.visibilityState === 'visible')
+      safeRefreshOverview()
+  }
   syncInterval = setInterval(() => {
     if (document.visibilityState === 'visible')
       safeRefreshOverview()
   }, 12_000)
   window.addEventListener('focus', safeRefreshOverview)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible')
-      safeRefreshOverview()
-  })
+  document.addEventListener('visibilitychange', visibilityHandler)
+}
+
+export function cleanupPacificaSync() {
+  if (syncInterval !== undefined) {
+    clearInterval(syncInterval)
+    syncInterval = undefined
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', safeRefreshOverview)
+    if (visibilityHandler)
+      document.removeEventListener('visibilitychange', visibilityHandler)
+  }
+  syncInitialized = false
+  visibilityHandler = undefined
 }
 
 function reset() {

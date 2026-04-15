@@ -57,12 +57,14 @@ export default defineConfig(({ mode }) => {
       proxy,
     },
     preview: {
-      allowedHosts: [
-        'airi.airewardrop.xyz',
-        'app.eeess.cyou',
-        'www.eeess.cyou',
-        'eeess.cyou',
-      ],
+      allowedHosts: env.VITE_ALLOWED_PREVIEW_HOSTS
+        ? env.VITE_ALLOWED_PREVIEW_HOSTS.split(',').map((h: string) => h.trim()).filter(Boolean)
+        : [
+            'airi.airewardrop.xyz',
+            'app.eeess.cyou',
+            'www.eeess.cyou',
+            'eeess.cyou',
+          ],
     },
     resolve: {
       alias: {

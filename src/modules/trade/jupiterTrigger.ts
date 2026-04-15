@@ -78,6 +78,8 @@ export interface CancelJupiterSpotTpSlResult {
 
 const AUTH_TOKEN_TTL_MS = 23 * 60 * 60 * 1000
 const authTokenCache = new Map<string, { token: string, expiresAt: number }>()
+// Promise deduplication: prevents concurrent calls for the same wallet from racing to generate separate tokens
+const pendingAuthRequests = new Map<string, Promise<string>>()
 
 function buildTriggerApiUrl(pathname: string) {
   const normalizedBase = appConfig.jupiterTriggerApiBaseUrl.replace(/\/+$/, '')
@@ -191,11 +193,7 @@ async function verifyTransactionChallenge(walletAddress: string, signedTransacti
   })
 }
 
-async function ensureTriggerJwt(walletAddress: string) {
-  const cached = authTokenCache.get(walletAddress)
-  if (cached && cached.expiresAt > Date.now())
-    return cached.token
-
+async function fetchFreshTriggerJwt(walletAddress: string): Promise<string> {
   const provider = getSolanaProvider()
   if (!provider)
     throw new Error('No Solana wallet detected.')
@@ -237,6 +235,33 @@ async function ensureTriggerJwt(walletAddress: string) {
   })
 
   return token
+}
+
+async function ensureTriggerJwt(walletAddress: string): Promise<string> {
+  const cached = authTokenCache.get(walletAddress)
+  if (cached && cached.expiresAt > Date.now())
+    return cached.token
+
+  // Deduplicate concurrent requests for the same wallet
+  const pending = pendingAuthRequests.get(walletAddress)
+  if (pending)
+    return pending
+
+  const request = fetchFreshTriggerJwt(walletAddress).finally(() => {
+    pendingAuthRequests.delete(walletAddress)
+  })
+  pendingAuthRequests.set(walletAddress, request)
+  return request
+}
+
+const SLIPPAGE_BPS_MIN = 1
+const SLIPPAGE_BPS_MAX = 1000 // 10% hard cap
+
+function validateSlippageBps(label: string, value: unknown): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < SLIPPAGE_BPS_MIN || n > SLIPPAGE_BPS_MAX)
+    throw new Error(`Invalid ${label} slippage BPS: ${value} (must be ${SLIPPAGE_BPS_MIN}–${SLIPPAGE_BPS_MAX})`)
+  return Math.round(n)
 }
 
 export async function armJupiterSpotTpSl(input: ArmJupiterSpotTpSlInput): Promise<ArmJupiterSpotTpSlResult> {
@@ -289,8 +314,8 @@ export async function armJupiterSpotTpSl(input: ArmJupiterSpotTpSlInput): Promis
         triggerMint: input.outputMint,
         tpPriceUsd: input.tpPriceUsd,
         slPriceUsd: input.slPriceUsd,
-        tpSlippageBps: appConfig.jupiterTriggerTpSlippageBps,
-        slSlippageBps: appConfig.jupiterTriggerSlSlippageBps,
+        tpSlippageBps: validateSlippageBps('TP', appConfig.jupiterTriggerTpSlippageBps),
+        slSlippageBps: validateSlippageBps('SL', appConfig.jupiterTriggerSlSlippageBps),
         expiresAt: Date.now() + appConfig.jupiterTriggerOrderTtlMs,
       }),
     })

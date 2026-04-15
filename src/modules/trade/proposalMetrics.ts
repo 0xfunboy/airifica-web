@@ -5,6 +5,8 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export function computeRiskReward(proposal: Air3TradeProposal) {
+  if (!proposal.entry || proposal.entry <= 0)
+    return 0
   const risk = Math.abs(proposal.entry - proposal.sl)
   const reward = Math.abs(proposal.tp - proposal.entry)
   if (!Number.isFinite(risk) || !Number.isFinite(reward) || risk <= 0 || reward <= 0)

@@ -230,7 +230,8 @@ async function refreshMarketContext() {
         state.error = null
         return
       }
-      catch {
+      catch (fallbackError) {
+        console.warn('[market/context] fallback to default market also failed:', fallbackError instanceof Error ? fallbackError.message : fallbackError)
       }
     }
 

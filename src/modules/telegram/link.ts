@@ -136,7 +136,8 @@ function scheduleStatusPolling(previousLinkedCount: number) {
         return
       }
     }
-    catch {
+    catch (error) {
+      console.warn('[telegram/link] status poll tick failed:', error instanceof Error ? error.message : error)
     }
 
     if (Date.now() >= statusPollDeadline) {
@@ -270,7 +271,8 @@ async function maybeAutoLink() {
   try {
     await requestLink({ openBot: true, clearQuery: true })
   }
-  catch {
+  catch (error) {
+    console.warn('[telegram/link] auto-link failed:', error instanceof Error ? error.message : error)
   }
 }
 
@@ -294,7 +296,8 @@ function initialize() {
     try {
       await refreshStatus()
     }
-    catch {
+    catch (error) {
+      console.warn('[telegram/link] initial status refresh failed:', error instanceof Error ? error.message : error)
     }
     await maybeAutoLink()
   }, { immediate: true })
