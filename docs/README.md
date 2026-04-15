@@ -1,8 +1,21 @@
 # Airifica Web — AIR3 Agent Interface
 
+<p align="center">
+  <img src="./assets/AIRifica_Repository_Header.png" alt="Airifica Web — AIR3 Agent Interface" width="920"/>
+</p>
+
 **Airifica Web** is the production frontend for **AIR3 Agent** — an AI-powered trading assistant built on top of [AIRewardrop](https://airewardrop.xyz) and the [AIR3 ecosystem](https://airewardrop.gitbook.io/air3).
 
-It combines a real-time 3D avatar, conversational AI (powered by [elizaOS](https://elizaos.ai)), live on-chain market data, and direct integration with the **Pacifica DEX** to give users a fully interactive, voice-capable AI trading companion directly in the browser.
+It combines a real-time 3D avatar, conversational AI (powered by [elizaOS](https://elizaos.ai)), live on-chain market data, Pacifica perp execution, Jupiter-linked spot handoff, Telegram integration, and voice interaction in a single browser surface.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Vue-3.5-42B883?logo=vue.js" alt="Vue"/>
+  <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite" alt="Vite"/>
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript" alt="TypeScript"/>
+  <img src="https://img.shields.io/badge/Pacifica-Perps-0F172A" alt="Pacifica"/>
+  <img src="https://img.shields.io/badge/Jupiter-Spot-16A34A" alt="Jupiter"/>
+  <img src="https://img.shields.io/badge/Telegram-Linked-229ED9?logo=telegram" alt="Telegram"/>
+</p>
 
 ---
 
