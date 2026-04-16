@@ -9,7 +9,9 @@ const avatarModel = useAvatarModelStore()
   <div class="header-link">
     <a class="header-link__home" href="/" :aria-label="avatarModel.selectedKey.value === 'pacifica' ? 'AIRifica home' : 'AIR3 home'">
       <img :src="appConfig.brandIconUrl" alt="" class="header-link__icon">
-      <span class="header-link__title">{{ avatarModel.selectedKey.value === 'pacifica' ? 'AIRifica' : `${appConfig.productName} Agent` }}</span>
+      <span class="header-link__title" :class="{ 'header-link__title--brandcase': avatarModel.selectedKey.value === 'pacifica' }">
+        {{ avatarModel.selectedKey.value === 'pacifica' ? 'AIRifica' : `${appConfig.productName} Agent` }}
+      </span>
       <span class="header-link__by">by</span>
     </a>
     <a class="header-link__brand" :href="appConfig.brandSiteUrl" target="_blank" rel="noreferrer" aria-label="AIRewardrop">
@@ -50,6 +52,10 @@ const avatarModel = useAvatarModelStore()
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.header-link__title--brandcase {
+  text-transform: none;
 }
 
 .header-link__by {

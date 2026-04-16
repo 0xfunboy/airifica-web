@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import StageMarketSurface from '@/components/StageMarketSurface.vue'
 import { appConfig } from '@/config/app'
+import { useAvatarModelStore } from '@/modules/avatar/model'
 import { useMarketContext } from '@/modules/market/context'
 
 const props = withDefaults(defineProps<{
@@ -12,12 +13,13 @@ const props = withDefaults(defineProps<{
 })
 
 const marketContext = useMarketContext()
+const avatarModel = useAvatarModelStore()
 const symbolWatermark = computed(() => marketContext.currentSymbol.value)
 </script>
 
 <template>
   <div class="stage-backdrop">
-    <img :src="appConfig.stageBackgroundUrl" alt="" class="stage-backdrop__image" loading="eager" decoding="async">
+    <img :src="avatarModel.stageBackgroundUrl.value || appConfig.stageBackgroundUrl" alt="" class="stage-backdrop__image" loading="eager" decoding="async">
 
     <div class="stage-backdrop__wash" />
     <div class="stage-backdrop__grid" />

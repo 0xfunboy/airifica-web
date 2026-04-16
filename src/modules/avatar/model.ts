@@ -6,6 +6,7 @@ type AvatarModelKey = 'air3' | 'pacifica'
 
 const STORAGE_KEY = 'airifica.avatar-model'
 const PACIFICA_AVATAR_URL = '/brand/Pacifica_VRM_Avatar.vrm'
+const PACIFICA_STAGE_BACKGROUND_URL = '/brand/pacifica_bg_new.webp'
 
 function readStoredAvatarModel(): AvatarModelKey {
   if (typeof window === 'undefined')
@@ -39,6 +40,9 @@ export function useAvatarModelStore() {
   return {
     selectedKey: computed(() => state.selected),
     selectedLabel: computed(() => (state.selected === 'pacifica' ? 'Pacifica' : 'AIR3')),
+    stageBackgroundUrl: computed(() => (state.selected === 'pacifica'
+      ? PACIFICA_STAGE_BACKGROUND_URL
+      : appConfig.stageBackgroundUrl)),
     modelUrl: computed(() => (state.selected === 'pacifica'
       ? PACIFICA_AVATAR_URL
       : appConfig.avatarModelUrl || '/brand/AIR3_Dress_Final.vrm')),
@@ -46,4 +50,3 @@ export function useAvatarModelStore() {
     toggleAvatarModel,
   }
 }
-
