@@ -16,7 +16,10 @@ import type { ConversationMessage } from '@/modules/conversation/types'
 type AvatarGestureKey = 'wave' | 'wave-mirror' | 'hip' | 'hip-mirror'
 
 const state = reactive({
-  detectedExpression: 'neutral' as AvatarExpression,
+  transientExpression: 'neutral' as AvatarExpression,
+  transientIntensity: 0,
+  speechExpression: 'neutral' as AvatarExpression,
+  speechIntensity: 0,
   loadingState: appConfig.avatarModelUrl ? 'idle' as 'idle' | 'loading' | 'ready' | 'error' : 'empty' as 'idle' | 'loading' | 'ready' | 'error' | 'empty',
   loadProgress: 0,
   error: null as string | null,
@@ -31,12 +34,22 @@ const avatarModelStore = useAvatarModelStore()
 const emoteDebugStore = useEmoteDebugStore()
 const wallet = useWalletSession()
 let initialized = false
-let expressionTimer: ReturnType<typeof setTimeout> | undefined
+let expressionPeakTimer: ReturnType<typeof setTimeout> | undefined
+let expressionTailTimer: ReturnType<typeof setTimeout> | undefined
 let loadGreetingPlayed = false
 const gestureAlternates = reactive({
   waveMirror: false,
   hipMirror: false,
 })
+
+type ExpressionProfile = {
+  expression: AvatarExpression
+  peakIntensity: number
+  sustainIntensity: number
+  peakMs: number
+  tailMs: number
+  sustainWhileSpeaking?: boolean
+}
 
 function accumulateSignalScore(source: string, entries: Array<{ pattern: RegExp, weight: number }>) {
   return entries.reduce((score, entry) => score + (entry.pattern.test(source) ? entry.weight : 0), 0)
@@ -63,26 +76,31 @@ function detectAvatarExpression(message: ConversationMessage) {
   scores.happy += accumulateSignalScore(source, [
     { pattern: /\b(bullish|confirmed|favorable|aligned|support held|upside|strong bid|continuation|opportunity)\b/, weight: 1.4 },
     { pattern: /\b(reclaim|breakout continuation|higher high|impulsive)\b/, weight: 1.2 },
+    { pattern: /\b(happy|glad|joy|joyful|delighted|smile|smiling|cheerful|felice|contenta|contento|sorrid)\b/, weight: 1.55 },
   ])
 
   scores.sad += accumulateSignalScore(source, [
     { pattern: /\b(bearish|risk|drawdown|caution|stop loss|rejection|weakness|invalidated|downside)\b/, weight: 1.5 },
     { pattern: /\b(failed|breakdown|fade|under pressure|fragile)\b/, weight: 1.15 },
+    { pattern: /\b(sad|unhappy|disappointed|hurt|down|triste|giu|demoralized)\b/, weight: 1.4 },
   ])
 
   scores.angry += accumulateSignalScore(source, [
     { pattern: /\b(liquidation|panic|capitulation|flush|violent|aggressive selloff|rug)\b/, weight: 1.8 },
     { pattern: /\b(crash|forced unwind|cascade)\b/, weight: 1.5 },
+    { pattern: /\b(angry|mad|furious|annoyed|upset|arrabbiat|nervos)\b/, weight: 1.45 },
   ])
 
   scores.surprised += accumulateSignalScore(source, [
     { pattern: /\b(breakout|reversal|squeeze|spike|surge|explosive|unexpected)\b/, weight: 1.55 },
     { pattern: /\b(sudden|shock|fast move|volatile expansion)\b/, weight: 1.25 },
+    { pattern: /\b(surprised|wow|shocked|impressed|stunned|sorpres)\b/, weight: 1.4 },
   ])
 
   scores.think += accumulateSignalScore(source, [
     { pattern: /\b(chart|context|analysis|market structure|scenario|range|levels|session|monitor|watch|headline)\b/, weight: 1.1 },
     { pattern: /\b(flow|liquidity|rotation|confluence|structure|execution|risk reward)\b/, weight: 0.9 },
+    { pattern: /\b(think|thinking|ponder|consider|considering|reflect|reason|pondering|pensi|pensare|riflett)\b/, weight: 1.1 },
   ])
 
   if (message.proposal) {
@@ -107,14 +125,117 @@ function detectAvatarExpression(message: ConversationMessage) {
   return topEmotion
 }
 
-function setExpression(expression: AvatarExpression, durationMs = 7200) {
-  state.detectedExpression = expression
-  if (expressionTimer)
-    clearTimeout(expressionTimer)
+function detectPromptEmotionRequest(content: string): AvatarExpression {
+  const source = content.toLowerCase()
+  if (/\b(smile|smiling|grin|be happy|look happy|sorrid|felice)\b/.test(source))
+    return 'happy'
+  if (/\b(sad|triste|be sad|look sad)\b/.test(source))
+    return 'sad'
+  if (/\b(angry|mad|arrabbiat|furious)\b/.test(source))
+    return 'angry'
+  if (/\b(surpris|shock|wow)\b/.test(source))
+    return 'surprised'
+  if (/\b(think|ponder|reflect|pens)\b/.test(source))
+    return 'think'
+  return 'neutral'
+}
 
-  expressionTimer = setTimeout(() => {
-    state.detectedExpression = 'neutral'
-  }, durationMs)
+function clearExpressionTimers() {
+  if (expressionPeakTimer)
+    clearTimeout(expressionPeakTimer)
+  if (expressionTailTimer)
+    clearTimeout(expressionTailTimer)
+  expressionPeakTimer = undefined
+  expressionTailTimer = undefined
+}
+
+function clearSpeechExpression() {
+  state.speechExpression = 'neutral'
+  state.speechIntensity = 0
+}
+
+function applyTransientExpression(profile: ExpressionProfile) {
+  clearExpressionTimers()
+  state.transientExpression = profile.expression
+  state.transientIntensity = profile.peakIntensity
+
+  expressionPeakTimer = setTimeout(() => {
+    state.transientExpression = profile.expression
+    state.transientIntensity = profile.sustainIntensity
+  }, profile.peakMs)
+
+  expressionTailTimer = setTimeout(() => {
+    state.transientExpression = 'neutral'
+    state.transientIntensity = 0
+    if (!profile.sustainWhileSpeaking || !speech.speaking.value)
+      clearSpeechExpression()
+  }, profile.peakMs + profile.tailMs)
+}
+
+function primeSpeechExpression(expression: AvatarExpression, intensity: number) {
+  state.speechExpression = expression
+  state.speechIntensity = intensity
+}
+
+function resolveExpressionProfile(message: ConversationMessage, expression: AvatarExpression): ExpressionProfile {
+  const source = `${message.content} ${message.proposal?.thesis || ''}`.toLowerCase()
+  const directUserRequest = message.role === 'user' && detectPromptEmotionRequest(message.content) === expression
+  const conversational = /\b(happy|glad|smile|smiling|felice|sorrid|sad|triste|angry|arrabbiat|surpris|wow|think|ponder|pens)\b/.test(source)
+
+  if (expression === 'think') {
+    return {
+      expression,
+      peakIntensity: directUserRequest ? 0.7 : 0.52,
+      sustainIntensity: 0.38,
+      peakMs: 700,
+      tailMs: 1200,
+      sustainWhileSpeaking: true,
+    }
+  }
+
+  if (directUserRequest) {
+    return {
+      expression,
+      peakIntensity: 0.92,
+      sustainIntensity: 0.54,
+      peakMs: 900,
+      tailMs: 1500,
+      sustainWhileSpeaking: true,
+    }
+  }
+
+  if (conversational) {
+    return {
+      expression,
+      peakIntensity: 0.72,
+      sustainIntensity: 0.44,
+      peakMs: 850,
+      tailMs: 1400,
+      sustainWhileSpeaking: true,
+    }
+  }
+
+  return {
+    expression,
+    peakIntensity: 0.58,
+    sustainIntensity: 0.34,
+    peakMs: 680,
+    tailMs: 1100,
+    sustainWhileSpeaking: true,
+  }
+}
+
+function triggerExpressionProfile(profile: ExpressionProfile) {
+  if (profile.expression === 'neutral') {
+    clearExpressionTimers()
+    state.transientExpression = 'neutral'
+    state.transientIntensity = 0
+    clearSpeechExpression()
+    return
+  }
+
+  primeSpeechExpression(profile.expression, profile.sustainIntensity)
+  applyTransientExpression(profile)
 }
 
 function triggerGesture(key: AvatarGestureKey) {
@@ -166,10 +287,25 @@ function initializeConversationSync() {
 
   watch(() => conversation.sending.value, (sending) => {
     if (sending) {
-      if (expressionTimer)
-        clearTimeout(expressionTimer)
+      clearExpressionTimers()
+      state.transientExpression = 'neutral'
+      state.transientIntensity = 0
     }
   }, { immediate: true })
+
+  watch(() => conversation.messages.value.at(-1)?.id, () => {
+    const message = conversation.messages.value.at(-1)
+    if (!message?.content || message.role !== 'user' || message.restored)
+      return
+
+    const requestedExpression = detectPromptEmotionRequest(message.content)
+    if (requestedExpression === 'neutral')
+      return
+
+    const profile = resolveExpressionProfile(message, requestedExpression)
+    emoteDebugStore.notifyReceived(requestedExpression)
+    triggerExpressionProfile(profile)
+  })
 
   watch(() => conversation.latestAssistantMessage.value?.id, () => {
     const message = conversation.latestAssistantMessage.value
@@ -179,7 +315,7 @@ function initializeConversationSync() {
     const nextExpression = detectAvatarExpression(message)
     if (nextExpression !== 'neutral')
       emoteDebugStore.notifyReceived(nextExpression)
-    setExpression(nextExpression)
+    triggerExpressionProfile(resolveExpressionProfile(message, nextExpression))
   }, { immediate: true })
 
   watch(() => wallet.isAuthenticated.value, (authenticated, previousValue) => {
@@ -194,6 +330,17 @@ function initializeConversationSync() {
   watch(() => speech.stopRevision.value, () => {
     if (speech.lastStopReason.value === 'manual-stop')
       triggerInteractionGesture('speech-stop')
+
+    if (state.speechExpression !== 'neutral') {
+      clearExpressionTimers()
+      state.transientExpression = state.speechExpression
+      state.transientIntensity = Math.max(0.24, state.speechIntensity * 0.7)
+      expressionTailTimer = setTimeout(() => {
+        state.transientExpression = 'neutral'
+        state.transientIntensity = 0
+        clearSpeechExpression()
+      }, 900)
+    }
   })
 }
 
@@ -231,13 +378,30 @@ export function useAvatarPresence() {
       return emoteDebugStore.testEmotion.value
     if (conversation.sending.value)
       return 'think'
-    return state.detectedExpression
+    if (state.transientExpression !== 'neutral')
+      return state.transientExpression
+    if (speech.speaking.value && state.speechExpression !== 'neutral')
+      return state.speechExpression
+    return 'neutral'
+  })
+
+  const expressionIntensity = computed(() => {
+    if (emoteDebugStore.testEmotion.value !== 'none')
+      return 0.72
+    if (conversation.sending.value)
+      return 0.42
+    if (state.transientExpression !== 'neutral')
+      return state.transientIntensity
+    if (speech.speaking.value && state.speechExpression !== 'neutral')
+      return state.speechIntensity
+    return 0
   })
 
   return {
     modelUrl: computed(() => avatarModelStore.modelUrl.value || appConfig.avatarModelUrl || null),
     ambientAnimation: computed(() => vrmaStore.selectedVRMAUrl.value),
     expression,
+    expressionIntensity,
     speaking: computed(() => speech.speaking.value),
     mouthOpenSize: computed(() => speech.mouthOpenSize.value),
     mouthClosure: computed(() => speech.mouthClosure.value),

@@ -15,6 +15,7 @@ const lighting = useAvatarLighting()
       class="avatar-stage-layer__stage"
       :model-url="avatar.modelUrl.value"
       :expression="avatar.expression.value"
+      :expression-intensity="avatar.expressionIntensity.value"
       :speaking="avatar.speaking.value"
       :manual-mouth-open="avatar.mouthOpenSize.value"
       :speech-closure="avatar.mouthClosure.value"

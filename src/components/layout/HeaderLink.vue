@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { appConfig } from '@/config/app'
+import { useAvatarModelStore } from '@/modules/avatar/model'
+
+const avatarModel = useAvatarModelStore()
 </script>
 
 <template>
   <div class="header-link">
-    <a class="header-link__home" href="/" aria-label="AIR3 home">
+    <a class="header-link__home" href="/" :aria-label="avatarModel.selectedKey.value === 'pacifica' ? 'AIRifica home' : 'AIR3 home'">
       <img :src="appConfig.brandIconUrl" alt="" class="header-link__icon">
-      <span class="header-link__title">{{ appConfig.productName }} Agent</span>
+      <span class="header-link__title">{{ avatarModel.selectedKey.value === 'pacifica' ? 'AIRifica' : `${appConfig.productName} Agent` }}</span>
       <span class="header-link__by">by</span>
     </a>
     <a class="header-link__brand" :href="appConfig.brandSiteUrl" target="_blank" rel="noreferrer" aria-label="AIRewardrop">

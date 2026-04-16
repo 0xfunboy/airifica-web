@@ -54,6 +54,7 @@ const props = withDefaults(defineProps<{
   speechClosure?: number
   visemeWeights?: Partial<SpeechVisemeWeights> | null
   expression?: AvatarExpression
+  expressionIntensity?: number
   ambientAnimation?: string
   gestureKey?: string | null
   gestureToken?: number
@@ -73,6 +74,7 @@ const props = withDefaults(defineProps<{
   speechClosure: 0,
   visemeWeights: null,
   expression: 'neutral',
+  expressionIntensity: 1,
   ambientAnimation: BREATH_URL,
   gestureKey: null,
   gestureToken: 0,
@@ -1560,11 +1562,12 @@ function applyEmotionExpressions(vrm: VRM, delta: number) {
   const speechDominance = resolveSpeechDominance()
   const speechBlend = MathUtils.lerp(1, 0.08, speechDominance)
   const relaxedSpeechBlend = MathUtils.lerp(1, 0.03, speechDominance)
+  const expressionIntensity = Math.max(0, Math.min(1, props.expressionIntensity))
   const targets = {
-    happy: props.expression === 'happy' ? 1 * speechBlend : 0,
-    sad: props.expression === 'sad' ? 1 * speechBlend : 0,
-    angry: props.expression === 'angry' ? 1 * speechBlend : 0,
-    surprised: props.expression === 'surprised' ? 1 * speechBlend : 0,
+    happy: props.expression === 'happy' ? 0.78 * expressionIntensity * speechBlend : 0,
+    sad: props.expression === 'sad' ? 0.72 * expressionIntensity * speechBlend : 0,
+    angry: props.expression === 'angry' ? 0.8 * expressionIntensity * speechBlend : 0,
+    surprised: props.expression === 'surprised' ? 0.86 * expressionIntensity * speechBlend : 0,
     relaxed: (props.expression === 'think' ? 0.84 * (props.speaking ? 0.82 : 1) : props.expression === 'neutral' ? 0.42 : 0.1) * relaxedSpeechBlend,
   }
 
