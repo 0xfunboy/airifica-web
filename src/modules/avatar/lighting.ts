@@ -2,8 +2,7 @@ import { computed, reactive } from 'vue'
 
 import { appConfig } from '@/config/app'
 import { readStorage, writeStorage } from '@/lib/storage'
-
-const STORAGE_KEY = 'airifica:avatar-lighting'
+import { useAvatarModelStore } from '@/modules/avatar/model'
 
 type LightingState = {
   brightness: number
@@ -17,7 +16,18 @@ type LightingState = {
   fillIntensity: number
 }
 
-const DEFAULTS: LightingState = {
+type LightingProfileKey = 'air3' | 'pacifica'
+
+type LightingProfiles = Record<LightingProfileKey, LightingState>
+
+type LightingStoragePayload = {
+  version: 2
+  profiles: Partial<Record<LightingProfileKey, Partial<LightingState>>>
+}
+
+const STORAGE_KEY = 'airifica:avatar-lighting'
+
+const AIR3_DEFAULTS: LightingState = {
   brightness: appConfig.stageBrightness,
   contrast: appConfig.stageContrast,
   saturation: appConfig.stageSaturation,
@@ -29,11 +39,21 @@ const DEFAULTS: LightingState = {
   fillIntensity: appConfig.stageFillIntensity,
 }
 
-const PRESET_KEY = JSON.stringify(DEFAULTS)
+const PACIFICA_DEFAULTS: LightingState = {
+  brightness: 0.8,
+  contrast: 1.31,
+  saturation: 1.2,
+  exposure: 0.92,
+  ambientIntensity: 0,
+  hemisphereIntensity: 0.2,
+  keyIntensity: 2.2,
+  rimIntensity: 0,
+  fillIntensity: 1.2,
+}
 
-type LightingStoragePayload = {
-  presetKey: string
-  values: Partial<LightingState>
+const DEFAULTS: LightingProfiles = {
+  air3: AIR3_DEFAULTS,
+  pacifica: PACIFICA_DEFAULTS,
 }
 
 function getStorageScope() {
@@ -57,52 +77,88 @@ function clampValue(key: keyof LightingState, value: number) {
   return Math.min(range.max, Math.max(range.min, value))
 }
 
-const storedPayload = readStorage<LightingStoragePayload | Partial<LightingState> | null>(getStorageScope(), STORAGE_KEY, null)
-const stored = storedPayload && 'presetKey' in storedPayload
-  ? storedPayload.presetKey === PRESET_KEY
-    ? storedPayload.values
-    : null
-  : storedPayload
-const state = reactive<LightingState>({
-  brightness: clampValue('brightness', stored?.brightness ?? DEFAULTS.brightness),
-  contrast: clampValue('contrast', stored?.contrast ?? DEFAULTS.contrast),
-  saturation: clampValue('saturation', stored?.saturation ?? DEFAULTS.saturation),
-  exposure: clampValue('exposure', stored?.exposure ?? DEFAULTS.exposure),
-  ambientIntensity: clampValue('ambientIntensity', stored?.ambientIntensity ?? DEFAULTS.ambientIntensity),
-  hemisphereIntensity: clampValue('hemisphereIntensity', stored?.hemisphereIntensity ?? DEFAULTS.hemisphereIntensity),
-  keyIntensity: clampValue('keyIntensity', stored?.keyIntensity ?? DEFAULTS.keyIntensity),
-  rimIntensity: clampValue('rimIntensity', stored?.rimIntensity ?? DEFAULTS.rimIntensity),
-  fillIntensity: clampValue('fillIntensity', stored?.fillIntensity ?? DEFAULTS.fillIntensity),
-})
+function normalizeState(defaults: LightingState, source?: Partial<LightingState> | null): LightingState {
+  return {
+    brightness: clampValue('brightness', source?.brightness ?? defaults.brightness),
+    contrast: clampValue('contrast', source?.contrast ?? defaults.contrast),
+    saturation: clampValue('saturation', source?.saturation ?? defaults.saturation),
+    exposure: clampValue('exposure', source?.exposure ?? defaults.exposure),
+    ambientIntensity: clampValue('ambientIntensity', source?.ambientIntensity ?? defaults.ambientIntensity),
+    hemisphereIntensity: clampValue('hemisphereIntensity', source?.hemisphereIntensity ?? defaults.hemisphereIntensity),
+    keyIntensity: clampValue('keyIntensity', source?.keyIntensity ?? defaults.keyIntensity),
+    rimIntensity: clampValue('rimIntensity', source?.rimIntensity ?? defaults.rimIntensity),
+    fillIntensity: clampValue('fillIntensity', source?.fillIntensity ?? defaults.fillIntensity),
+  }
+}
+
+function isLightingStoragePayload(value: LightingStoragePayload | Partial<LightingState>): value is LightingStoragePayload {
+  return 'version' in value && value.version === 2 && 'profiles' in value
+}
+
+function resolveStoredProfiles() {
+  const storedPayload = readStorage<LightingStoragePayload | Partial<LightingState> | null>(getStorageScope(), STORAGE_KEY, null)
+
+  if (!storedPayload)
+    return {
+      air3: normalizeState(DEFAULTS.air3),
+      pacifica: normalizeState(DEFAULTS.pacifica),
+    }
+
+  if (isLightingStoragePayload(storedPayload)) {
+    return {
+      air3: normalizeState(DEFAULTS.air3, storedPayload.profiles.air3),
+      pacifica: normalizeState(DEFAULTS.pacifica, storedPayload.profiles.pacifica),
+    }
+  }
+
+  return {
+    air3: normalizeState(DEFAULTS.air3, storedPayload),
+    pacifica: normalizeState(DEFAULTS.pacifica),
+  }
+}
+
+const state = reactive<LightingProfiles>(resolveStoredProfiles())
+const avatarModel = useAvatarModelStore()
 
 function persist() {
   writeStorage(getStorageScope(), STORAGE_KEY, {
-    presetKey: PRESET_KEY,
-    values: { ...state },
-  })
+    version: 2,
+    profiles: {
+      air3: { ...state.air3 },
+      pacifica: { ...state.pacifica },
+    },
+  } satisfies LightingStoragePayload)
+}
+
+function resolveActiveProfileKey(): LightingProfileKey {
+  return avatarModel.selectedKey.value === 'pacifica' ? 'pacifica' : 'air3'
 }
 
 function setValue(key: keyof LightingState, value: number) {
-  state[key] = clampValue(key, value)
+  const profileKey = resolveActiveProfileKey()
+  state[profileKey][key] = clampValue(key, value)
   persist()
 }
 
 function reset() {
-  Object.assign(state, DEFAULTS)
+  const profileKey = resolveActiveProfileKey()
+  Object.assign(state[profileKey], DEFAULTS[profileKey])
   persist()
 }
 
 export function useAvatarLighting() {
+  const activeProfile = computed(() => state[resolveActiveProfileKey()])
+
   return {
-    brightness: computed(() => state.brightness),
-    contrast: computed(() => state.contrast),
-    saturation: computed(() => state.saturation),
-    exposure: computed(() => state.exposure),
-    ambientIntensity: computed(() => state.ambientIntensity),
-    hemisphereIntensity: computed(() => state.hemisphereIntensity),
-    keyIntensity: computed(() => state.keyIntensity),
-    rimIntensity: computed(() => state.rimIntensity),
-    fillIntensity: computed(() => state.fillIntensity),
+    brightness: computed(() => activeProfile.value.brightness),
+    contrast: computed(() => activeProfile.value.contrast),
+    saturation: computed(() => activeProfile.value.saturation),
+    exposure: computed(() => activeProfile.value.exposure),
+    ambientIntensity: computed(() => activeProfile.value.ambientIntensity),
+    hemisphereIntensity: computed(() => activeProfile.value.hemisphereIntensity),
+    keyIntensity: computed(() => activeProfile.value.keyIntensity),
+    rimIntensity: computed(() => activeProfile.value.rimIntensity),
+    fillIntensity: computed(() => activeProfile.value.fillIntensity),
     setValue,
     reset,
   }
