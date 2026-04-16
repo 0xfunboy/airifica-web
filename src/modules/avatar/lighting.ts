@@ -40,8 +40,8 @@ const AIR3_DEFAULTS: LightingState = {
 }
 
 const PACIFICA_DEFAULTS: LightingState = {
-  brightness: 0.8,
-  contrast: 1.31,
+  brightness: 0.7,
+  contrast: 1.39,
   saturation: 1.2,
   exposure: 0.92,
   ambientIntensity: 0,
