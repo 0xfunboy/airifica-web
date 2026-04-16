@@ -7,6 +7,7 @@ import PacificaTradeButton from '@/components/layout/PacificaTradeButton.vue'
 import WalletConnectButton from '@/components/layout/WalletConnectButton.vue'
 import { useAdminPanel } from '@/modules/admin/panel'
 import { useAvatarLighting } from '@/modules/avatar/lighting'
+import { useAvatarModelStore } from '@/modules/avatar/model'
 import { useConversationComposer } from '@/modules/conversation/composer'
 import { EXAMPLE_PROMPTS } from '@/modules/conversation/examples'
 import { useHearingPipeline } from '@/modules/hearing/pipeline'
@@ -15,6 +16,7 @@ import { useSpeechRuntime } from '@/modules/speech/runtime'
 import { useWalletSession } from '@/modules/wallet/session'
 
 const lighting = useAvatarLighting()
+const avatarModel = useAvatarModelStore()
 const composerState = useConversationComposer()
 const hearing = useHearingPipeline()
 const speech = useSpeechRuntime()
@@ -36,6 +38,10 @@ function toggleAutoSpeak() {
 
 function previewSpeech() {
   speech.preview('Airifica external speech test.')
+}
+
+function toggleAvatarModel() {
+  avatarModel.toggleAvatarModel()
 }
 
 function handleSelectGuidePrompt(prompt: string) {
@@ -155,6 +161,9 @@ onUnmounted(() => {
             </a>
             <button class="stage-header__utility" type="button" @click="marketContext.refreshMarketContext()">
               <span>Refresh market</span>
+            </button>
+            <button class="stage-header__utility" type="button" @click="toggleAvatarModel">
+              <span>Switch avatar · {{ avatarModel.selectedLabel.value }}</span>
             </button>
             <button class="stage-header__utility" type="button" @click="hearing.toggleListening()">
               <span>{{ hearing.listening.value ? 'Stop mic' : 'Start mic' }}</span>

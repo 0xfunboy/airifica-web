@@ -11,6 +11,7 @@ const lighting = useAvatarLighting()
 <template>
   <div class="avatar-stage-layer">
     <AvatarStage
+      :key="avatar.modelUrl.value || 'default-avatar'"
       class="avatar-stage-layer__stage"
       :model-url="avatar.modelUrl.value"
       :expression="avatar.expression.value"

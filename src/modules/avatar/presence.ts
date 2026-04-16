@@ -3,6 +3,7 @@ import { computed, reactive, watch } from 'vue'
 import type { AvatarExpression } from '@airifica/avatar3d'
 
 import { appConfig } from '@/config/app'
+import { useAvatarModelStore } from '@/modules/avatar/model'
 import { useConversationState } from '@/modules/conversation/state'
 import { useEmoteDebugStore } from '@/modules/avatar/emoteDebug'
 import { useVRMAStore } from '@/modules/avatar/vrma'
@@ -26,6 +27,7 @@ const state = reactive({
 const conversation = useConversationState()
 const speech = useSpeechRuntime()
 const vrmaStore = useVRMAStore()
+const avatarModelStore = useAvatarModelStore()
 const emoteDebugStore = useEmoteDebugStore()
 const wallet = useWalletSession()
 let initialized = false
@@ -233,7 +235,7 @@ export function useAvatarPresence() {
   })
 
   return {
-    modelUrl: computed(() => appConfig.avatarModelUrl || null),
+    modelUrl: computed(() => avatarModelStore.modelUrl.value || appConfig.avatarModelUrl || null),
     ambientAnimation: computed(() => vrmaStore.selectedVRMAUrl.value),
     expression,
     speaking: computed(() => speech.speaking.value),
